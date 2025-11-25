@@ -1,4 +1,4 @@
-const CLIENT_ID = 'fbfe6cf7e22a42d09ddeaab6449c7c1f';
+const CLIENT_ID = '97762324651b49d1bb703566c9c36072';
 const REDIRECT_URI = 'https://dueringroman-creator.github.io/spotify-genre-sorter/';
 const SCOPES = [
   'user-library-read',
@@ -73,9 +73,9 @@ window.onload = () => {
 
   if (code && state === STATE) {
     fetchAccessToken(code);
-    // Optional: clear URL
     window.history.replaceState({}, document.title, REDIRECT_URI);
   }
 };
+
 
 
