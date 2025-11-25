@@ -1,13 +1,15 @@
 const CLIENT_ID = '97762324651b49d1bb703566c9c36072';
 const REDIRECT_URI = 'https://dueringroman-creator.github.io/spotify-genre-sorter/';
-const SCOPES = ['user-library-read','playlist-modify-public','playlist-modify-private'];
+const SCOPES = ['user-library-read', 'playlist-modify-public', 'playlist-modify-private'];
 const STATE = 'spotify_auth';
 const CODE_VERIFIER_STORAGE_KEY = 'spotify_code_verifier';
 
 function generateRandomString(length) {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
-  for (let i=0; i<length; i++) result += charset.charAt(Math.floor(Math.random()*charset.length));
+  for (let i = 0; i < length; i++) {
+    result += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
   return result;
 }
 
@@ -16,12 +18,13 @@ async function generateCodeChallenge(codeVerifier) {
   const data = encoder.encode(codeVerifier);
   const digest = await window.crypto.subtle.digest('SHA-256', data);
   return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
 }
 
 function markStepDone(id) {
-  const el = document.getElementById(id);
-  el.classList.add("done");
+  document.getElementById(id).classList.add("done");
 }
 
 function markStepActive(id) {
@@ -38,17 +41,18 @@ function updateCount(msg) {
   document.getElementById("count").innerText = msg;
 }
 
-// LOGIN
 document.getElementById("login").addEventListener("click", async () => {
   const codeVerifier = generateRandomString(128);
   const codeChallenge = await generateCodeChallenge(codeVerifier);
   localStorage.setItem(CODE_VERIFIER_STORAGE_KEY, codeVerifier);
 
-  const authUrl = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}&scope=${SCOPES.join('%20')}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${STATE}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+  const authUrl = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}&scope=${SCOPES.join('%20')}` +
+    `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${STATE}` +
+    `&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+
   window.location = authUrl;
 });
 
-// AFTER REDIRECT
 async function fetchAccessToken(code) {
   const codeVerifier = localStorage.getItem(CODE_VERIFIER_STORAGE_KEY);
   const body = new URLSearchParams({
@@ -61,11 +65,11 @@ async function fetchAccessToken(code) {
 
   const response = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
-    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body
   });
-
   const data = await response.json();
+
   if (data.access_token) {
     window.spotifyToken = data.access_token;
     markStepDone("step-login");
@@ -73,14 +77,14 @@ async function fetchAccessToken(code) {
     document.getElementById("fetch-tracks").disabled = false;
     updateStatus("Logged in. You may now fetch your liked songs.");
   } else {
-    updateStatus("Login failed.");
+    updateStatus("Login failed. Please try again.");
+    console.error("Token error:", data);
   }
 }
 
-// FETCH SONGS
 async function fetchAllLikedSongs(token) {
   let allTracks = [];
-  let limit = 50;
+  const limit = 50;
   let offset = 0;
   let totalFetched = 0;
   let hasMore = true;
@@ -88,11 +92,12 @@ async function fetchAllLikedSongs(token) {
   markStepActive("step-fetch");
   document.getElementById("fetch-tracks").disabled = true;
   updateStatus("Fetching liked songs...");
-  updateCount(`Fetched: ${totalFetched}`);
+  updateCount(`Fetched: ${totalFetched} songs`);
+  const progressFill = document.getElementById("songProgressFill");
 
   while (hasMore) {
     const response = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
-      headers: {Authorization: `Bearer ${token}`}
+      headers: { Authorization: `Bearer ${token}` }
     });
     const data = await response.json();
 
@@ -102,37 +107,55 @@ async function fetchAllLikedSongs(token) {
       allTracks.push(...data.items);
       offset += limit;
       totalFetched += data.items.length;
-      updateCount(`Fetched: ${totalFetched}`);
+      updateCount(`Fetched: ${totalFetched} songs`);
+      const total = data.total || 0;
+      if (total > 0) {
+        const percent = Math.min(100, Math.round((totalFetched / total) * 100));
+        progressFill.style.width = percent + '%';
+      }
     }
   }
 
   window.likedTracks = allTracks;
-  updateStatus(`All liked songs fetched (${allTracks.length}).`);
+  updateStatus(`All liked songs fetched: ${allTracks.length}`);
   markStepDone("step-fetch");
   markStepActive("step-genres");
   document.getElementById("fetch-genres").disabled = false;
 }
 
-// FETCH GENRES
 async function fetchGenresForArtists(tracks, token) {
   const artistGenreMap = {};
   const artistIds = new Set();
+
   tracks.forEach(item => {
-    if (item.track?.artists?.[0]?.id) artistIds.add(item.track.artists[0].id);
+    if (item.track && item.track.artists && item.track.artists.length > 0) {
+      artistIds.add(item.track.artists[0].id);
+    }
   });
   const artistIdList = Array.from(artistIds);
 
   markStepActive("step-genres");
   updateStatus(`Found ${artistIdList.length} unique artists`);
+  updateCount(`Processed: 0 artists`);
+  const progressFill = document.getElementById("songProgressFill");
 
-  for (let i=0; i<artistIdList.length; i+=50) {
-    const batch = artistIdList.slice(i, i+50).join(',');
+  for (let i = 0; i < artistIdList.length; i += 50) {
+    const batch = artistIdList.slice(i, i + 50).join(',');
     const response = await fetch(`https://api.spotify.com/v1/artists?ids=${batch}`, {
-      headers: {Authorization: `Bearer ${token}`}
+      headers: { Authorization: `Bearer ${token}` }
     });
     const data = await response.json();
-    data.artists.forEach(artist => artistGenreMap[artist.id] = artist.genres);
-    updateCount(`Processed artists: ${Math.min(i+50, artistIdList.length)}`);
+
+    data.artists.forEach(artist => {
+      artistGenreMap[artist.id] = artist.genres;
+    });
+
+    updateCount(`Processed: ${Math.min(i + 50, artistIdList.length)} artists`);
+
+    if (artistIdList.length > 0) {
+      const percent = Math.min(100, Math.round((Math.min(i+50, artistIdList.length) / artistIdList.length) * 100));
+      progressFill.style.width = percent + '%';
+    }
   }
 
   window.artistGenreMap = artistGenreMap;
@@ -142,13 +165,13 @@ async function fetchGenresForArtists(tracks, token) {
   document.getElementById("group-by-genre").disabled = false;
 }
 
-// GROUP TRACKS
 function groupTracksByGenre(tracks, artistGenreMap) {
   markStepActive("step-group");
   const genreMap = {};
+
   tracks.forEach(item => {
     const track = item.track;
-    if (!track || !track.artists || !track.artists.length) return;
+    if (!track || !track.artists || track.artists.length === 0) return;
     const artistId = track.artists[0].id;
     const genres = artistGenreMap[artistId] || ['Unknown'];
     genres.forEach(genre => {
@@ -164,7 +187,6 @@ function groupTracksByGenre(tracks, artistGenreMap) {
   document.getElementById("normalize-genres").disabled = false;
 }
 
-// NORMALIZE GENRES
 function normalizeGenres() {
   markStepActive("step-normalize");
   const mapping = {
@@ -253,6 +275,7 @@ window.onload = () => {
     normalizeGenres();
   });
 };
+
 
 
 
