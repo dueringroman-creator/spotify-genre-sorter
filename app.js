@@ -18,7 +18,7 @@ async function generateCodeChallenge(verifier) {
   const data = encoder.encode(verifier);
   const digest = await window.crypto.subtle.digest('SHA-256', data);
   return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 }
 
 function updateStatus(msg) {
@@ -46,7 +46,8 @@ document.getElementById('login').addEventListener('click', async () => {
               `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
               `&state=${STATE}` +
               `&code_challenge=${challenge}&code_challenge_method=S256`;
-  updateStatus('Hold on, beautiful human — redirecting you to Spotify for login 💫 (Our little music‑bots are button‑pushing behind the scenes…)');
+
+  // Immediately redirect without extra delay
   window.location = url;
 });
 
@@ -67,11 +68,11 @@ async function fetchAccessToken(code) {
   const data = await resp.json();
   if (data.access_token) {
     window.spotifyToken = data.access_token;
-    updateStatus('🎉 You’re logged in, you beautiful human! Our music‑bots are now ready to rummage your library.');
+    updateStatus('🎉 You’re logged in! Ready to fetch your musical gems.');
     disableButton('login');
     enableButton('fetch-tracks');
   } else {
-    updateStatus('🤔 Huh, login failed. Let’s try again (our music‑bots tripped over a cord…).');
+    updateStatus('❌ Login failed. Let’s try again.');
     console.error('Token error', data);
   }
 }
@@ -81,7 +82,7 @@ async function fetchLikedSongs(token) {
   let allTracks = [];
   const limit = 50;
   let offset = 0;
-  updateStatus('🎵 Our music‑bots are digging through your liked songs… (let’s see those hits!).');
+  updateStatus('🎵 Fetching your liked songs…');
   disableButton('fetch-tracks');
 
   while (true) {
@@ -92,15 +93,15 @@ async function fetchLikedSongs(token) {
     if (!data.items || data.items.length === 0) break;
     allTracks.push(...data.items);
     offset += limit;
-    updateStatus(`Fetched ${allTracks.length} songs so far… (chomping through your stash!)`);
+    updateStatus(`Fetched ${allTracks.length} songs so far…`);
   }
 
   window.likedTracks = allTracks;
-  updateStatus(`✅ Done! We found ${allTracks.length} songs. Next up: discovering your genre‑wildlife 🦜.`);
+  updateStatus(`✅ Done! ${allTracks.length} songs retrieved. Next: fetching genres.`);
   enableButton('fetch-genres');
 }
 
-// Step 3: Fetch Genres
+// Step 3: Fetch Genres for Artists
 async function fetchGenres(token) {
   const artistIds = new Set();
   window.likedTracks.forEach(item => {
@@ -109,7 +110,7 @@ async function fetchGenres(token) {
     }
   });
   const idsList = Array.from(artistIds);
-  updateStatus(`🔍 Scanning ${idsList.length} artists for genre clues… (our detective bots are at work)`);
+  updateStatus(`🔍 Scanning ${idsList.length} artists for their genre labels…`);
   disableButton('fetch-genres');
 
   const artistGenreMap = {};
@@ -122,24 +123,35 @@ async function fetchGenres(token) {
     data.artists.forEach(artist => {
       artistGenreMap[artist.id] = artist.genres;
     });
-    updateStatus(`Processed ${Math.min(i+50, idsList.length)} / ${idsList.length} artists… (detective bots still analysing)`);
+    updateStatus(`Processed ${Math.min(i + 50, idsList.length)}/${idsList.length} artists…`);
   }
 
   window.artistGenreMap = artistGenreMap;
-  updateStatus('🎛️ Sweet — genres fetched! Time to spin those tracks into vibe‑buckets.');
+  updateStatus('🎛️ Genres fetched! Now detecting your distinct sound‑buckets.');
   enableButton('normalize-genres');
 }
 
-// Step 4: Normalize & Detect Prominent Buckets
+// Step 4: Normalize & Detect Buckets
 function normalizeAndDetect() {
   const mapping = {
-    pop: "Pop", rock: "Rock", indie: "Indie / Alternative",
-    electronic: "Electronic", house: "Electronic", techno: "Electronic",
-    trance: "Electronic", "hip hop": "Hip Hop / Rap", rap: "Hip Hop / Rap",
-    r&b: "R&B / Soul", jazz: "Jazz / Blues", blues: "Jazz / Blues",
-    classical: "Classical / Instrumental", metal: "Metal / Hard Rock",
-    punk: "Metal / Hard Rock", folk: "Folk / Acoustic",
-    acoustic: "Folk / Acoustic", latin: "Latin"
+    pop: "Pop",
+    rock: "Rock",
+    indie: "Indie / Alternative",
+    electronic: "Electronic",
+    house: "Electronic",
+    techno: "Electronic",
+    trance: "Electronic",
+    "hip hop": "Hip Hop / Rap",
+    rap: "Hip Hop / Rap",
+    r&b: "R&B / Soul",
+    jazz: "Jazz / Blues",
+    blues: "Jazz / Blues",
+    classical: "Classical / Instrumental",
+    metal: "Metal / Hard Rock",
+    punk: "Metal / Hard Rock",
+    folk: "Folk / Acoustic",
+    acoustic: "Folk / Acoustic",
+    latin: "Latin"
   };
 
   const rawMap = window.artistGenreMap;
@@ -177,15 +189,15 @@ function normalizeAndDetect() {
 
   const bucketCounts = Object.entries(bucketTrackMap).map(([b,tracks]) => ({ bucket: b, count: tracks.length }));
   bucketCounts.sort((a,b) => b.count - a.count);
-  const total = window.likedTracks.length;
-  const threshold = total * 0.02;
+  const totalTracks = window.likedTracks.length;
+  const threshold = totalTracks * 0.02;
   const selected = bucketCounts.filter(bc => bc.count >= threshold).map(bc => bc.bucket);
 
   window.selectedBuckets = selected;
   window.bucketTrackMap = bucketTrackMap;
   window.rawGenresByBucket = rawGenresByBucket;
 
-  updateStatus(`🧮 Buckets detected: ${selected.length}. Choose your favourites or go wild with all.`);
+  updateStatus(`🧮 Detected ${selected.length} big buckets in your music — pick which ones to spin into playlists.`);
   const container = document.getElementById('selection-container');
   container.innerHTML = '';
   selected.forEach(bucket => {
@@ -201,7 +213,7 @@ function normalizeAndDetect() {
 
 document.getElementById('normalize-genres').addEventListener('click', () => {
   disableButton('normalize-genres');
-  updateStatus('🧮 Crunching your sounds… building vibe‑buckets in our music lab!');
+  updateStatus('🧮 Building your vibe‑buckets now…');
   normalizeAndDetect();
 });
 
@@ -221,7 +233,7 @@ async function createPlaylistAndAddTracks(userId, token, name, description, trac
   });
   const createData = await createResp.json();
   const playlistId = createData.id;
-  updateStatus(`Created playlist "${name}" — naming the dancefloor!`);
+  updateStatus(`Created playlist "${name}".`);
 
   for (let i = 0; i < trackUris.length; i += 100) {
     const batch = trackUris.slice(i, i + 100);
@@ -236,7 +248,7 @@ async function createPlaylistAndAddTracks(userId, token, name, description, trac
     updateStatus(`Adding tracks to "${name}"… (${Math.min(i+100, trackUris.length)}/${trackUris.length})`);
   }
 
-  updateStatus(`✅ Playlist "${name}" loaded with ${trackUris.length} songs. Enjoy!`);
+  updateStatus(`✅ Loaded "${name}" with ${trackUris.length} songs.`);
 }
 
 async function createPlaylistsFlow(token) {
@@ -246,27 +258,27 @@ async function createPlaylistsFlow(token) {
   const profileData = await profileResp.json();
   const userId = profileData.id;
 
-  updateStatus('🚀 Launching playlist creation… our party‑bots are assembling your mixes!');
+  updateStatus('🚀 Creating your custom playlists now…');
   const buckets = window.selectedBuckets;
   for (const bucket of buckets) {
     const tracks = window.bucketTrackMap[bucket];
     const uris = tracks.map(t => t.uri);
     const orig = Array.from(window.rawGenresByBucket[bucket]).join(', ');
     const name = `${bucket} Vibes`;
-    const desc = `Curated mix of ${bucket} — includes original genres: ${orig}`;
+    const desc = `Includes original genres: ${orig}`;
     await createPlaylistAndAddTracks(userId, token, name, desc, uris);
   }
 
-  updateStatus('🎉 All done! Your custom playlists are ready — go jam out, you beautiful human!');
+  updateStatus('🎉 All done! Check out your new playlists on Spotify.');
 }
 
 document.getElementById('create-playlists').addEventListener('click', async () => {
   disableButton('create-playlists');
-  updateStatus('🚀 Starting playlist creation… sit tight, fun is loading.');
+  updateStatus('🚀 Launching playlist creation… hang tight.');
   await createPlaylistsFlow(window.spotifyToken);
 });
 
-// On load: check for auth code & wire buttons
+// On load: redirect & wiring
 window.onload = () => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
@@ -278,7 +290,7 @@ window.onload = () => {
 
   document.getElementById('fetch-tracks').addEventListener('click', () => {
     if (!window.spotifyToken) {
-      updateStatus('👆 Please login first, you beautiful human.');
+      updateStatus('👆 Please login first.');
       return;
     }
     fetchLikedSongs(window.spotifyToken);
@@ -286,7 +298,7 @@ window.onload = () => {
 
   document.getElementById('fetch-genres').addEventListener('click', () => {
     if (!window.likedTracks) {
-      updateStatus('🧐 Please fetch your songs first, my friend.');
+      updateStatus('🧐 Please fetch your songs first.');
       return;
     }
     fetchGenres(window.spotifyToken);
@@ -294,11 +306,12 @@ window.onload = () => {
 
   document.getElementById('normalize-genres').addEventListener('click', () => {
     if (!window.artistGenreMap) {
-      updateStatus('🧐 Please fetch genres first, my friend.');
+      updateStatus('🧐 Please fetch genres first.');
       return;
     }
   });
 };
+
 
 
 
