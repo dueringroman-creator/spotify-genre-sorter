@@ -18,7 +18,7 @@ async function generateCodeChallenge(verifier) {
   const data = encoder.encode(verifier);
   const digest = await window.crypto.subtle.digest('SHA-256', data);
   return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
 }
 
 function updateStatus(msg) {
@@ -47,7 +47,6 @@ document.getElementById('login').addEventListener('click', async () => {
               `&state=${STATE}` +
               `&code_challenge=${challenge}&code_challenge_method=S256`;
 
-  // Immediately redirect without extra delay
   window.location = url;
 });
 
@@ -245,7 +244,7 @@ async function createPlaylistAndAddTracks(userId, token, name, description, trac
       },
       body: JSON.stringify({ uris: batch })
     });
-    updateStatus(`Adding tracks to "${name}"… (${Math.min(i+100, trackUris.length)}/${trackUris.length})`);
+    updateStatus(`Adding tracks to "${name}"… (${Math.min(i + 100, trackUris.length)}/${trackUris.length})`);
   }
 
   updateStatus(`✅ Loaded "${name}" with ${trackUris.length} songs.`);
@@ -269,7 +268,7 @@ async function createPlaylistsFlow(token) {
     await createPlaylistAndAddTracks(userId, token, name, desc, uris);
   }
 
-  updateStatus('🎉 All done! Check out your new playlists on Spotify.');
+  updateStatus('🎉 All done! Your custom playlists are ready on Spotify.');
 }
 
 document.getElementById('create-playlists').addEventListener('click', async () => {
@@ -278,7 +277,7 @@ document.getElementById('create-playlists').addEventListener('click', async () =
   await createPlaylistsFlow(window.spotifyToken);
 });
 
-// On load: redirect & wiring
+// On load: check for auth code & wire buttons
 window.onload = () => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
@@ -303,14 +302,8 @@ window.onload = () => {
     }
     fetchGenres(window.spotifyToken);
   });
-
-  document.getElementById('normalize-genres').addEventListener('click', () => {
-    if (!window.artistGenreMap) {
-      updateStatus('🧐 Please fetch genres first.');
-      return;
-    }
-  });
 };
+
 
 
 
