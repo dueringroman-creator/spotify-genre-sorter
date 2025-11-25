@@ -8,14 +8,14 @@ function generateRandomString(length) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let s = '';
   for (let i = 0; i < length; i++) {
-    s += chars.charAt(Math.floor(Math.random()*chars.length));
+    s += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return s;
 }
 
 async function generateCodeChallenge(verifier) {
   const data = new TextEncoder().encode(verifier);
-  const digest = await crypto.subtle.digest('SHA-256', data);
+  const digest = await window.crypto.subtle.digest('SHA-256', data);
   return btoa(String.fromCharCode(...new Uint8Array(digest)))
     .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
 }
@@ -65,11 +65,11 @@ async function fetchAccessToken(code) {
   const data = await resp.json();
   if (data.access_token) {
     window.spotifyToken = data.access_token;
-    updateStatus('Logged in! Fetch your liked songs.');
+    updateStatus('Logged in! Ready to fetch songs.');
     disable('login');
     enable('fetch-tracks');
   } else {
-    updateStatus('Login failed. Try again.');
+    updateStatus('Login failed.');
     console.error(data);
   }
 }
@@ -91,9 +91,8 @@ async function fetchLikedSongs(token) {
     offset += limit;
     updateStatus(`Fetched ${all.length} songs...`);
   }
-
   window.likedTracks = all;
-  updateStatus(`Fetched all songs (${all.length}). Now fetch genres.`);
+  updateStatus(`All songs fetched (${all.length}). Next: fetch genres.`);
   enable('fetch-genres');
 }
 
@@ -114,9 +113,7 @@ async function fetchGenres(token) {
       headers: { Authorization: `Bearer ${token}` }
     });
     const d = await resp.json();
-    d.artists.forEach(a => {
-      map[a.id] = a.genres;
-    });
+    d.artists.forEach(a => { map[a.id] = a.genres; });
     updateStatus(`Processed ${Math.min(i+50, list.length)}/${list.length} artists...`);
   }
 
@@ -127,35 +124,21 @@ async function fetchGenres(token) {
 
 function normalizeAndDetect() {
   const mapping = {
-    pop: "Pop",
-    rock: "Rock",
-    indie: "Indie / Alt",
-    electronic: "Electronic",
-    house: "Electronic",
-    techno: "Electronic",
-    trance: "Electronic",
-    "hip hop": "Hip Hop / Rap",
-    rap: "Hip Hop / Rap",
-    "r&b": "R&B / Soul",
-    jazz: "Jazz / Blues",
-    blues: "Jazz / Blues",
-    classical: "Classical / Inst",
-    metal: "Metal / Hard Rock",
-    punk: "Metal / Hard Rock",
-    folk: "Folk / Acoustic",
-    acoustic: "Folk / Acoustic",
+    pop: "Pop", rock: "Rock", indie: "Indie",
+    electronic: "Electronic", house: "Electronic", techno: "Electronic",
+    trance: "Electronic", "hip hop": "Hip Hop / Rap", rap: "Hip Hop / Rap",
+    "r&b": "R&B / Soul", jazz: "Jazz / Blues", blues: "Jazz / Blues",
+    classical: "Classical", metal: "Metal / Hard Rock",
+    punk: "Metal / Hard Rock", folk: "Folk / Acoustic", acoustic: "Folk / Acoustic",
     latin: "Latin"
   };
-
-  const bucketMap = {}, rawByBucket = {};
-  const rawMap = window.artistGenreMap;
+  const bucketMap = {}, rawByBucket = {}, rawMap = window.artistGenreMap;
 
   window.likedTracks.forEach(item => {
     const track = item.track;
     const aid = track && track.artists && track.artists[0] && track.artists[0].id;
     const genres = (aid && rawMap[aid]) ? rawMap[aid] : ['Unknown'];
-    let found = false;
-    for (const g of genres) {
+    genres.forEach(g => {
       const lower = g.toLowerCase();
       for (const key in mapping) {
         if (lower.includes(key)) {
@@ -164,33 +147,21 @@ function normalizeAndDetect() {
           bucketMap[bucket].push(track);
           rawByBucket[bucket] = rawByBucket[bucket] || new Set();
           rawByBucket[bucket].add(g);
-          found = true;
-          break;
         }
       }
-      if (found) break;
-    }
-    if (!found) {
-      const bucket = "Other / Unmapped";
-      bucketMap[bucket] = bucketMap[bucket] || [];
-      bucketMap[bucket].push(track);
-      rawByBucket[bucket] = rawByBucket[bucket] || new Set();
-      genres.forEach(g => rawByBucket[bucket].add(g));
-    }
+    });
   });
 
-  const counts = Object.entries(bucketMap).map(([b, t]) => ({ bucket: b, count: t.length }));
+  const counts = Object.entries(bucketMap).map(([b,t]) => ({ bucket: b, count: t.length }));
   counts.sort((a,b) => b.count - a.count);
-
   const total = window.likedTracks.length;
   const threshold = total * 0.02;
   let selected = counts.filter(c => c.count >= threshold).map(c => c.bucket);
 
-  // check dominant bucket
   if (selected.length > 0 && counts[0].count / total > 0.5) {
     const dominant = counts[0].bucket;
-    const subSet = Array.from(rawByBucket[dominant]).slice(0,3);
-    subSet.forEach(sub => {
+    const subs = Array.from(rawByBucket[dominant]).slice(0,3);
+    subs.forEach(sub => {
       const name = `${dominant} – ${sub}`;
       bucketMap[name] = bucketMap[name] || bucketMap[dominant];
       rawByBucket[name] = rawByBucket[name] || rawByBucket[dominant];
@@ -206,19 +177,19 @@ function normalizeAndDetect() {
   container.innerHTML = '';
   selected.forEach(bucket => {
     const label = document.createElement('label');
-    label.innerHTML = `<input type="checkbox" value="${bucket}" checked> ${bucket} (${bucketMap[bucket].length} songs)`;
+    label.innerHTML = `<input type="checkbox" value="${bucket}" checked> ${bucket} (${bucketMap[bucket].length})`;
     container.appendChild(label);
   });
 
   document.getElementById('bucket‑selection').style.display = 'block';
   document.getElementById('mode‑selection').style.display = 'block';
-  updateStatus(`Detected ${selected.length} buckets.`);
+  updateStatus(`Detected ${selected.length} buckets. Ready to create playlists.`);
   enable('create-playlists');
 }
 
 document.getElementById('normalize-genres').addEventListener('click', () => {
   disable('normalize-genres');
-  updateStatus('Detecting buckets...');
+  updateStatus('Normalizing...');
   normalizeAndDetect();
 });
 
@@ -229,40 +200,52 @@ async function createPlaylistsFlow(token) {
   const userId = prof.id;
 
   const mode = document.querySelector('input[name="mode"]:checked').value;
-  const buckets = mode === 'auto' ? window.selectedBuckets :
-                   Array.from(document.querySelectorAll('#selection-container input:checked')).map(i => i.value);
+  const buckets = mode === 'auto'
+    ? window.selectedBuckets
+    : Array.from(document.querySelectorAll('#selection-container input:checked')).map(i => i.value);
+
+  const resultsList = document.getElementById('playlist‑list');
+  resultsList.innerHTML = '';
+  document.getElementById('playlist‑results').style.display = 'block';
 
   for (const bucket of buckets) {
     const tracks = window.bucketTrackMap[bucket];
     const uris = tracks.map(t => t.uri);
     const genresStr = Array.from(window.rawGenresByBucket[bucket]).join(', ');
-    const name = `${bucket} Vibes`;
+    const mood = document.querySelector('input[name="mood"]:checked').value;
+    const name = `${mood} – ${bucket}`;
     const desc = `Original genres: ${genresStr}`;
 
-    const cr = await fetch(`https://api.spotify.com/v1/users/${userId}/playlists`, {
+    const resp = await fetch(`https://api.spotify.com/v1/users/${userId}/playlists`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type':'application/json' },
       body: JSON.stringify({ name, description: desc, public:false })
     });
-    const cd = await cr.json();
-    const pid = cd.id;
+    const data = await resp.json();
+    const pid = data.id;
+    updateStatus(`Created playlist "${name}" (ID: ${pid})`);
+
+    const li = document.createElement('li');
+    li.innerText = `"${name}" – ID: ${pid}`;
+    resultsList.appendChild(li);
 
     for (let i = 0; i < uris.length; i += 100) {
       await fetch(`https://api.spotify.com/v1/playlists/${pid}/tracks`, {
-        method:'POST',
+        method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type':'application/json' },
         body: JSON.stringify({ uris: uris.slice(i, i+100) })
       });
     }
-    updateStatus(`Created playlist "${name}" with ${uris.length} tracks.`);
+
+    updateStatus(`Added ${uris.length} tracks to "${name}".`);
   }
 
-  updateStatus('All playlists done!');
+  updateStatus('🎉 All playlists created!');
 }
 
 document.getElementById('create-playlists').addEventListener('click', () => {
   disable('create-playlists');
-  updateStatus('Creating playlists...');
+  updateStatus('Creating playlists…');
   createPlaylistsFlow(window.spotifyToken);
 });
 
@@ -290,6 +273,7 @@ window.onload = () => {
     fetchGenres(window.spotifyToken);
   });
 };
+
 
 
 
