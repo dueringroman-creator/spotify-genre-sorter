@@ -20,24 +20,43 @@
     }
     .buttons {
       margin: 20px 0;
+      display: flex;
+      gap: 10px;
     }
     button {
       background-color: #1DB954;
       color: white;
       border: none;
       padding: 12px 24px;
-      margin: 0 10px;
       border-radius: 6px;
       font-size: 16px;
       cursor: pointer;
+      position: relative;
       transition: background-color 0.3s ease;
-    }
-    button:hover:enabled {
-      background-color: #1aa34a;
     }
     button:disabled {
       background-color: #444;
       cursor: not-allowed;
+    }
+    button.loading {
+      pointer-events: none;
+      background-color: #666;
+    }
+    button.loading::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 24px;
+      height: 24px;
+      margin: -12px 0 0 -12px;
+      border: 3px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
     #progress {
       display: flex;
@@ -82,20 +101,6 @@
       font-size: 20px;
       color: #fff;
     }
-    #songProgressBar {
-      width: 80%;
-      height: 14px;
-      background-color: #444;
-      border-radius: 7px;
-      overflow: hidden;
-      margin-top: 8px;
-    }
-    #songProgressFill {
-      height: 100%;
-      width: 0%;
-      background-color: #1DB954;
-      transition: width 0.25s ease;
-    }
     #status {
       margin-top: 20px;
       font-size: 18px;
@@ -108,25 +113,8 @@
 <body>
   <h1>Spotify Genre Sorter</h1>
   <div class="buttons">
-    <button id="login">🔐 Login to Spotify</button>
-    <button id="fetch-tracks" disabled>🎵 Fetch Liked Songs</button>
-    <button id="fetch-genres" disabled>🎨 Fetch Genres</button>
-    <button id="group-by-genre" disabled>🗂 Group Tracks by Genre</button>
-    <button id="normalize-genres" disabled>🎯 Normalize Genres</button>
-  </div>
-  <div id="progress">
-    <div class="step" id="step-login"><span class="label">Login</span></div>
-    <div class="step" id="step-fetch"><span class="label">Fetch Songs</span></div>
-    <div class="step" id="step-genres"><span class="label">Fetch Genres</span></div>
-    <div class="step" id="step-group"><span class="label">Group Tracks</span></div>
-    <div class="step" id="step-normalize"><span class="label">Normalize Genres</span></div>
-  </div>
-  <div id="count"></div>
-  <div id="songProgressBar"><div id="songProgressFill"></div></div>
-  <div id="status">Please start by logging in.</div>
-  <script src="app.js"></script>
-</body>
-</html>
+    <button id="login">🔐 Login to Spot
+
 
 
 
