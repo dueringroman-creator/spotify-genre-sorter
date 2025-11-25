@@ -1,10 +1,10 @@
 const CLIENT_ID = '97762324651b49d1bb703566c9c36072';
 const REDIRECT_URI = 'https://dueringroman-creator.github.io/spotify-genre-sorter/';
-const SCOPES = ['user-library-read','playlist-modify-public','playlist-modify-private'];
+const SCOPES = ['user-library-read', 'playlist-modify-public', 'playlist-modify-private'];
 const STATE = 'spotify_auth';
 const CODE_VERIFIER_STORAGE_KEY = 'spotify_code_verifier';
 
-// Utility functions
+// Utility Functions
 function generateRandomString(length) {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let res = '';
@@ -41,10 +41,12 @@ document.getElementById('login').addEventListener('click', async () => {
   const challenge = await generateCodeChallenge(verifier);
   localStorage.setItem(CODE_VERIFIER_STORAGE_KEY, verifier);
 
-  const url = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}` +
-            `&scope=${SCOPES.join('%20')}` +
-            `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-            `&state=${STATE}&code_challenge=${challenge}&code_challenge_method=S256`;
+  const url = `https://accounts.spotify.com/authorize?response_type=code` +
+              `&client_id=${CLIENT_ID}` +
+              `&scope=${SCOPES.join('%20')}` +
+              `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+              `&state=${STATE}` +
+              `&code_challenge=${challenge}&code_challenge_method=S256`;
   window.location = url;
 });
 
@@ -59,13 +61,13 @@ async function fetchAccessToken(code) {
   });
   const resp = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
-    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body
   });
   const data = await resp.json();
   if (data.access_token) {
     window.spotifyToken = data.access_token;
-    updateStatus('✅ Logged in. Fetch your liked songs.');
+    updateStatus('✅ Logged in. You may now fetch your liked songs.');
     disableButton('login');
     enableButton('fetch-tracks');
   } else {
@@ -77,7 +79,7 @@ async function fetchAccessToken(code) {
 // Step 2: Fetch Liked Songs
 async function fetchLikedSongs(token) {
   let allTracks = [];
-  let limit = 50;
+  const limit = 50;
   let offset = 0;
   updateStatus('Fetching liked songs...');
   disableButton('fetch-tracks');
@@ -124,31 +126,11 @@ async function fetchGenres(token) {
   }
 
   window.artistGenreMap = artistGenreMap;
-  updateStatus('✅ All artist genres fetched. Now normalize and detect prominent buckets.');
+  updateStatus('✅ All artist genres fetched. Now detect buckets.');
   enableButton('normalize-genres');
 }
 
-// Step 4: Normalize Genres & Detect Prominent Buckets
-function detectProminentBuckets(rawGenreMap) {
-  // Count raw genres
-  const counts = {};
-  window.likedTracks.forEach(item => {
-    if (item.track && item.track.artists && item.track.artists[0]) {
-      const artistId = item.track.artists[0].id;
-      const genres = rawGenreMap[artistId] || ['Unknown'];
-      genres.forEach(g => {
-        counts[g] = (counts[g]||0) + 1;
-      });
-    }
-  });
-  // Convert to array and sort
-  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
-  // Choose top 8 raw genres as buckets for example
-  const topN = 8;
-  const topBuckets = sorted.slice(0, topN).map(e => e[0]);
-  return topBuckets;
-}
-
+// Step 4: Normalize & Detect Prominent Buckets
 function normalizeAndDetect() {
   const mapping = {
     pop: "Pop",
@@ -174,13 +156,12 @@ function normalizeAndDetect() {
   const rawMap = window.artistGenreMap;
   const bucketTrackMap = {};
   const rawGenresByBucket = {};
-  
+
   window.likedTracks.forEach(item => {
     const track = item.track;
     if (!track || !track.artists || !track.artists[0]) return;
     const aid = track.artists[0].id;
     const genres = rawMap[aid] || ['Unknown'];
-    // Find first matching bucket
     let bucketFound = false;
     for (const g of genres) {
       const lower = g.toLowerCase();
@@ -201,26 +182,21 @@ function normalizeAndDetect() {
       bucketTrackMap["Other / Unmapped"] = bucketTrackMap["Other / Unmapped"] || [];
       bucketTrackMap["Other / Unmapped"].push(track);
       rawGenresByBucket["Other / Unmapped"] = rawGenresByBucket["Other / Unmapped"] || new Set();
-      genres.forEach(g=> rawGenresByBucket["Other / Unmapped"].add(g));
+      genres.forEach(g => rawGenresByBucket["Other / Unmapped"].add(g));
     }
   });
 
-  // Now detect which buckets are large
-  const bucketCounts = Object.entries(bucketTrackMap).map(([b, tracks]) => ({ bucket: b, count: tracks.length }));
+  const bucketCounts = Object.entries(bucketTrackMap).map(([b,tracks]) => ({ bucket:b, count:tracks.length }));
   bucketCounts.sort((a,b) => b.count - a.count);
-  
-  // Choose only buckets above threshold, e.g., >2% of total
-  const totalTracks = window.likedTracks.length;
-  const threshold = totalTracks * 0.02;
+  const total = window.likedTracks.length;
+  const threshold = total * 0.02;
   const selected = bucketCounts.filter(bc => bc.count >= threshold).map(bc => bc.bucket);
 
   window.selectedBuckets = selected;
   window.bucketTrackMap = bucketTrackMap;
   window.rawGenresByBucket = rawGenresByBucket;
 
-  updateStatus(`Detected ${selected.length} prominent buckets out of ${bucketCounts.length} possible.`);
-  
-  // Show selection UI
+  updateStatus(`Detected ${selected.length} prominent buckets.`);
   const container = document.getElementById('selection-container');
   selected.forEach(bucket => {
     const cnt = bucketTrackMap[bucket].length;
@@ -239,31 +215,68 @@ document.getElementById('normalize-genres').addEventListener('click', () => {
 });
 
 // Step 5: Create Playlists
-document.getElementById('create-playlists').addEventListener('click', async () => {
-  const autoMode = true; // you can add radio UI to select
-  let buckets = [];
-  if (autoMode) {
-    buckets = window.selectedBuckets;
-  } else {
-    document.querySelectorAll('#selection-container input[type=checkbox]').forEach(cb => {
-      if (cb.checked) buckets.push(cb.value);
+async function createPlaylistAndAddTracks(userId, token, name, description, trackUris) {
+  // Create playlist
+  const createResp = await fetch(`https://api.spotify.com/v1/users/${userId}/playlists`, {
+    method: 'POST',
+    headers: { 
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: name,
+      description: description,
+      public: false
+    })
+  });
+  const createData = await createResp.json();
+  const playlistId = createData.id;
+  updateStatus(`Created playlist ${name} (ID: ${playlistId})`);
+
+  // Add tracks in batches of 100
+  for (let i = 0; i < trackUris.length; i += 100) {
+    const batch = trackUris.slice(i, i + 100);
+    await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ uris: batch })
     });
   }
 
-  updateStatus(`Creating playlists for: ${buckets.join(', ')}`);
+  updateStatus(`Added ${trackUris.length} tracks to ${name}`);
+}
+
+async function createPlaylistsFlow(token) {
+  // Get current user ID
+  const profileResp = await fetch('https://api.spotify.com/v1/me', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const profileData = await profileResp.json();
+  const userId = profileData.id;
+
+  const buckets = window.selectedBuckets;
   for (const bucket of buckets) {
     const tracks = window.bucketTrackMap[bucket];
-    const origGenres = Array.from(window.rawGenresByBucket[bucket]).join(', ');
-    const name = `${bucket} Vibes`; // simple name or you can use funnyName(bucket)
-    const description = `A curated mix of ${bucket} — original genres include: ${origGenres}`;
-    // you need to implement createPlaylist + add tracks via Spotify Web API
-    updateStatus(`Would create playlist "${name}" with ${tracks.length} tracks.`);
-    // placeholder: actual API calls omitted here
+    const uris = tracks.map(t => t.uri);
+    const orig = Array.from(window.rawGenresByBucket[bucket]).join(', ');
+    const name = `${bucket} Vibes`;
+    const desc = `Curated mix of ${bucket} — includes original genres: ${orig}`;
+    await createPlaylistAndAddTracks(userId, token, name, desc, uris);
   }
-  updateStatus('🎉 Playlist creation step complete (placeholder).');
+
+  updateStatus('🎉 All playlists created!');
+}
+
+document.getElementById('create-playlists').addEventListener('click', async () => {
+  disableButton('create-playlists');
+  updateStatus('Starting playlist creation...');
+  await createPlaylistsFlow(window.spotifyToken);
 });
-  
-// On page load — check for code
+
+// Handle redirect
 window.onload = () => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
@@ -272,7 +285,24 @@ window.onload = () => {
     fetchAccessToken(code);
     window.history.replaceState({}, document.title, REDIRECT_URI);
   }
+
+  document.getElementById('fetch-tracks').addEventListener('click', () => {
+    if (!window.spotifyToken) {
+      updateStatus('Please login first.');
+      return;
+    }
+    fetchLikedSongs(window.spotifyToken);
+  });
+
+  document.getElementById('fetch-genres').addEventListener('click', () => {
+    if (!window.likedTracks) {
+      updateStatus('Please fetch tracks first.');
+      return;
+    }
+    fetchGenres(window.spotifyToken);
+  });
 };
+
 
 
 
