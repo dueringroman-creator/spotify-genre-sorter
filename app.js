@@ -28,6 +28,7 @@ async function generateCodeChallenge(codeVerifier) {
     .replace(/\//g, '_');
 }
 
+// Login button → Spotify authorization
 document.getElementById("login").addEventListener("click", async () => {
   const codeVerifier = generateRandomString(128);
   const codeChallenge = await generateCodeChallenge(codeVerifier);
@@ -38,6 +39,7 @@ document.getElementById("login").addEventListener("click", async () => {
   window.location = authUrl;
 });
 
+// Fetch token using the returned "code"
 async function fetchAccessToken(code) {
   const codeVerifier = localStorage.getItem(CODE_VERIFIER_STORAGE_KEY);
 
@@ -61,11 +63,56 @@ async function fetchAccessToken(code) {
   if (data.access_token) {
     console.log("Access Token:", data.access_token);
     window.spotifyToken = data.access_token;
+    document.getElementById("status").innerText = "✅ Logged in and ready!";
   } else {
     console.error("Failed to get token", data);
   }
 }
 
+// Fetch ALL liked songs (paginated)
+async function fetchAllLikedSongs(token) {
+  let allTracks = [];
+  let limit = 50;
+  let offset = 0;
+  let totalFetched = 0;
+  let hasMore = true;
+
+  document.getElementById("status").innerText = "🔄 Fetching liked songs...";
+
+  while (hasMore) {
+    const response = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+
+    if (data.items.length === 0) {
+      hasMore = false;
+    } else {
+      allTracks.push(...data.items);
+      offset += limit;
+      totalFetched += data.items.length;
+      console.log(`Fetched ${totalFetched} tracks so far...`);
+    }
+  }
+
+  console.log(`✅ Fetched total of ${allTracks.length} liked songs`);
+  document.getElementById("status").innerText = `✅ Fetched ${allTracks.length} liked songs`;
+  window.likedTracks = allTracks;
+}
+
+// Handle fetch button click
+document.getElementById("fetch-tracks").addEventListener("click", () => {
+  if (window.spotifyToken) {
+    fetchAllLikedSongs(window.spotifyToken);
+  } else {
+    alert("Please log in to Spotify first!");
+  }
+});
+
+// On page load: look for code param to exchange
 window.onload = () => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
@@ -76,6 +123,7 @@ window.onload = () => {
     window.history.replaceState({}, document.title, REDIRECT_URI);
   }
 };
+
 
 
 
