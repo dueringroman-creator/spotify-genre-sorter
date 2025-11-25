@@ -33,9 +33,7 @@ document.getElementById('login').addEventListener('click', async () => {
   const challenge = await generateCodeChallenge(verifier);
   localStorage.setItem(CODE_VERIFIER_STORAGE_KEY, verifier);
 
-  const url = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}` +
-              `&scope=${SCOPES.join('%20')}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-              `&state=${STATE}&code_challenge=${challenge}&code_challenge_method=S256`;
+  const url = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}&scope=${SCOPES.join('%20')}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${STATE}&code_challenge=${challenge}&code_challenge_method=S256`;
   window.location = url;
 });
 
@@ -167,6 +165,66 @@ function normalizeAndDetect() {
   document.getElementById('bucket-selection').style.display = 'block';
   updateStatus('🧮 Genre buckets detected. Ready to make playlists.');
   enableButton('create-playlists');
+}
+
+document.getElementById('normalize-genres').addEventListener('click', () => {
+  disableButton('normalize-genres');
+  updateStatus('🔍 Detecting genre buckets...');
+  normalizeAndDetect();
+});
+
+async function createPlaylistsFlow(token) {
+  const profile = await (await fetch('https://api.spotify.com/v1/me', {
+    headers: { Authorization: `Bearer ${token}` }
+  })).json();
+  const userId = profile.id;
+
+  for (const bucket of window.selectedBuckets) {
+    const tracks = window.bucketTrackMap[bucket];
+    const uris = tracks.map(t => t.uri);
+    const genres = Array.from(window.rawGenresByBucket[bucket]).join(', ');
+    const name = `${bucket} Vibes`;
+    const desc = `Includes original genres: ${genres}`;
+
+    const resp = await fetch(`https://api.spotify.com/v1/users/${userId}/playlists`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description: desc, public: false })
+    });
+    const data = await resp.json();
+    const playlistId = data.id;
+
+    for (let i = 0; i < uris.length; i += 100) {
+      await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uris: uris.slice(i, i + 100) })
+      });
+    }
+    updateStatus(`✅ Playlist "${name}" created with ${uris.length} songs.`);
+  }
+
+  updateStatus('🎉 All playlists created!');
+}
+
+document.getElementById('create-playlists').addEventListener('click', () => {
+  disableButton('create-playlists');
+  updateStatus('🚀 Creating playlists...');
+  createPlaylistsFlow(window.spotifyToken);
+});
+
+window.onload = () => {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (code && params.get('state') === STATE) {
+    fetchAccessToken(code);
+    history.replaceState({}, document.title, REDIRECT_URI);
+  }
+
+  document.getElementById('fetch-tracks').addEventListener('click', () => fetchLikedSongs(window.spotifyToken));
+  document.getElementById('fetch-genres').addEventListener('click', () => fetchGenres(window.spotifyToken));
+};
+
 
 
 
