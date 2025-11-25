@@ -28,7 +28,6 @@ async function generateCodeChallenge(codeVerifier) {
     .replace(/\//g, '_');
 }
 
-// Login button → Spotify authorization
 document.getElementById("login").addEventListener("click", async () => {
   const codeVerifier = generateRandomString(128);
   const codeChallenge = await generateCodeChallenge(codeVerifier);
@@ -39,7 +38,6 @@ document.getElementById("login").addEventListener("click", async () => {
   window.location = authUrl;
 });
 
-// Fetch token using the returned "code"
 async function fetchAccessToken(code) {
   const codeVerifier = localStorage.getItem(CODE_VERIFIER_STORAGE_KEY);
 
@@ -69,7 +67,6 @@ async function fetchAccessToken(code) {
   }
 }
 
-// Fetch ALL liked songs (paginated)
 async function fetchAllLikedSongs(token) {
   let allTracks = [];
   let limit = 50;
@@ -78,6 +75,7 @@ async function fetchAllLikedSongs(token) {
   let hasMore = true;
 
   document.getElementById("status").innerText = "🔄 Fetching liked songs...";
+  document.getElementById("fetch-tracks").disabled = true;
 
   while (hasMore) {
     const response = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
@@ -103,16 +101,67 @@ async function fetchAllLikedSongs(token) {
   window.likedTracks = allTracks;
 }
 
-// Handle fetch button click
-document.getElementById("fetch-tracks").addEventListener("click", () => {
-  if (window.spotifyToken) {
-    fetchAllLikedSongs(window.spotifyToken);
-  } else {
-    alert("Please log in to Spotify first!");
-  }
-});
+async function fetchGenresForArtists(tracks, token) {
+  const artistGenreMap = {};
+  const artistIds = new Set();
 
-// On page load: look for code param to exchange
+  tracks.forEach(item => {
+    if (item.track && item.track.artists && item.track.artists.length > 0) {
+      artistIds.add(item.track.artists[0].id);
+    }
+  });
+
+  const artistIdList = Array.from(artistIds);
+  console.log(`🎨 Found ${artistIdList.length} unique artists`);
+
+  for (let i = 0; i < artistIdList.length; i += 50) {
+    const batch = artistIdList.slice(i, i + 50);
+    const idsParam = batch.join(',');
+
+    const response = await fetch(`https://api.spotify.com/v1/artists?ids=${idsParam}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+
+    data.artists.forEach(artist => {
+      artistGenreMap[artist.id] = artist.genres;
+    });
+
+    console.log(`Fetched genres for ${Math.min(i + 50, artistIdList.length)} of ${artistIdList.length} artists`);
+  }
+
+  console.log("✅ All artist genres fetched");
+  return artistGenreMap;
+}
+
+function groupTracksByGenre(tracks, artistGenreMap) {
+  const genreMap = {};
+
+  tracks.forEach(item => {
+    const track = item.track;
+    if (!track || !track.artists || track.artists.length === 0) return;
+
+    const artistId = track.artists[0].id;
+    const genres = artistGenreMap[artistId] || ['Unknown'];
+
+    genres.forEach(genre => {
+      if (!genreMap[genre]) {
+        genreMap[genre] = [];
+      }
+      genreMap[genre].push(track);
+    });
+  });
+
+  console.log("🎶 Tracks grouped by genre:");
+  console.log(genreMap);
+
+  window.genreTrackMap = genreMap;
+  return genreMap;
+}
+
 window.onload = () => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
@@ -122,7 +171,34 @@ window.onload = () => {
     fetchAccessToken(code);
     window.history.replaceState({}, document.title, REDIRECT_URI);
   }
+
+  document.getElementById("fetch-tracks").addEventListener("click", () => {
+    if (window.spotifyToken) {
+      fetchAllLikedSongs(window.spotifyToken);
+    } else {
+      alert("Please log in to Spotify first!");
+    }
+  });
+
+  document.getElementById("fetch-genres").addEventListener("click", async () => {
+    if (window.likedTracks && window.spotifyToken) {
+      const genreMap = await fetchGenresForArtists(window.likedTracks, window.spotifyToken);
+      window.artistGenreMap = genreMap;
+    } else {
+      alert("Make sure you've fetched your liked songs first.");
+    }
+  });
+
+  document.getElementById("group-by-genre").addEventListener("click", () => {
+    if (window.likedTracks && window.artistGenreMap) {
+      const result = groupTracksByGenre(window.likedTracks, window.artistGenreMap);
+      document.getElementById("status").innerText = `✅ Grouped tracks into ${Object.keys(result).length} genres`;
+    } else {
+      alert("Make sure you've fetched songs and genres first.");
+    }
+  });
 };
+
 
 
 
