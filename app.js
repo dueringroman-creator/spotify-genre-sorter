@@ -6,19 +6,14 @@ const CODE_VERIFIER_STORAGE_KEY = 'spotify_code_verifier';
 
 function generateRandomString(length) {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let res = '';
-  for (let i = 0; i < length; i++) {
-    res += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  return res;
+  return Array.from({ length }, () => charset.charAt(Math.floor(Math.random() * charset.length))).join('');
 }
 
 async function generateCodeChallenge(verifier) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(verifier);
-  const digest = await window.crypto.subtle.digest('SHA-256', data);
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
   return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 }
 
 function updateStatus(msg) {
@@ -29,24 +24,18 @@ function updateStatus(msg) {
 function disableButton(id) {
   document.getElementById(id).disabled = true;
 }
-
 function enableButton(id) {
   document.getElementById(id).disabled = false;
 }
 
-// Step 1: Login
 document.getElementById('login').addEventListener('click', async () => {
   const verifier = generateRandomString(128);
   const challenge = await generateCodeChallenge(verifier);
   localStorage.setItem(CODE_VERIFIER_STORAGE_KEY, verifier);
 
-  const url = `https://accounts.spotify.com/authorize?response_type=code` +
-              `&client_id=${CLIENT_ID}` +
-              `&scope=${SCOPES.join('%20')}` +
-              `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-              `&state=${STATE}` +
-              `&code_challenge=${challenge}&code_challenge_method=S256`;
-
+  const url = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}` +
+              `&scope=${SCOPES.join('%20')}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+              `&state=${STATE}&code_challenge=${challenge}&code_challenge_method=S256`;
   window.location = url;
 });
 
@@ -55,33 +44,33 @@ async function fetchAccessToken(code) {
   const body = new URLSearchParams({
     client_id: CLIENT_ID,
     grant_type: 'authorization_code',
-    code: code,
+    code,
     redirect_uri: REDIRECT_URI,
     code_verifier: verifier
   });
+
   const resp = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body
+    body
   });
   const data = await resp.json();
   if (data.access_token) {
     window.spotifyToken = data.access_token;
-    updateStatus('🎉 You’re logged in! Ready to fetch your musical gems.');
+    updateStatus('🎉 Logged in! Let’s grab your liked songs.');
     disableButton('login');
     enableButton('fetch-tracks');
   } else {
-    updateStatus('❌ Login failed. Let’s try again.');
+    updateStatus('❌ Login failed.');
     console.error('Token error', data);
   }
 }
 
-// Step 2: Fetch Liked Songs
 async function fetchLikedSongs(token) {
   let allTracks = [];
   const limit = 50;
   let offset = 0;
-  updateStatus('🎵 Fetching your liked songs…');
+  updateStatus('🎵 Fetching liked songs...');
   disableButton('fetch-tracks');
 
   while (true) {
@@ -89,27 +78,21 @@ async function fetchLikedSongs(token) {
       headers: { Authorization: `Bearer ${token}` }
     });
     const data = await resp.json();
-    if (!data.items || data.items.length === 0) break;
+    if (!data.items?.length) break;
     allTracks.push(...data.items);
     offset += limit;
-    updateStatus(`Fetched ${allTracks.length} songs so far…`);
+    updateStatus(`Fetched ${allTracks.length} songs...`);
   }
 
   window.likedTracks = allTracks;
-  updateStatus(`✅ Done! ${allTracks.length} songs retrieved. Next: fetching genres.`);
+  updateStatus(`✅ Done! ${allTracks.length} songs retrieved.`);
   enableButton('fetch-genres');
 }
 
-// Step 3: Fetch Genres for Artists
 async function fetchGenres(token) {
-  const artistIds = new Set();
-  window.likedTracks.forEach(item => {
-    if (item.track && item.track.artists && item.track.artists[0]) {
-      artistIds.add(item.track.artists[0].id);
-    }
-  });
+  const artistIds = new Set(window.likedTracks.map(t => t.track?.artists[0]?.id).filter(Boolean));
   const idsList = Array.from(artistIds);
-  updateStatus(`🔍 Scanning ${idsList.length} artists for their genre labels…`);
+  updateStatus(`🔍 Fetching genres for ${idsList.length} artists...`);
   disableButton('fetch-genres');
 
   const artistGenreMap = {};
@@ -119,59 +102,40 @@ async function fetchGenres(token) {
       headers: { Authorization: `Bearer ${token}` }
     });
     const data = await resp.json();
-    data.artists.forEach(artist => {
-      artistGenreMap[artist.id] = artist.genres;
-    });
-    updateStatus(`Processed ${Math.min(i + 50, idsList.length)}/${idsList.length} artists…`);
+    data.artists.forEach(a => artistGenreMap[a.id] = a.genres);
+    updateStatus(`Processed ${Math.min(i + 50, idsList.length)} / ${idsList.length} artists...`);
   }
 
   window.artistGenreMap = artistGenreMap;
-  updateStatus('🎛️ Genres fetched! Now detecting your distinct sound‑buckets.');
+  updateStatus('🎛️ Genres fetched! Ready to bucket them.');
   enableButton('normalize-genres');
 }
 
-// Step 4: Normalize & Detect Buckets
 function normalizeAndDetect() {
   const mapping = {
-    pop: "Pop",
-    rock: "Rock",
-    indie: "Indie / Alternative",
-    electronic: "Electronic",
-    house: "Electronic",
-    techno: "Electronic",
-    trance: "Electronic",
-    "hip hop": "Hip Hop / Rap",
-    rap: "Hip Hop / Rap",
-    r&b: "R&B / Soul",
-    jazz: "Jazz / Blues",
-    blues: "Jazz / Blues",
-    classical: "Classical / Instrumental",
-    metal: "Metal / Hard Rock",
-    punk: "Metal / Hard Rock",
-    folk: "Folk / Acoustic",
-    acoustic: "Folk / Acoustic",
+    pop: "Pop", rock: "Rock", indie: "Indie / Alternative",
+    electronic: "Electronic", house: "Electronic", techno: "Electronic",
+    trance: "Electronic", "hip hop": "Hip Hop / Rap", rap: "Hip Hop / Rap",
+    r&b: "R&B / Soul", jazz: "Jazz / Blues", blues: "Jazz / Blues",
+    classical: "Classical / Instrumental", metal: "Metal / Hard Rock",
+    punk: "Metal / Hard Rock", folk: "Folk / Acoustic", acoustic: "Folk / Acoustic",
     latin: "Latin"
   };
 
-  const rawMap = window.artistGenreMap;
-  const bucketTrackMap = {};
-  const rawGenresByBucket = {};
+  const bucketTrackMap = {}, rawGenresByBucket = {}, rawMap = window.artistGenreMap;
 
   window.likedTracks.forEach(item => {
-    const track = item.track;
-    if (!track || !track.artists || !track.artists[0]) return;
-    const aid = track.artists[0].id;
+    const track = item.track, aid = track?.artists[0]?.id;
     const genres = rawMap[aid] || ['Unknown'];
     let bucketFound = false;
+
     for (const g of genres) {
       const lower = g.toLowerCase();
       for (const key in mapping) {
         if (lower.includes(key)) {
           const bucket = mapping[key];
-          bucketTrackMap[bucket] = bucketTrackMap[bucket] || [];
-          bucketTrackMap[bucket].push(track);
-          rawGenresByBucket[bucket] = rawGenresByBucket[bucket] || new Set();
-          rawGenresByBucket[bucket].add(g);
+          (bucketTrackMap[bucket] ||= []).push(track);
+          (rawGenresByBucket[bucket] ||= new Set()).add(g);
           bucketFound = true;
           break;
         }
@@ -179,130 +143,31 @@ function normalizeAndDetect() {
       if (bucketFound) break;
     }
     if (!bucketFound) {
-      bucketTrackMap["Other / Unmapped"] = bucketTrackMap["Other / Unmapped"] || [];
-      bucketTrackMap["Other / Unmapped"].push(track);
-      rawGenresByBucket["Other / Unmapped"] = rawGenresByBucket["Other / Unmapped"] || new Set();
-      genres.forEach(g => rawGenresByBucket["Other / Unmapped"].add(g));
+      (bucketTrackMap["Other / Unmapped"] ||= []).push(track);
+      (rawGenresByBucket["Other / Unmapped"] ||= new Set()).add(...genres);
     }
   });
 
-  const bucketCounts = Object.entries(bucketTrackMap).map(([b,tracks]) => ({ bucket: b, count: tracks.length }));
-  bucketCounts.sort((a,b) => b.count - a.count);
+  const bucketCounts = Object.entries(bucketTrackMap).map(([bucket, tracks]) => ({ bucket, count: tracks.length }));
   const totalTracks = window.likedTracks.length;
-  const threshold = totalTracks * 0.02;
-  const selected = bucketCounts.filter(bc => bc.count >= threshold).map(bc => bc.bucket);
+  const selected = bucketCounts.filter(({ count }) => count >= totalTracks * 0.02).map(({ bucket }) => bucket);
 
   window.selectedBuckets = selected;
   window.bucketTrackMap = bucketTrackMap;
   window.rawGenresByBucket = rawGenresByBucket;
 
-  updateStatus(`🧮 Detected ${selected.length} big buckets in your music — pick which ones to spin into playlists.`);
   const container = document.getElementById('selection-container');
   container.innerHTML = '';
   selected.forEach(bucket => {
-    const cnt = bucketTrackMap[bucket].length;
-    const orig = Array.from(rawGenresByBucket[bucket]).join(', ');
     const label = document.createElement('label');
-    label.innerHTML = `<input type="checkbox" value="${bucket}" checked> ${bucket} (${cnt} songs) — includes: ${orig}`;
+    label.innerHTML = `<input type="checkbox" value="${bucket}" checked> ${bucket} (${bucketTrackMap[bucket].length} songs)`;
     container.appendChild(label);
   });
+
   document.getElementById('bucket-selection').style.display = 'block';
+  updateStatus('🧮 Genre buckets detected. Ready to make playlists.');
   enableButton('create-playlists');
-}
 
-document.getElementById('normalize-genres').addEventListener('click', () => {
-  disableButton('normalize-genres');
-  updateStatus('🧮 Building your vibe‑buckets now…');
-  normalizeAndDetect();
-});
-
-// Step 5: Create Playlists
-async function createPlaylistAndAddTracks(userId, token, name, description, trackUris) {
-  const createResp = await fetch(`https://api.spotify.com/v1/users/${userId}/playlists`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      name: name,
-      description: description,
-      public: false
-    })
-  });
-  const createData = await createResp.json();
-  const playlistId = createData.id;
-  updateStatus(`Created playlist "${name}".`);
-
-  for (let i = 0; i < trackUris.length; i += 100) {
-    const batch = trackUris.slice(i, i + 100);
-    await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ uris: batch })
-    });
-    updateStatus(`Adding tracks to "${name}"… (${Math.min(i + 100, trackUris.length)}/${trackUris.length})`);
-  }
-
-  updateStatus(`✅ Loaded "${name}" with ${trackUris.length} songs.`);
-}
-
-async function createPlaylistsFlow(token) {
-  const profileResp = await fetch('https://api.spotify.com/v1/me', {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  const profileData = await profileResp.json();
-  const userId = profileData.id;
-
-  updateStatus('🚀 Creating your custom playlists now…');
-  const buckets = window.selectedBuckets;
-  for (const bucket of buckets) {
-    const tracks = window.bucketTrackMap[bucket];
-    const uris = tracks.map(t => t.uri);
-    const orig = Array.from(window.rawGenresByBucket[bucket]).join(', ');
-    const name = `${bucket} Vibes`;
-    const desc = `Includes original genres: ${orig}`;
-    await createPlaylistAndAddTracks(userId, token, name, desc, uris);
-  }
-
-  updateStatus('🎉 All done! Your custom playlists are ready on Spotify.');
-}
-
-document.getElementById('create-playlists').addEventListener('click', async () => {
-  disableButton('create-playlists');
-  updateStatus('🚀 Launching playlist creation… hang tight.');
-  await createPlaylistsFlow(window.spotifyToken);
-});
-
-// On load: check for auth code & wire buttons
-window.onload = () => {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
-  const state = params.get('state');
-  if (code && state === STATE) {
-    fetchAccessToken(code);
-    window.history.replaceState({}, document.title, REDIRECT_URI);
-  }
-
-  document.getElementById('fetch-tracks').addEventListener('click', () => {
-    if (!window.spotifyToken) {
-      updateStatus('👆 Please login first.');
-      return;
-    }
-    fetchLikedSongs(window.spotifyToken);
-  });
-
-  document.getElementById('fetch-genres').addEventListener('click', () => {
-    if (!window.likedTracks) {
-      updateStatus('🧐 Please fetch your songs first.');
-      return;
-    }
-    fetchGenres(window.spotifyToken);
-  });
-};
 
 
 
