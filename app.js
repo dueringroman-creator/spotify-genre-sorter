@@ -4,7 +4,6 @@ const SCOPES = ['user-library-read','playlist-modify-public','playlist-modify-pr
 const STATE = 'spotify_auth';
 const CODE_VERIFIER_KEY = 'spotify_code_verifier';
 
-// Genre → Sub‑genre mapping
 const GENRE_HIERARCHY = {
   "Electronic": {
     "House": ["house","deep house","progressive house","melodic house"],
@@ -33,7 +32,6 @@ const GENRE_HIERARCHY = {
   "Other / Unmapped": {}
 };
 
-// Find matching buckets
 function findBucketsForGenre(rawGenre) {
   const lower = rawGenre.toLowerCase();
   const matches = [];
@@ -67,12 +65,29 @@ function disable(id) {
   const btn = document.getElementById(id);
   if (btn) btn.disabled = true;
 }
+
 function enable(id) {
   const btn = document.getElementById(id);
   if (btn) btn.disabled = false;
 }
 
-// Login
+function generateRandomString(length) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let s = '';
+  for (let i = 0; i < length; i++) {
+    s += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return s;
+}
+
+async function generateCodeChallenge(verifier) {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+}
+
+// LOGIN
 document.getElementById('login').addEventListener('click', async () => {
   const verifier = generateRandomString(128);
   const challenge = await generateCodeChallenge(verifier);
@@ -111,22 +126,6 @@ async function fetchAccessToken(code) {
   }
 }
 
-function generateRandomString(length) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let s = '';
-  for (let i = 0; i < length; i++) {
-    s += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return s;
-}
-
-async function generateCodeChallenge(verifier) {
-  const data = new TextEncoder().encode(verifier);
-  const digest = await window.crypto.subtle.digest('SHA-256', data);
-  return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
-}
-
 // RESUMABLE: fetch liked songs
 async function fetchLikedSongs(token) {
   let allTracks = [];
@@ -137,9 +136,7 @@ async function fetchLikedSongs(token) {
   if (prog) {
     const obj = JSON.parse(prog);
     offset = obj.offset;
-    const ids = JSON.parse(localStorage.getItem('likedTracksIds') || '[]');
     updateStatus(`Resuming from offset ${offset}...`);
-    // we don’t restore full objects for demo simplicity
   } else {
     updateStatus('📥 Fetching liked songs...');
     disable('fetch-tracks');
@@ -157,7 +154,6 @@ async function fetchLikedSongs(token) {
       offset += limit;
       updateStatus(`Fetched ${allTracks.length} songs…`);
       localStorage.setItem('likedTracksProgress', JSON.stringify({ offset, total: allTracks.length }));
-      localStorage.setItem('likedTracksIds', JSON.stringify(allTracks.map(it => it.track.id)));
     } catch (err) {
       console.error('Error fetching liked songs:', err);
       updateStatus(`⚠️ Network or error at offset ${offset}. Retrying...`);
@@ -168,7 +164,6 @@ async function fetchLikedSongs(token) {
 
   window.likedTracks = allTracks;
   localStorage.removeItem('likedTracksProgress');
-  localStorage.removeItem('likedTracksIds');
   updateStatus(`✅ All songs fetched (${allTracks.length}).`);
   enable('fetch-genres');
 }
@@ -278,7 +273,7 @@ function normalizeAndDetect() {
 
 document.getElementById('normalize-genres').addEventListener('click', () => {
   disable('normalize-genres');
-  updateStatus('🧮 Detecting buckets…');
+  updateStatus('🧮 Detecting buckets...');
   normalizeAndDetect();
 });
 
@@ -300,13 +295,13 @@ async function createPlaylistsFlow(token) {
   resultsList.innerHTML = '';
   document.getElementById('playlist‑results').classList.add('visible');
 
-  const usedTrackIds = new Set();
+  const usedTrackUris = new Set();
 
   for (const bucket of buckets) {
     const tracks = window.bucketTrackMap[bucket];
     const uris = tracks
-      .filter(t => allowOverlap || !usedTrackIds.has(t.uri))
-      .map(t => ( usedTrackIds.add(t.uri), t.uri) );
+      .filter(t => allowOverlap || !usedTrackUris.has(t.uri))
+      .map(t => { usedTrackUris.add(t.uri); return t.uri; });
 
     const genresStr = Array.from(window.rawGenresByBucket[bucket]).join(', ');
     const name = `${mood} • ${bucket}`;
@@ -314,7 +309,7 @@ async function createPlaylistsFlow(token) {
 
     const createResp = await fetch(`https://api.spotify.com/v1/users/${userId}/playlists`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type':'application/json' },
       body: JSON.stringify({ name, description: desc, public:false })
     });
     const createData = await createResp.json();
@@ -329,7 +324,7 @@ async function createPlaylistsFlow(token) {
         body: JSON.stringify({ uris: uris.slice(i, i+100) })
       });
     }
-    updateStatus(`✅ Playlist "${name}" created (${uris.length} songs).`);
+    updateStatus(`✅ Playlist "${name}" created with ${uris.length} songs.`);
   }
 
   updateStatus('🎉 All playlists created!');
@@ -366,6 +361,7 @@ window.onload = () => {
     fetchGenres(window.spotifyToken);
   });
 };
+
 
 
 
