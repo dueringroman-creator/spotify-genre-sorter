@@ -22,6 +22,8 @@
       margin: 20px 0;
       display: flex;
       gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
     }
     button {
       background-color: #1DB954;
@@ -57,55 +59,8 @@
       margin-top: 20px;
       max-width: 600px;
       background-color: #1e1e1e;
-      padding: 20px;
-      border-radius: 8px;
-      display: none;
-    }
-    #bucket-selection h3 {
-      margin-top: 0;
-      color: #fff;
-    }
-    #bucket-selection label {
-      display: block;
-      margin: 6px 0;
-      color: #fff;
-    }
-  </style>
-</head>
-<body>
-  <h1>Spotify Genre Sorter</h1>
+      padding:
 
-  <div class="buttons">
-    <button id="login">🔐 Login to Spotify</button>
-    <button id="fetch-tracks" disabled>🎵 Fetch My Songs</button>
-    <button id="fetch-genres" disabled>🔍 Fetch Genres</button>
-    <button id="normalize-genres" disabled>🎛️ Detect Buckets</button>
-    <button id="create-playlists" disabled>🎬 Make Playlists</button>
-  </div>
-
-  <div id="status">Please login to begin.</div>
-
-  <div id="instructions">
-    <p>✍️ Instructions for you, lovely human:</p>
-    <ul>
-      <li><strong>Login:</strong> We’ll ask you to authorize access to your liked songs.</li>
-      <li><strong>Fetch Songs:</strong> We’ll fetch all your liked songs from Spotify.</li>
-      <li><strong>Fetch Genres:</strong> We’ll check each artist in your songs for genre labels.</li>
-      <li><strong>Detect Buckets:</strong> We’ll group your songs into meaningful genre‑buckets based on what you actually listen to.</li>
-      <li><strong>Create Playlists:</strong> We’ll generate playlists for your selected buckets, including original genre labels in the description.</li>
-    </ul>
-    <p>Let’s have fun with this!</p>
-  </div>
-
-  <div id="bucket-selection">
-    <h3>Select which playlist buckets you want</h3>
-    <div id="selection-container"></div>
-    <button id="confirm-selection">✅ Confirm Selection</button>
-  </div>
-
-  <script src="app.js"></script>
-</body>
-</html>
 
 
 
