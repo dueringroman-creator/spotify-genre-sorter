@@ -37,26 +37,52 @@
 
     button:disabled {
       background-color: #444;
-      cursor: not-allowed;
+      cursor: not‑allowed;
     }
 
     #status {
-      margin-top: 20px;
-      font-size: 18px;
+      margin-top: 30px;
+      padding: 10px 20px;
+      background-color: #1e1e1e;
+      border-radius: 6px;
+      max-width: 600px;
+      text-align: center;
+      line-height: 1.5;
+      border: 1px solid #2c2c2c;
+    }
+
+    .step {
+      margin: 10px 0;
+    }
+
+    .active {
+      color: #1DB954;
+    }
+
+    .done {
       color: #aaa;
+      text-decoration: line‑through;
     }
   </style>
 </head>
 <body>
   <h1>Spotify Genre Sorter</h1>
 
-  <button id="login">Login to Spotify</button>
-  <button id="fetch-tracks">Fetch Liked Songs</button>
-  <button id="fetch-genres">Fetch Genres</button>
-  <button id="group-by-genre">Group Tracks by Genre</button>
+  <button id="login">🔐 Login to Spotify</button>
+  <button id="fetch-tracks" disabled>🎵 Fetch Liked Songs</button>
+  <button id="fetch-genres" disabled>🎨 Fetch Genres</button>
+  <button id="group-by-genre" disabled>🗂 Group Tracks by Genre</button>
+  <button id="normalize-genres" disabled>🎯 Normalize Genres</button>
 
-  <div id="status"></div>
+  <div id="status">
+    <div class="step" id="step-login">1. Login to Spotify</div>
+    <div class="step" id="step-fetch">2. Fetch liked songs</div>
+    <div class="step" id="step-genres">3. Fetch artist genres</div>
+    <div class="step" id="step-group">4. Group songs by genre</div>
+    <div class="step" id="step-normalize">5. Normalize to main genres</div>
+  </div>
 
   <script src="app.js"></script>
 </body>
 </html>
+
