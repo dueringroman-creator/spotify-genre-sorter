@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Spotify Genre Sorter</title>
+  <title>Playlist Alchemist</title>
   <style>
     body {
-      font-family: sans‑serif;
+      font-family: sans-serif;
       background: #121212;
       color: #fff;
       padding: 40px;
@@ -13,7 +13,7 @@
       flex-direction: column;
       align-items: center;
     }
-    .buttons {
+    .row {
       display: flex;
       gap: 10px;
       margin-bottom: 20px;
@@ -32,7 +32,7 @@
     }
     button:disabled {
       background: #444;
-      cursor: not‑allowed;
+      cursor: not-allowed;
     }
     #status {
       margin-top: 20px;
@@ -49,9 +49,10 @@
       border-radius: 8px;
       width: 90%;
       max-width: 600px;
-    }
-    #bucket‑selection, #mode‑selection, #mood‑selection, #playlist‑results {
       display: none;
+    }
+    .panel.visible {
+      display: block;
     }
     #playlist‑results ul {
       list-style: none;
@@ -61,13 +62,29 @@
       margin: 5px 0;
       color: #aaa;
     }
+    label {
+      display: block;
+      margin: 6px 0;
+    }
+    .input‑name {
+      width: 100%;
+      padding: 8px;
+      margin-top: 4px;
+      box-sizing: border-box;
+      font-size: 14px;
+      border-radius: 4px;
+      border: none;
+    }
+    .checkbox‑toggle {
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
 
-  <h1>Spotify Genre Sorter</h1>
+  <h1>Playlist Alchemist</h1>
 
-  <div class="buttons">
+  <div class="row">
     <button id="login">Login to Spotify</button>
     <button id="fetch-tracks" disabled>Fetch My Songs</button>
     <button id="fetch-genres" disabled>Fetch Genres</button>
@@ -79,15 +96,18 @@
 
   <div id="mood‑selection" class="panel">
     <h3>Select Mood</h3>
-    <label><input type="radio" name="mood" value="Chill" checked> Chill</label><br>
-    <label><input type="radio" name="mood" value="Energetic"> Energetic</label><br>
+    <label><input type="radio" name="mood" value="Chill" checked> Chill</label>
+    <label><input type="radio" name="mood" value="Energetic"> Energetic</label>
     <label><input type="radio" name="mood" value="Focus"> Focus</label>
   </div>
 
   <div id="mode‑selection" class="panel">
     <h3>Mode</h3>
-    <label><input type="radio" name="mode" value="auto" checked> Automated (all buckets)</label><br>
-    <label><input type="radio" name="mode" value="manual"> Manual (select which buckets)</label>
+    <label><input type="radio" name="mode" value="auto" checked> Automated (all buckets)</label>
+    <label><input type="radio" name="mode" value="manual"> Manual (select buckets)</label>
+    <div class="checkbox‑toggle">
+      <label><input type="checkbox" id="allow‑overlap" checked> Allow tracks in multiple playlists</label>
+    </div>
   </div>
 
   <div id="bucket‑selection" class="panel">
@@ -98,11 +118,13 @@
   <div id="playlist‑results" class="panel">
     <h3>Created Playlists</h3>
     <ul id="playlist‑list"></ul>
+    <button id="new‑session">Start New Session</button>
   </div>
 
   <script src="app.js"></script>
 </body>
 </html>
+
 
 
 
