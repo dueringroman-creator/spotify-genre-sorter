@@ -172,9 +172,20 @@ window.onload = () => {
     window.history.replaceState({}, document.title, REDIRECT_URI);
   }
 
+  let isFetchingTracks = false;
+
   document.getElementById("fetch-tracks").addEventListener("click", () => {
+    if (isFetchingTracks) {
+      alert("Already fetching liked songs, please wait...");
+      return;
+    }
+
     if (window.spotifyToken) {
-      fetchAllLikedSongs(window.spotifyToken);
+      isFetchingTracks = true;
+      fetchAllLikedSongs(window.spotifyToken).finally(() => {
+        isFetchingTracks = false;
+        document.getElementById("fetch-tracks").disabled = false;
+      });
     } else {
       alert("Please log in to Spotify first!");
     }
@@ -198,6 +209,7 @@ window.onload = () => {
     }
   });
 };
+
 
 
 
