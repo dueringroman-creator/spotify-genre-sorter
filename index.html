@@ -14,15 +14,12 @@
       align-items: center;
       padding: 40px;
     }
-
     h1 {
       color: #1DB954;
     }
-
     .buttons {
       margin: 20px 0;
     }
-
     button {
       background-color: #1DB954;
       color: white;
@@ -34,29 +31,24 @@
       cursor: pointer;
       transition: background-color 0.3s ease;
     }
-
     button:hover:enabled {
       background-color: #1aa34a;
     }
-
     button:disabled {
       background-color: #444;
       cursor: not-allowed;
     }
-
     #progress {
       display: flex;
       justify-content: space-between;
       width: 80%;
       margin: 30px 0 10px 0;
     }
-
     .step {
       flex: 1;
       text-align: center;
       position: relative;
     }
-
     .step::after {
       content: '';
       position: absolute;
@@ -67,11 +59,9 @@
       background: #444;
       z-index: -1;
     }
-
     .step:last-child::after {
       display: none;
     }
-
     .step .label {
       display: inline-block;
       padding: 6px 12px;
@@ -79,33 +69,43 @@
       background-color: #444;
       color: #fff;
     }
-
     .step.active .label {
       background-color: #1DB954;
     }
-
     .step.done .label {
       background-color: #777;
       text-decoration: line-through;
     }
-
-    #status {
-      margin-top: 20px;
-      font-size: 18px;
-      color: #aaa;
-      text-align: center;
-    }
-
     #count {
       margin-top: 10px;
       font-size: 20px;
       color: #fff;
     }
+    #song‑progress‑bar {
+      width: 80%;
+      height: 12px;
+      background-color: #444;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    #song‑progress‑bar‑fill {
+      height: 100%;
+      width: 0%;
+      background-color: #1DB954;
+      transition: width 0.25s ease;
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 18px;
+      color: #aaa;
+      text-align: center;
+      max-width: 600px;
+    }
   </style>
 </head>
 <body>
   <h1>Spotify Genre Sorter</h1>
-
   <div class="buttons">
     <button id="login">🔐 Login to Spotify</button>
     <button id="fetch-tracks" disabled>🎵 Fetch Liked Songs</button>
@@ -113,7 +113,6 @@
     <button id="group-by-genre" disabled>🗂 Group Tracks by Genre</button>
     <button id="normalize-genres" disabled>🎯 Normalize Genres</button>
   </div>
-
   <div id="progress">
     <div class="step" id="step-login"><span class="label">Login</span></div>
     <div class="step" id="step-fetch"><span class="label">Fetch Songs</span></div>
@@ -121,13 +120,13 @@
     <div class="step" id="step-group"><span class="label">Group Tracks</span></div>
     <div class="step" id="step-normalize"><span class="label">Normalize Genres</span></div>
   </div>
-
   <div id="count"></div>
+  <div id="song‑progress‑bar"><div id="song‑progress‑bar‑fill"></div></div>
   <div id="status">Please start by logging in.</div>
-
   <script src="app.js"></script>
 </body>
 </html>
+
 
 
 
