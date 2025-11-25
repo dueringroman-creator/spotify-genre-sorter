@@ -1,6 +1,6 @@
 const CLIENT_ID = '97762324651b49d1bb703566c9c36072';
 const REDIRECT_URI = 'https://dueringroman-creator.github.io/spotify-genre-sorter/';
-const SCOPES = ['user-library-read', 'playlist-modify-public', 'playlist-modify-private'];
+const SCOPES = ['user-library-read','playlist-modify-public','playlist-modify-private'];
 const STATE = 'spotify_auth';
 const CODE_VERIFIER_STORAGE_KEY = 'spotify_code_verifier';
 
@@ -18,7 +18,7 @@ async function generateCodeChallenge(codeVerifier) {
   const data = encoder.encode(codeVerifier);
   const digest = await window.crypto.subtle.digest('SHA-256', data);
   return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
 }
 
 function markStepDone(id) {
@@ -46,18 +46,20 @@ function setButtonLoading(buttonId, isLoading) {
     btn.disabled = true;
   } else {
     btn.classList.remove('loading');
-    btn.disabled = false;
+    // Keep disabled state logic separately as per step flow
   }
 }
 
-// Login button
+// LOGIN
 document.getElementById('login').addEventListener('click', async () => {
   const codeVerifier = generateRandomString(128);
   const codeChallenge = await generateCodeChallenge(codeVerifier);
   localStorage.setItem(CODE_VERIFIER_STORAGE_KEY, codeVerifier);
+
   const authUrl = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}` +
     `&scope=${SCOPES.join('%20')}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
     `&state=${STATE}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+
   window.location = authUrl;
 });
 
@@ -70,20 +72,23 @@ async function fetchAccessToken(code) {
     redirect_uri: REDIRECT_URI,
     code_verifier: codeVerifier
   });
+
   const response = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body
   });
   const data = await response.json();
+
   if (data.access_token) {
     window.spotifyToken = data.access_token;
     markStepDone('step-login');
     markStepActive('step-fetch');
+    document.getElementById('login').disabled = true;
     document.getElementById('fetch-tracks').disabled = false;
-    updateStatus('Logged in. You may now fetch your liked songs.');
+    updateStatus('✅ Logged in. You may now fetch your liked songs.');
   } else {
-    updateStatus('Login failed. Please try again.');
+    updateStatus('❌ Login failed. Please try again.');
     console.error('Token error:', data);
   }
 }
@@ -97,10 +102,8 @@ async function fetchAllLikedSongs(token) {
 
   markStepActive('step-fetch');
   setButtonLoading('fetch-tracks', true);
-  updateStatus('Fetching liked songs...');
+  updateStatus('Fetching your liked songs…');
   updateCount(`Fetched: ${totalFetched} songs`);
-
-  const progressBtn = document.getElementById('fetch-tracks');
 
   while (hasMore) {
     const response = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
@@ -123,7 +126,7 @@ async function fetchAllLikedSongs(token) {
   markStepDone('step-fetch');
   markStepActive('step-genres');
   document.getElementById('fetch-genres').disabled = false;
-  updateStatus(`All liked songs fetched: ${allTracks.length}`);
+  updateStatus(`✅ All liked songs fetched: ${allTracks.length}`);
 }
 
 async function fetchGenresForArtists(tracks, token) {
@@ -158,14 +161,14 @@ async function fetchGenresForArtists(tracks, token) {
   markStepDone('step-genres');
   markStepActive('step-group');
   document.getElementById('group-by-genre').disabled = false;
-  updateStatus('All artist genres fetched.');
+  updateStatus('✅ All artist genres fetched.');
 }
 
 function groupTracksByGenre(tracks, artistGenreMap) {
   markStepActive('step-group');
-  const genreMap = {};
   setButtonLoading('group-by-genre', true);
 
+  const genreMap = {};
   tracks.forEach(item => {
     const track = item.track;
     if (!track || !track.artists || track.artists.length === 0) return;
@@ -235,12 +238,13 @@ function normalizeGenres() {
     }
   });
 
-  setButtonLoading('normalize-genres', false);
   window.normalizedGenres = normalized;
+  setButtonLoading('normalize-genres', false);
   markStepDone('step-normalize');
-  updateStatus(`Normalized into ${Object.keys(normalized).length} main genre buckets.`);
+  updateStatus(`✅ Normalized into ${Object.keys(normalized).length} main genre buckets.`);
 }
 
+// On load: setup
 window.onload = () => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
@@ -252,6 +256,7 @@ window.onload = () => {
   }
 
   let isFetchingTracks = false;
+
   document.getElementById('fetch-tracks').addEventListener('click', () => {
     if (isFetchingTracks || !window.spotifyToken) return;
     isFetchingTracks = true;
@@ -260,6 +265,7 @@ window.onload = () => {
 
   document.getElementById('fetch-genres').addEventListener('click', async () => {
     if (!window.likedTracks || !window.spotifyToken) return;
+    document.getElementById('fetch-genres').disabled = false; // ensure
     await fetchGenresForArtists(window.likedTracks, window.spotifyToken);
   });
 
@@ -273,6 +279,7 @@ window.onload = () => {
     normalizeGenres();
   });
 };
+
 
 
 
