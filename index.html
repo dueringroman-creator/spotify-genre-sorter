@@ -35,7 +35,7 @@
     }
     button:disabled {
       background-color: #444;
-      cursor: not-allowed;
+      cursor: not‑allowed;
     }
     #status {
       margin-top: 20px;
@@ -43,6 +43,15 @@
       color: #aaa;
       text-align: center;
       max-width: 600px;
+    }
+    #instructions {
+      margin-top: 30px;
+      padding: 20px;
+      background-color: #1e1e1e;
+      border-radius: 8px;
+      width: 80%;
+      color: #ccc;
+      font-size: 16px;
     }
     #bucket-selection {
       margin-top: 20px;
@@ -67,24 +76,8 @@
   <h1>Spotify Genre Sorter</h1>
 
   <div class="buttons">
-    <button id="login">🔐 Login to Spotify</button>
-    <button id="fetch-tracks" disabled>🎵 Fetch My Songs</button>
-    <button id="fetch-genres" disabled>🔍 Fetch Genres</button>
-    <button id="normalize-genres" disabled>🎛️ Detect Buckets</button>
-    <button id="create-playlists" disabled>🎬 Make Playlists</button>
-  </div>
+    <button id="login">🔐 Login to Spotify</
 
-  <div id="status">Hi‑ya, beautiful human! Let’s get you started — please login.</div>
-
-  <div id="bucket-selection">
-    <h3>Select which playlist buckets you want</h3>
-    <div id="selection-container"></div>
-    <button id="confirm-selection">✅ Confirm Selection</button>
-  </div>
-
-  <script src="app.js"></script>
-</body>
-</html>
 
 
 
