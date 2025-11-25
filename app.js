@@ -14,8 +14,13 @@ document.getElementById("login").onclick = () => {
 
 let token = null;
 
-if (window.location.hash) {
-  token = new URLSearchParams(window.location.hash.substring(1)).get('access_token');
-  window.history.pushState("", document.title, window.location.pathname); // Clean the URL
-  console.log("Access Token:", token);
-}
+window.onload = () => {
+  if (window.location.hash) {
+    const token = new URLSearchParams(window.location.hash.substring(1)).get('access_token');
+    console.log("Access Token:", token);
+
+    // You can now store it globally if needed
+    window.spotifyToken = token;
+  }
+};
+
