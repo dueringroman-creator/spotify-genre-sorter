@@ -9,63 +9,93 @@
       background: #121212;
       color: #fff;
       padding: 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
     }
     button {
-      padding: 10px 20px;
-      margin: 5px 0;
+      padding: 12px 24px;
       font-size: 16px;
+      background: #1DB954;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s ease;
     }
     button:disabled {
-      opacity: 0.5;
+      background: #444;
       cursor: not‑allowed;
     }
     #status {
       margin-top: 20px;
       font-size: 18px;
+      color: #ccc;
+      text-align: center;
+      width: 100%;
+      max-width: 600px;
     }
-    #mode‑selection, #bucket‑selection, #mood‑selection {
+    .panel {
       margin-top: 20px;
+      padding: 20px;
       background: #1e1e1e;
-      padding: 10px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 600px;
     }
-    #playlist‑results {
-      margin-top: 20px;
-      background: #1e1e1e;
-      padding: 10px;
+    #bucket‑selection, #mode‑selection, #mood‑selection, #playlist‑results {
+      display: none;
+    }
+    #playlist‑results ul {
+      list-style: none;
+      padding: 0;
+    }
+    #playlist‑results li {
+      margin: 5px 0;
+      color: #aaa;
     }
   </style>
 </head>
 <body>
+
   <h1>Spotify Genre Sorter</h1>
 
-  <button id="login">Login to Spotify</button><br>
-  <button id="fetch-tracks" disabled>Fetch Liked Songs</button><br>
-  <button id="fetch-genres" disabled>Fetch Genres</button><br>
-  <button id="normalize-genres" disabled>Detect & Bucket Genres</button><br>
-
-  <div id="mood‑selection" style="display:none;">
-    <h3>Select your mood</h3>
-    <label><input type="radio" name="mood" value="Chill" checked> Chill</label><br>
-    <label><input type="radio" name="mood" value="Energetic"> Energetic</label><br>
-    <label><input type="radio" name="mood" value="Focus"> Focus</label><br>
+  <div class="buttons">
+    <button id="login">Login to Spotify</button>
+    <button id="fetch-tracks" disabled>Fetch My Songs</button>
+    <button id="fetch-genres" disabled>Fetch Genres</button>
+    <button id="normalize-genres" disabled>Detect & Bucket Genres</button>
+    <button id="create-playlists" disabled>Create Playlists</button>
   </div>
-
-  <div id="mode‑selection" style="display:none;">
-    <h3>Mode</h3>
-    <label><input type="radio" name="mode" value="auto" checked> Automated (create all)</label><br>
-    <label><input type="radio" name="mode" value="manual"> Manual (select buckets)</label><br>
-  </div>
-
-  <button id="create-playlists" disabled>Create Playlists</button>
 
   <div id="status">Please login to begin.</div>
 
-  <div id="bucket‑selection" style="display:none;">
-    <h3>Select buckets for playlists</h3>
+  <div id="mood‑selection" class="panel">
+    <h3>Select Mood</h3>
+    <label><input type="radio" name="mood" value="Chill" checked> Chill</label><br>
+    <label><input type="radio" name="mood" value="Energetic"> Energetic</label><br>
+    <label><input type="radio" name="mood" value="Focus"> Focus</label>
+  </div>
+
+  <div id="mode‑selection" class="panel">
+    <h3>Mode</h3>
+    <label><input type="radio" name="mode" value="auto" checked> Automated (all buckets)</label><br>
+    <label><input type="radio" name="mode" value="manual"> Manual (select which buckets)</label>
+  </div>
+
+  <div id="bucket‑selection" class="panel">
+    <h3>Select Buckets</h3>
     <div id="selection-container"></div>
   </div>
 
-  <div id="playlist‑results" style="display:none;">
+  <div id="playlist‑results" class="panel">
     <h3>Created Playlists</h3>
     <ul id="playlist‑list"></ul>
   </div>
@@ -73,6 +103,7 @@
   <script src="app.js"></script>
 </body>
 </html>
+
 
 
 
