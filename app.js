@@ -4,7 +4,7 @@ const SCOPES = ['user-library-read','playlist-modify-public','playlist-modify-pr
 const STATE = 'spotify_auth';
 const CODE_VERIFIER_KEY = 'spotify_code_verifier';
 
-// Pre‑mapped hierarchy of genres → sub‑genres
+// Genre → Sub‑genre mapping
 const GENRE_HIERARCHY = {
   "Electronic": {
     "House": ["house","deep house","progressive house","melodic house"],
@@ -33,7 +33,7 @@ const GENRE_HIERARCHY = {
   "Other / Unmapped": {}
 };
 
-// Utility: find matching buckets for a raw genre
+// Find matching buckets
 function findBucketsForGenre(rawGenre) {
   const lower = rawGenre.toLowerCase();
   const matches = [];
@@ -62,6 +62,7 @@ function updateStatus(msg) {
   if (el) el.innerText = msg;
   console.log(msg);
 }
+
 function disable(id) {
   const btn = document.getElementById(id);
   if (btn) btn.disabled = true;
@@ -71,7 +72,7 @@ function enable(id) {
   if (btn) btn.disabled = false;
 }
 
-// LOGIN step
+// Login
 document.getElementById('login').addEventListener('click', async () => {
   const verifier = generateRandomString(128);
   const challenge = await generateCodeChallenge(verifier);
@@ -110,7 +111,6 @@ async function fetchAccessToken(code) {
   }
 }
 
-// Utility to generate random string
 function generateRandomString(length) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let s = '';
@@ -120,19 +120,26 @@ function generateRandomString(length) {
   return s;
 }
 
-// ---------- RESUMABLE FETCH logic for liked songs ----------
+async function generateCodeChallenge(verifier) {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await window.crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+}
+
+// RESUMABLE: fetch liked songs
 async function fetchLikedSongs(token) {
   let allTracks = [];
   let offset = 0;
   const limit = 50;
 
-  // Try restore progress
   const prog = localStorage.getItem('likedTracksProgress');
   if (prog) {
     const obj = JSON.parse(prog);
     offset = obj.offset;
-    allTracks = window.likedTracks ? window.likedTracks.slice(0) : [];
+    const ids = JSON.parse(localStorage.getItem('likedTracksIds') || '[]');
     updateStatus(`Resuming from offset ${offset}...`);
+    // we don’t restore full objects for demo simplicity
   } else {
     updateStatus('📥 Fetching liked songs...');
     disable('fetch-tracks');
@@ -150,10 +157,10 @@ async function fetchLikedSongs(token) {
       offset += limit;
       updateStatus(`Fetched ${allTracks.length} songs…`);
       localStorage.setItem('likedTracksProgress', JSON.stringify({ offset, total: allTracks.length }));
-      localStorage.setItem('likedTracksData', JSON.stringify(allTracks.map(it => it.track.id)));
+      localStorage.setItem('likedTracksIds', JSON.stringify(allTracks.map(it => it.track.id)));
     } catch (err) {
       console.error('Error fetching liked songs:', err);
-      updateStatus(`⚠️ Error at offset ${offset}. Retrying...`);
+      updateStatus(`⚠️ Network or error at offset ${offset}. Retrying...`);
       await new Promise(r => setTimeout(r, 2000));
       continue;
     }
@@ -161,11 +168,12 @@ async function fetchLikedSongs(token) {
 
   window.likedTracks = allTracks;
   localStorage.removeItem('likedTracksProgress');
+  localStorage.removeItem('likedTracksIds');
   updateStatus(`✅ All songs fetched (${allTracks.length}).`);
   enable('fetch-genres');
 }
 
-// ---------- RESUMABLE FETCH logic for artist genres ----------
+// RESUMABLE: fetch artist genres
 async function fetchGenres(token) {
   const artistIds = new Set();
   window.likedTracks.forEach(item => {
@@ -200,7 +208,7 @@ async function fetchGenres(token) {
       console.error('Error fetching artist genres:', err);
       updateStatus(`⚠️ Error at index ${i}. Retrying...`);
       await new Promise(r => setTimeout(r, 2000));
-      i -= 50; // will retry this batch
+      i -= 50;
       continue;
     }
   }
@@ -211,7 +219,7 @@ async function fetchGenres(token) {
   enable('normalize-genres');
 }
 
-// ---------- Bucket detection with multi‑bucket & sub‑genre logic ----------
+// Bucket detection
 function normalizeAndDetect() {
   const bucketTrackMap = {};
   const rawByBucket = {};
@@ -261,9 +269,9 @@ function normalizeAndDetect() {
     container.appendChild(label);
   });
 
-  document.getElementById('mood‑selection').style.display = 'block';
-  document.getElementById('mode‑selection').style.display = 'block';
-  document.getElementById('bucket‑selection').style.display = 'block';
+  document.getElementById('mood‑selection').classList.add('visible');
+  document.getElementById('mode‑selection').classList.add('visible');
+  document.getElementById('bucket‑selection').classList.add('visible');
   updateStatus(`🧮 Detected ${selected.length} buckets. Choose mood & mode then create playlists.`);
   enable('create-playlists');
 }
@@ -274,26 +282,32 @@ document.getElementById('normalize-genres').addEventListener('click', () => {
   normalizeAndDetect();
 });
 
-// ---------- Playlist creation ----------
+// Create playlists
 async function createPlaylistsFlow(token) {
-  const prof = await (await fetch('https://api.spotify.com/v1/me', {
+  const profile = await (await fetch('https://api.spotify.com/v1/me', {
     headers: { Authorization: `Bearer ${token}` }
   })).json();
-  const userId = prof.id;
+  const userId = profile.id;
 
   const mode = document.querySelector('input[name="mode"]:checked').value;
   const mood = document.querySelector('input[name="mood"]:checked').value;
+  const allowOverlap = document.getElementById('allow‑overlap').checked;
   const buckets = mode === 'auto'
     ? window.selectedBuckets
     : Array.from(document.querySelectorAll('#selection-container input:checked')).map(i => i.value);
 
   const resultsList = document.getElementById('playlist‑list');
   resultsList.innerHTML = '';
-  document.getElementById('playlist‑results').style.display = 'block';
+  document.getElementById('playlist‑results').classList.add('visible');
+
+  const usedTrackIds = new Set();
 
   for (const bucket of buckets) {
     const tracks = window.bucketTrackMap[bucket];
-    const uris = tracks.map(t => t.uri);
+    const uris = tracks
+      .filter(t => allowOverlap || !usedTrackIds.has(t.uri))
+      .map(t => ( usedTrackIds.add(t.uri), t.uri) );
+
     const genresStr = Array.from(window.rawGenresByBucket[bucket]).join(', ');
     const name = `${mood} • ${bucket}`;
     const desc = `Original genres: ${genresStr}`;
@@ -315,11 +329,11 @@ async function createPlaylistsFlow(token) {
         body: JSON.stringify({ uris: uris.slice(i, i+100) })
       });
     }
-    updateStatus(`✅ Playlist "${name}" created with ${uris.length} songs.`);
+    updateStatus(`✅ Playlist "${name}" created (${uris.length} songs).`);
   }
 
   updateStatus('🎉 All playlists created!');
-  enable('login'); // allow you to run again if desired
+  enable('login');
 }
 
 document.getElementById('create-playlists').addEventListener('click', () => {
@@ -328,7 +342,6 @@ document.getElementById('create-playlists').addEventListener('click', () => {
   createPlaylistsFlow(window.spotifyToken);
 });
 
-// On load: check for auth code
 window.onload = () => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
@@ -353,6 +366,7 @@ window.onload = () => {
     fetchGenres(window.spotifyToken);
   });
 };
+
 
 
 
