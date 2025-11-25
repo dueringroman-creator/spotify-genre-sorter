@@ -1,6 +1,6 @@
 // Replace this with the Client ID from your Spotify Developer app
-const CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID';
-const REDIRECT_URI = 'http://localhost:5500/callback';
+const CLIENT_ID = 'fbfe6cf7e22a42d09ddeaab6449c7c1f';
+const REDIRECT_URI = 'https://dueringroman-creator.github.io/spotify-genre-sorter/';
 const SCOPES = [
   'user-library-read',
   'playlist-modify-public',
