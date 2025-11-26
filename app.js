@@ -1,40 +1,50 @@
 const CLIENT_ID = '97762324651b49d1bb703566c9c36072';
 const REDIRECT_URI = 'https://dueringroman-creator.github.io/spotify-genre-sorter/';
-const SCOPES = ['user-library-read', 'playlist-modify-public', 'playlist-modify-private'];
+const SCOPES = ['user-library-read','playlist-modify-public','playlist-modify-private'];
 const STATE = 'spotify_auth';
 const CODE_VERIFIER_KEY = 'spotify_code_verifier';
 
 function updateStatus(msg) {
-  document.getElementById('status').innerText = msg;
+  const el = document.getElementById('status');
+  if (el) el.innerText = msg;
   console.log(msg);
 }
-function disable(id) { document.getElementById(id).disabled = true; }
-function enable(id) { document.getElementById(id).disabled = false; }
+function disable(id) {
+  const b = document.getElementById(id);
+  if (b) b.disabled = true;
+}
+function enable(id) {
+  const b = document.getElementById(id);
+  if (b) b.disabled = false;
+}
 
 function generateRandomString(length) {
-  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let res = '';
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let s = '';
   for (let i = 0; i < length; i++) {
-    res += charset.charAt(Math.floor(Math.random() * charset.length));
+    s += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return res;
+  return s;
 }
 
 async function generateCodeChallenge(verifier) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(verifier);
+  const data = new TextEncoder().encode(verifier);
   const digest = await crypto.subtle.digest('SHA-256', data);
   return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
 }
 
+// Step 1: Login
 document.getElementById('login').addEventListener('click', async () => {
   const verifier = generateRandomString(128);
   const challenge = await generateCodeChallenge(verifier);
   localStorage.setItem(CODE_VERIFIER_KEY, verifier);
 
-  const authUrl = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}&scope=${SCOPES.join('%20')}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${STATE}&code_challenge=${challenge}&code_challenge_method=S256`;
-  window.location = authUrl;
+  const url = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}` +
+              `&scope=${SCOPES.join('%20')}` +
+              `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+              `&state=${STATE}&code_challenge=${challenge}&code_challenge_method=S256`;
+  window.location = url;
 });
 
 async function fetchAccessToken(code) {
@@ -46,17 +56,15 @@ async function fetchAccessToken(code) {
     redirect_uri: REDIRECT_URI,
     code_verifier: verifier
   });
-
-  const response = await fetch('https://accounts.spotify.com/api/token', {
+  const resp = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 'Content-Type':'application/x-www-form-urlencoded' },
     body
   });
-
-  const data = await response.json();
+  const data = await resp.json();
   if (data.access_token) {
     window.spotifyToken = data.access_token;
-    updateStatus('🔑 Authenticated. Let’s gather your song collection.');
+    updateStatus('✅ Logged in — you can fetch your saved songs.');
     disable('login');
     enable('fetch-tracks');
   } else {
@@ -65,155 +73,139 @@ async function fetchAccessToken(code) {
   }
 }
 
-async function fetchAllLikedSongs(token) {
-  const all = [];
+// Step 2: Fetch saved tracks
+async function fetchSavedTracks(token) {
+  updateStatus('🎵 Fetching your saved songs...');
+  disable('fetch-tracks');
+  let all = [];
   let offset = 0;
   const limit = 50;
-
-  updateStatus('🎵 Fetching liked tracks...');
-  disable('fetch-tracks');
-
   while (true) {
-    const res = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
+    const resp = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    const data = await res.json();
+    const data = await resp.json();
     if (!data.items || data.items.length === 0) break;
     all.push(...data.items);
     offset += limit;
-    updateStatus(`Fetched ${all.length} tracks...`);
+    updateStatus(`Fetched ${all.length} songs...`);
   }
-
-  window.likedTracks = all;
-  updateStatus(`✅ Done. ${all.length} tracks ready for genre analysis.`);
+  window.savedTracks = all;
+  updateStatus(`✅ Retrieved ${all.length} songs. Next: gather artist genres.`);
   enable('fetch-genres');
 }
 
-async function fetchGenres(token) {
-  const artistIds = new Set();
-  window.likedTracks.forEach(t => t.track && t.track.artists[0] && artistIds.add(t.track.artists[0].id));
-  const ids = Array.from(artistIds);
-  const map = {};
-
-  updateStatus('🔍 Looking up artist genres...');
+// Step 3: Gather genres from artists
+async function fetchArtistGenres(token) {
+  updateStatus('🔍 Gathering artist genres...');
   disable('fetch-genres');
 
-  for (let i = 0; i < ids.length; i += 50) {
-    const batch = ids.slice(i, i + 50).join(',');
-    const res = await fetch(`https://api.spotify.com/v1/artists?ids=${batch}`, {
+  const artistSet = new Set();
+  window.savedTracks.forEach(item => {
+    const a = item.track && item.track.artists && item.track.artists[0];
+    if (a && a.id) artistSet.add(a.id);
+  });
+  const artistIds = Array.from(artistSet);
+  const genreMap = {};
+
+  for (let i = 0; i < artistIds.length; i += 50) {
+    const batch = artistIds.slice(i, i + 50).join(',');
+    const resp = await fetch(`https://api.spotify.com/v1/artists?ids=${batch}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    const data = await res.json();
-    data.artists.forEach(a => map[a.id] = a.genres);
+    const data = await resp.json();
+    data.artists.forEach(a => {
+      genreMap[a.id] = a.genres || [];
+    });
   }
 
-  window.artistGenreMap = map;
-  updateStatus('✨ Genres found. Let’s cook up some genre buckets.');
-  enable('normalize-genres');
+  window.artistGenreMap = genreMap;
+  updateStatus('✅ Genres gathered. Building genre buckets...');
+  buildGenreBuckets();
 }
 
-function normalizeAndDetect() {
-  const raw = window.artistGenreMap;
-  const tracks = window.likedTracks;
-  const genreBuckets = {};
-  const rawGenres = {};
-
-  tracks.forEach(item => {
+// Build map: genre → track list  
+function buildGenreBuckets() {
+  const buckets = {};
+  window.savedTracks.forEach(item => {
     const track = item.track;
-    const artist = track?.artists[0];
-    if (!artist) return;
-
-    const genres = raw[artist.id] || ['Unknown'];
+    const a = track.artists[0];
+    const genres = window.artistGenreMap[a.id] || [];
     genres.forEach(g => {
-      const norm = g.toLowerCase().split(' ').slice(0, 2).join(' ');
-      if (!genreBuckets[norm]) genreBuckets[norm] = [];
-      genreBuckets[norm].push(track);
-
-      if (!rawGenres[norm]) rawGenres[norm] = new Set();
-      rawGenres[norm].add(g);
+      const key = g; // use Spotify genre directly
+      if (!buckets[key]) buckets[key] = [];
+      buckets[key].push(track);
     });
   });
+  window.genreBuckets = buckets;
 
-  const filtered = Object.entries(genreBuckets)
-    .filter(([_, songs]) => songs.length >= 30)
-    .sort((a, b) => b[1].length - a[1].length)
-    .slice(0, 15);
+  const genreListEl = document.getElementById('genre‑list');
+  genreListEl.innerHTML = '';
+  Object.entries(buckets)
+    .sort((a,b) => b[1].length - a[1].length)
+    .forEach(([genre, tracks]) => {
+      const label = document.createElement('label');
+      label.innerHTML = `<input type="checkbox" value="${genre}" checked> ${genre} (${tracks.length} songs)`;
+      genreListEl.appendChild(label);
+    });
 
-  const selection = document.getElementById('selection-container');
-  selection.innerHTML = '';
-  filtered.forEach(([key, songs]) => {
-    const gSet = Array.from(rawGenres[key]).join(', ');
-    const label = document.createElement('label');
-    label.innerHTML = `<input type="checkbox" value="${key}" checked> ${key} (${songs.length}) <br><small>${gSet}</small>`;
-    selection.appendChild(label);
-  });
-
-  window.bucketMap = genreBuckets;
-  window.filteredBuckets = filtered.map(([k]) => k);
-  document.getElementById('bucket-selection').style.display = 'block';
+  document.getElementById('genre‑selection').style.display = 'block';
   enable('create-playlists');
-  updateStatus('📦 Genre buckets ready. Choose what to transform.');
+  updateStatus('Select which genres you want playlists for.');
 }
 
+// Step 4: Create playlists for selected genres
 async function createPlaylists(token) {
+  updateStatus('🚀 Creating playlists...');
+  disable('create-playlists');
+
   const profile = await fetch('https://api.spotify.com/v1/me', {
     headers: { Authorization: `Bearer ${token}` }
-  }).then(res => res.json());
+  }).then(r => r.json());
+  const uid = profile.id;
 
-  const selected = Array.from(document.querySelectorAll('#selection-container input:checked'))
-    .map(i => i.value);
+  const selected = Array.from(document.querySelectorAll('#genre‑list input:checked')).map(el => el.value);
+  const resultsEl = document.getElementById('playlist‑list');
+  resultsEl.innerHTML = '';
+  document.getElementById('playlist‑results').style.display = 'block';
 
   for (const genre of selected) {
-    const name = `${genre} ✨ Alchemy`;
-    const tracks = window.bucketMap[genre].slice(0, 200);
+    const tracks = window.genreBuckets[genre];
     const uris = tracks.map(t => t.uri);
+    const playlistName = `${genre} Vibes`;
+    const description = `Playlist generated by Playlist Alchemist — based on genre: ${genre}`;
 
-    const create = await fetch(`https://api.spotify.com/v1/users/${profile.id}/playlists`, {
+    const resp = await fetch(`https://api.spotify.com/v1/users/${uid}/playlists`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name,
-        description: `Infused from genres: ${Array.from(window.artistGenreMap[genre] || []).join(', ')}`,
-        public: false
-      })
-    }).then(res => res.json());
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type':'application/json' },
+      body: JSON.stringify({ name: playlistName, description, public:false })
+    });
+    const data = await resp.json();
+    const pid = data.id;
 
+    // add tracks
     for (let i = 0; i < uris.length; i += 100) {
       const chunk = uris.slice(i, i + 100);
-      await fetch(`https://api.spotify.com/v1/playlists/${create.id}/tracks`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+      await fetch(`https://api.spotify.com/v1/playlists/${pid}/tracks`, {
+        method:'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type':'application/json' },
         body: JSON.stringify({ uris: chunk })
       });
     }
-
-    updateStatus(`✅ Playlist created: ${name}`);
+    resultsEl.innerHTML += `<li>✅ ${playlistName} — ${uris.length} songs — ID: ${pid}</li>`;
   }
 
-  updateStatus('🎉 All playlists are ready in your Spotify library.');
+  updateStatus('🎉 Done! Check your Spotify account.');
 }
 
-document.getElementById('normalize-genres').addEventListener('click', () => {
-  disable('normalize-genres');
-  normalizeAndDetect();
-});
-
-document.getElementById('create-playlists').addEventListener('click', () => {
-  disable('create-playlists');
-  createPlaylists(window.spotifyToken);
-});
-
 document.getElementById('fetch-tracks').addEventListener('click', () => {
-  if (window.spotifyToken) fetchAllLikedSongs(window.spotifyToken);
+  fetchSavedTracks(window.spotifyToken);
 });
 document.getElementById('fetch-genres').addEventListener('click', () => {
-  if (window.spotifyToken) fetchGenres(window.spotifyToken);
+  fetchArtistGenres(window.spotifyToken);
+});
+document.getElementById('create-playlists').addEventListener('click', () => {
+  createPlaylists(window.spotifyToken);
 });
 
 window.onload = () => {
