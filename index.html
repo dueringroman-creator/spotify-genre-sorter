@@ -1,29 +1,117 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Playlist Alchemist</title>
-  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #121212;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px;
+    }
+    h1 {
+      color: #1DB954;
+      margin-bottom: 20px;
+    }
+    .buttons {
+      margin: 20px 0;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    button {
+      background-color: #1DB954;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:disabled {
+      background-color: #444;
+      cursor: not-allowed;
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 18px;
+      color: #aaa;
+      text-align: center;
+      max-width: 600px;
+    }
+    #genre-select-container {
+      margin-top: 20px;
+      width: 80%;
+      max-width: 600px;
+    }
+    select {
+      width: 100%;
+      min-height: 150px;
+    }
+    #created-playlists {
+      margin-top: 30px;
+      width: 80%;
+      max-width: 600px;
+      background-color: #1e1e1e;
+      border-radius: 8px;
+      padding: 20px;
+    }
+    #created-playlists h2 {
+      margin-top: 0;
+      color: #1DB954;
+    }
+    #created-playlists ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    #created-playlists li {
+      margin: 8px 0;
+      color: #fff;
+    }
+    #reset-session {
+      margin-top: 20px;
+      background-color: #FF4C4C;
+    }
+  </style>
 </head>
 <body>
   <h1>Playlist Alchemist</h1>
 
-  <div id="stepper">
+  <div class="buttons">
     <button id="login">🔐 Login to Spotify</button>
     <button id="fetch-tracks" disabled>🎵 Fetch My Songs</button>
     <button id="fetch-genres" disabled>🔍 Fetch Genres</button>
-    <button id="detect-buckets" disabled>🧪 Detect Genre Buckets</button>
-    <button id="create-playlists" disabled>🪄 Create Playlists</button>
-    <button id="reset-session">🧹 Reset Session</button>
   </div>
 
   <div id="status">Please login to begin.</div>
-  <div id="selection-container" style="display:none;"></div>
-  <div id="playlists-container" style="display:none;"></div>
+
+  <div id="genre-select-container" style="display:none;">
+    <p>Select genres to create playlists (you can select multiple):</p>
+    <select id="genre-select" multiple></select>
+    <div style="margin-top: 10px;">
+      <button id="select-all-genres">Select All</button>
+      <button id="deselect-all-genres">Deselect All</button>
+      <button id="create-playlists" disabled>🪄 Create Playlists</button>
+    </div>
+  </div>
+
+  <div id="created-playlists" style="display:none;">
+    <h2>Your Created Playlists</h2>
+    <ul id="playlist-list"></ul>
+  </div>
+
+  <button id="reset-session">🧹 Reset Session</button>
 
   <script src="app.js"></script>
 </body>
 </html>
+
 
 
 
