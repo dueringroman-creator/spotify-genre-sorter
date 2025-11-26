@@ -3,10 +3,11 @@ const REDIRECT_URI = 'https://dueringroman-creator.github.io/spotify-genre-sorte
 const SCOPES = ['user-library-read','playlist-modify-public','playlist-modify-private'];
 const STATE = 'spotify_auth';
 const CODE_VERIFIER_KEY = 'spotify_code_verifier';
+const STORAGE_KEY = 'playlistAlchemistState';
 
 function updateStatus(msg) {
-  const el = document.getElementById('status');
-  if (el) el.innerText = msg;
+  const st = document.getElementById('status');
+  if (st) st.innerText = msg;
   console.log(msg);
 }
 function disable(id) {
@@ -34,16 +35,56 @@ async function generateCodeChallenge(verifier) {
     .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
 }
 
+// Storage helpers
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+function saveState(state) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+function clearState() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+// On load: handle callback or restore session
+window.onload = () => {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const stateParam = params.get('state');
+  if (code && stateParam === STATE) {
+    fetchAccessToken(code);
+    window.history.replaceState({}, document.title, REDIRECT_URI);
+  } else {
+    const st = loadState();
+    if (st && st.spotifyToken) {
+      window.spotifyToken = st.spotifyToken;
+      updateStatus('Resumed previous session.');
+      disable('login');
+      enable('fetch-tracks');
+    }
+  }
+};
+
 // Step 1: Login
 document.getElementById('login').addEventListener('click', async () => {
   const verifier = generateRandomString(128);
   const challenge = await generateCodeChallenge(verifier);
   localStorage.setItem(CODE_VERIFIER_KEY, verifier);
 
-  const url = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}` +
+  const url = `https://accounts.spotify.com/authorize?response_type=code` +
+              `&client_id=${CLIENT_ID}` +
               `&scope=${SCOPES.join('%20')}` +
               `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-              `&state=${STATE}&code_challenge=${challenge}&code_challenge_method=S256`;
+              `&state=${STATE}` +
+              `&code_challenge=${challenge}` +
+              `&code_challenge_method=S256`;
+
   window.location = url;
 });
 
@@ -64,11 +105,12 @@ async function fetchAccessToken(code) {
   const data = await resp.json();
   if (data.access_token) {
     window.spotifyToken = data.access_token;
+    saveState({ spotifyToken: data.access_token });
     updateStatus('✅ Logged in — you can fetch your saved songs.');
     disable('login');
     enable('fetch-tracks');
   } else {
-    updateStatus('❌ Login failed. Try again.');
+    updateStatus('❌ Login failed. Please retry.');
     console.error(data);
   }
 }
@@ -80,22 +122,32 @@ async function fetchSavedTracks(token) {
   let all = [];
   let offset = 0;
   const limit = 50;
+
   while (true) {
-    const resp = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const data = await resp.json();
-    if (!data.items || data.items.length === 0) break;
-    all.push(...data.items);
-    offset += limit;
-    updateStatus(`Fetched ${all.length} songs...`);
+    try {
+      const resp = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (!data.items || data.items.length === 0) break;
+      all.push(...data.items);
+      offset += limit;
+      updateStatus(`Fetched ${all.length} songs...`);
+    } catch (err) {
+      console.error('Error fetching songs:', err);
+      updateStatus(`⚠️ Error at offset ${offset}. Retrying in 3s...`);
+      await new Promise(r => setTimeout(r, 3000));
+      continue;
+    }
   }
   window.savedTracks = all;
+  saveState({ spotifyToken: token, savedTracks: all.map(i => i.track.id) });
   updateStatus(`✅ Retrieved ${all.length} songs. Next: gather artist genres.`);
   enable('fetch-genres');
 }
 
-// Step 3: Gather genres from artists
+// Step 3: Fetch artist genres
 async function fetchArtistGenres(token) {
   updateStatus('🔍 Gathering artist genres...');
   disable('fetch-genres');
@@ -110,21 +162,36 @@ async function fetchArtistGenres(token) {
 
   for (let i = 0; i < artistIds.length; i += 50) {
     const batch = artistIds.slice(i, i + 50).join(',');
-    const resp = await fetch(`https://api.spotify.com/v1/artists?ids=${batch}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const data = await resp.json();
-    data.artists.forEach(a => {
-      genreMap[a.id] = a.genres || [];
-    });
+    try {
+      const resp = await fetch(`https://api.spotify.com/v1/artists?ids=${batch}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      data.artists.forEach(a => {
+        genreMap[a.id] = a.genres || [];
+      });
+      updateStatus(`Fetched genres for ${Math.min(i + 50, artistIds.length)} / ${artistIds.length} artists...`);
+    } catch (err) {
+      console.error('Error fetching artist genres:', err);
+      updateStatus(`⚠️ Error at batch starting ${i}. Retrying in 3s...`);
+      await new Promise(r => setTimeout(r, 3000));
+      i -= 50;
+      continue;
+    }
   }
 
   window.artistGenreMap = genreMap;
+  saveState({
+    spotifyToken: token,
+    savedTracks: window.savedTracks.map(i => i.track.id),
+    artistGenreMap: genreMap
+  });
   updateStatus('✅ Genres gathered. Building genre buckets...');
   buildGenreBuckets();
 }
 
-// Build map: genre → track list  
+// Build genre → tracks map  
 function buildGenreBuckets() {
   const buckets = {};
   window.savedTracks.forEach(item => {
@@ -132,7 +199,7 @@ function buildGenreBuckets() {
     const a = track.artists[0];
     const genres = window.artistGenreMap[a.id] || [];
     genres.forEach(g => {
-      const key = g; // use Spotify genre directly
+      const key = g;
       if (!buckets[key]) buckets[key] = [];
       buckets[key].push(track);
     });
@@ -142,21 +209,29 @@ function buildGenreBuckets() {
   const genreListEl = document.getElementById('genre‑list');
   genreListEl.innerHTML = '';
   Object.entries(buckets)
-    .sort((a,b) => b[1].length - a[1].length)
+    .sort((a, b) => b[1].length - a[1].length)
     .forEach(([genre, tracks]) => {
       const label = document.createElement('label');
-      label.innerHTML = `<input type="checkbox" value="${genre}" checked> ${genre} (${tracks.length} songs)`;
+      label.innerHTML = `<input type="checkbox" value="${genre}"> ${genre} — ${tracks.length} songs`;
       genreListEl.appendChild(label);
     });
 
   document.getElementById('genre‑selection').style.display = 'block';
   enable('create-playlists');
-  updateStatus('Select which genres you want playlists for.');
+  updateStatus('Select which genres you want to create playlists for.');
 }
+
+// Select All / Clear All logic
+document.getElementById('select-all-genres').addEventListener('click', () => {
+  document.querySelectorAll('#genre‑list input[type="checkbox"]').forEach(cb => cb.checked = true);
+});
+document.getElementById('clear-genres').addEventListener('click', () => {
+  document.querySelectorAll('#genre‑list input[type="checkbox"]').forEach(cb => cb.checked = false);
+});
 
 // Step 4: Create playlists for selected genres
 async function createPlaylists(token) {
-  updateStatus('🚀 Creating playlists...');
+  updateStatus('🚀 Creating playlists…');
   disable('create-playlists');
 
   const profile = await fetch('https://api.spotify.com/v1/me', {
@@ -172,32 +247,34 @@ async function createPlaylists(token) {
   for (const genre of selected) {
     const tracks = window.genreBuckets[genre];
     const uris = tracks.map(t => t.uri);
-    const playlistName = `${genre} Vibes`;
-    const description = `Playlist generated by Playlist Alchemist — based on genre: ${genre}`;
+    const playlistName = `Alchemist: ${genre}`;
+    const description = `Songs with artist genre: ${genre}`;
 
     const resp = await fetch(`https://api.spotify.com/v1/users/${uid}/playlists`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type':'application/json' },
-      body: JSON.stringify({ name: playlistName, description, public:false })
+      body: JSON.stringify({ name: playlistName, description, public: false })
     });
     const data = await resp.json();
     const pid = data.id;
 
-    // add tracks
     for (let i = 0; i < uris.length; i += 100) {
       const chunk = uris.slice(i, i + 100);
       await fetch(`https://api.spotify.com/v1/playlists/${pid}/tracks`, {
-        method:'POST',
+        method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type':'application/json' },
         body: JSON.stringify({ uris: chunk })
       });
     }
-    resultsEl.innerHTML += `<li>✅ ${playlistName} — ${uris.length} songs — ID: ${pid}</li>`;
+
+    const link = `https://open.spotify.com/playlist/${pid}`;
+    resultsEl.innerHTML += `<li>✅ <a class="playlist-link" href="${link}" target="_blank">${playlistName}</a> — ${uris.length} songs</li>`;
   }
 
-  updateStatus('🎉 Done! Check your Spotify account.');
+  updateStatus('🎉 Done! Check your Spotify account for new playlists.');
 }
 
+// Hook buttons
 document.getElementById('fetch-tracks').addEventListener('click', () => {
   fetchSavedTracks(window.spotifyToken);
 });
@@ -208,15 +285,6 @@ document.getElementById('create-playlists').addEventListener('click', () => {
   createPlaylists(window.spotifyToken);
 });
 
-window.onload = () => {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
-  const state = params.get('state');
-  if (code && state === STATE) {
-    fetchAccessToken(code);
-    window.history.replaceState({}, document.title, REDIRECT_URI);
-  }
-};
 
 
 
