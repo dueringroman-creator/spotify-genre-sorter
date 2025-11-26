@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Playlist Alchemist</title>
   <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
   <style>
@@ -46,7 +46,7 @@
       text-align: center;
       color: #ccc;
     }
-    #genre‑selection {
+    #genre‑selection, #playlist‑results {
       margin-top: 30px;
       background-color: #1e1e1e;
       padding: 20px;
@@ -59,15 +59,6 @@
       display: block;
       margin-bottom: 8px;
     }
-    #playlist‑results {
-      margin-top: 30px;
-      background-color: #1e1e1e;
-      padding: 20px;
-      border-radius: 8px;
-      width: 90%;
-      max-width: 600px;
-      display: none;
-    }
     #playlist‑results ul {
       list-style: none;
       padding: 0;
@@ -75,11 +66,26 @@
     #playlist‑results li {
       margin: 6px 0;
       color: #aaa;
+      word-break: break-word;
+    }
+    a.playlist-link {
+      color: #1DB954;
+      text-decoration: none;
+    }
+    /* Styles for the select all / clear buttons */
+    #genre‑selection > .controls {
+      margin-bottom: 10px;
+    }
+    #genre‑selection > .controls button {
+      padding: 6px 12px;
+      font-size: 14px;
+      margin-right: 5px;
     }
   </style>
 </head>
 <body>
   <h1>Playlist Alchemist</h1>
+
   <div class="buttons">
     <button id="login">Login to Spotify</button>
     <button id="fetch-tracks" disabled>Fetch My Songs</button>
@@ -91,6 +97,10 @@
 
   <div id="genre‑selection">
     <h3>Select Genres to Build Playlists</h3>
+    <div class="controls">
+      <button id="select-all-genres">Select All</button>
+      <button id="clear-genres">Clear All</button>
+    </div>
     <div id="genre‑list"></div>
   </div>
 
@@ -102,6 +112,7 @@
   <script src="app.js"></script>
 </body>
 </html>
+
 
 
 
