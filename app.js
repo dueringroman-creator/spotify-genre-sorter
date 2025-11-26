@@ -1,52 +1,65 @@
 const CLIENT_ID = '97762324651b49d1bb703566c9c36072';
 const REDIRECT_URI = 'https://dueringroman-creator.github.io/spotify-genre-sorter/';
-const SCOPES = ['user-library-read', 'playlist-modify-private'];
-const STATE = 'auth_state';
-const CODE_VERIFIER_KEY = 'code_verifier';
-const SESSION_KEY = 'alchemist_session';
+const SCOPES = ['user-library-read', 'playlist-modify-public', 'playlist-modify-private'];
+const STATE = 'alchemist_state';
+let spotifyToken = null;
 
-let token = null;
-let step = 0;
-let savedTracks = [];
-let artistGenres = {};
-let buckets = {};
-let selectedBuckets = [];
+const dbName = 'alchemist_db';
+const storeName = 'session_data';
 
-const steps = document.querySelectorAll('.step');
-
-function updateStep(newStep) {
-  steps.forEach((s, i) => {
-    s.classList.toggle('active', i === newStep);
+// IndexedDB helpers
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(dbName, 1);
+    request.onupgradeneeded = e => {
+      e.target.result.createObjectStore(storeName);
+    };
+    request.onsuccess = e => resolve(e.target.result);
+    request.onerror = () => reject(request.error);
   });
 }
 
-function updateStatus(msg) {
-  document.getElementById('status').textContent = msg;
-  console.log(msg);
+function saveToDB(key, value) {
+  return openDB().then(db => {
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).put(value, key);
+    return tx.complete;
+  });
 }
 
-function saveSession() {
-  localStorage.setItem(SESSION_KEY, JSON.stringify({
-    token, savedTracks, artistGenres, buckets
-  }));
+function loadFromDB(key) {
+  return openDB().then(db => {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName);
+      const request = tx.objectStore(storeName).get(key);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  });
 }
 
-function restoreSession() {
-  const data = JSON.parse(localStorage.getItem(SESSION_KEY));
-  if (data?.token) {
-    token = data.token;
-    savedTracks = data.savedTracks || [];
-    artistGenres = data.artistGenres || {};
-    buckets = data.buckets || {};
-    updateStatus("🔄 Resumed previous session.");
-    step = 2;
-    updateStep(step);
-    document.getElementById('fetch-tracks').disabled = false;
-    document.getElementById('fetch-genres').disabled = false;
-    document.getElementById('analyze-buckets').disabled = false;
-  }
+function clearDB() {
+  return openDB().then(db => {
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).clear();
+    return tx.complete;
+  });
 }
 
+// UI helpers
+function updateStatus(text) {
+  document.getElementById('status').innerText = text;
+}
+
+function enable(id) {
+  document.getElementById(id).disabled = false;
+}
+
+function disable(id) {
+  document.getElementById(id).disabled = true;
+}
+
+// Auth
 async function generateCodeChallenge(verifier) {
   const data = new TextEncoder().encode(verifier);
   const digest = await crypto.subtle.digest('SHA-256', data);
@@ -56,30 +69,11 @@ async function generateCodeChallenge(verifier) {
 
 function generateRandomString(length) {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  return Array.from(crypto.getRandomValues(new Uint8Array(length)))
-    .map(x => charset[x % charset.length]).join('');
+  return Array.from({ length }, () => charset[Math.floor(Math.random() * charset.length)]).join('');
 }
 
-document.getElementById('login').onclick = async () => {
-  const verifier = generateRandomString(128);
-  const challenge = await generateCodeChallenge(verifier);
-  localStorage.setItem(CODE_VERIFIER_KEY, verifier);
-
-  const params = new URLSearchParams({
-    response_type: 'code',
-    client_id: CLIENT_ID,
-    scope: SCOPES.join(' '),
-    redirect_uri: REDIRECT_URI,
-    state: STATE,
-    code_challenge_method: 'S256',
-    code_challenge: challenge
-  });
-
-  window.location = `https://accounts.spotify.com/authorize?${params.toString()}`;
-};
-
-async function exchangeToken(code) {
-  const verifier = localStorage.getItem(CODE_VERIFIER_KEY);
+async function fetchAccessToken(code) {
+  const verifier = localStorage.getItem('code_verifier');
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     grant_type: 'authorization_code',
@@ -95,169 +89,110 @@ async function exchangeToken(code) {
   });
 
   const data = await res.json();
-  token = data.access_token;
-  localStorage.removeItem(CODE_VERIFIER_KEY);
-  updateStatus("🔓 Logged in successfully!");
-  document.getElementById('fetch-tracks').disabled = false;
-  updateStep(1);
+  return data.access_token;
 }
 
-async function fetchSavedTracks() {
-  updateStatus("🎵 Fetching your saved songs...");
-  document.getElementById('fetch-tracks').disabled = true;
-
-  let offset = savedTracks.length;
-  const limit = 50;
-
-  while (true) {
-    const res = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    if (res.status === 401) {
-      updateStatus("⚠️ Unauthorized. Please log in again.");
-      return;
-    }
-
-    const data = await res.json();
-    if (!data.items || data.items.length === 0) break;
-
-    savedTracks.push(...data.items);
-    offset += limit;
-    updateStatus(`✅ ${savedTracks.length} songs fetched...`);
-    saveSession();
-  }
-
-  updateStatus(`🎶 All songs retrieved!`);
-  updateStep(2);
-  document.getElementById('fetch-genres').disabled = false;
-}
-
-async function fetchGenres() {
-  updateStatus("🔍 Fetching artist genres...");
-  document.getElementById('fetch-genres').disabled = true;
-
-  const artistIds = [...new Set(savedTracks.map(t => t.track.artists[0]?.id).filter(Boolean))];
-
-  for (let i = 0; i < artistIds.length; i += 50) {
-    const ids = artistIds.slice(i, i + 50).join(',');
-    const res = await fetch(`https://api.spotify.com/v1/artists?ids=${ids}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const data = await res.json();
-    for (const artist of data.artists) {
-      artistGenres[artist.id] = artist.genres;
-    }
-    updateStatus(`Genres fetched for ${i + 50}/${artistIds.length} artists...`);
-    saveSession();
-  }
-
-  updateStep(3);
-  document.getElementById('analyze-buckets').disabled = false;
-}
-
-function detectBuckets() {
-  updateStatus("🧪 Analyzing genres into buckets...");
-  buckets = {};
-  for (const item of savedTracks) {
-    const id = item.track.artists[0]?.id;
-    const genres = artistGenres[id] || [];
-    for (const genre of genres) {
-      if (!buckets[genre]) buckets[genre] = [];
-      buckets[genre].push(item.track);
-    }
-  }
-
-  const bucketList = document.getElementById('bucket-list');
-  bucketList.innerHTML = '';
-  Object.entries(buckets)
-    .sort((a, b) => b[1].length - a[1].length)
-    .forEach(([genre, tracks]) => {
-      const row = document.createElement('label');
-      row.innerHTML = `<input type="checkbox" value="${genre}"/> ${genre} (${tracks.length})`;
-      bucketList.appendChild(row);
-    });
-
-  document.getElementById('buckets').style.display = 'block';
-  document.getElementById('create-playlists').disabled = false;
-  updateStep(4);
-  saveSession();
-}
-
-document.getElementById('select-all-buckets').addEventListener('change', (e) => {
-  document.querySelectorAll('#bucket-list input[type=checkbox]').forEach(cb => {
-    cb.checked = e.target.checked;
-  });
-});
-
-async function createPlaylists() {
-  updateStatus("🎁 Creating your playlists…");
-  const selected = Array.from(document.querySelectorAll('#bucket-list input[type=checkbox]:checked')).map(cb => cb.value);
-  const profileRes = await fetch('https://api.spotify.com/v1/me', {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  const profile = await profileRes.json();
-
-  document.getElementById('playlists').style.display = 'block';
-  const list = document.getElementById('playlist-links');
-  list.innerHTML = '';
-
-  for (const genre of selected) {
-    const tracks = buckets[genre].map(t => t.uri);
-    const res = await fetch(`https://api.spotify.com/v1/users/${profile.id}/playlists`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: `Alchemist: ${genre}`,
-        description: `Auto-generated genre playlist for ${genre}`,
-        public: false
-      })
-    });
-
-    const data = await res.json();
-    for (let i = 0; i < tracks.length; i += 100) {
-      await fetch(`https://api.spotify.com/v1/playlists/${data.id}/tracks`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ uris: tracks.slice(i, i + 100) })
-      });
-    }
-
-    const li = document.createElement('li');
-    li.innerHTML = `<a href="${data.external_urls.spotify}" target="_blank">${data.name}</a>`;
-    list.appendChild(li);
-  }
-
-  updateStatus("✅ Done! Playlists created.");
-  updateStep(5);
-}
-
-document.getElementById('fetch-tracks').onclick = fetchSavedTracks;
-document.getElementById('fetch-genres').onclick = fetchGenres;
-document.getElementById('analyze-buckets').onclick = detectBuckets;
-document.getElementById('create-playlists').onclick = createPlaylists;
-document.getElementById('reset-session').onclick = () => {
-  localStorage.removeItem(SESSION_KEY);
-  location.reload();
+// Step 1: Login
+document.getElementById('login').onclick = async () => {
+  const verifier = generateRandomString(128);
+  const challenge = await generateCodeChallenge(verifier);
+  localStorage.setItem('code_verifier', verifier);
+  const url = `https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}&scope=${SCOPES.join('%20')}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${STATE}&code_challenge=${challenge}&code_challenge_method=S256`;
+  window.location = url;
 };
 
-// Initialize
-(async () => {
+// Step 2: Fetch songs with retry + resume logic
+async function fetchSavedTracks(token) {
+  let allTracks = await loadFromDB('saved_tracks') || [];
+  let offset = allTracks.length;
+  const limit = 50;
+
+  updateStatus(`🎵 Fetching your saved songs...`);
+  while (true) {
+    try {
+      const res = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data.items.length) break;
+      allTracks = allTracks.concat(data.items);
+      offset += limit;
+      await saveToDB('saved_tracks', allTracks);
+      updateStatus(`🎧 ${allTracks.length} songs fetched...`);
+    } catch (err) {
+      updateStatus(`⚠️ Error at offset ${offset}. Retrying in 3s...`);
+      await new Promise(r => setTimeout(r, 3000));
+    }
+  }
+
+  updateStatus(`✅ Done fetching ${allTracks.length} tracks!`);
+  enable('fetch-genres');
+}
+
+// Step 3: Fetch genres
+async function fetchGenres() {
+  const savedTracks = await loadFromDB('saved_tracks');
+  const artistIds = [...new Set(savedTracks.map(item => item.track.artists[0].id))];
+  const genreMap = {};
+  updateStatus(`🔍 Fetching genres for ${artistIds.length} artists...`);
+
+  for (let i = 0; i < artistIds.length; i += 50) {
+    const batch = artistIds.slice(i, i + 50).join(',');
+    const res = await fetch(`https://api.spotify.com/v1/artists?ids=${batch}`, {
+      headers: { Authorization: `Bearer ${spotifyToken}` }
+    });
+    const data = await res.json();
+    data.artists.forEach(artist => {
+      genreMap[artist.id] = artist.genres;
+    });
+    updateStatus(`🔎 Scanned ${Math.min(i + 50, artistIds.length)} / ${artistIds.length}`);
+  }
+
+  await saveToDB('genre_map', genreMap);
+  updateStatus(`✅ Genre mapping complete.`);
+  enable('detect-buckets');
+}
+
+// Init resume
+window.onload = async () => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
-  if (code) {
-    await exchangeToken(code);
+  const state = params.get('state');
+  if (code && state === STATE) {
+    spotifyToken = await fetchAccessToken(code);
     window.history.replaceState({}, document.title, REDIRECT_URI);
-  } else {
-    restoreSession();
+    updateStatus('🎉 Logged in successfully!');
+    enable('fetch-tracks');
+    return;
   }
-})();
+
+  const tokenFromStorage = localStorage.getItem('spotify_token');
+  if (tokenFromStorage) {
+    spotifyToken = tokenFromStorage;
+    updateStatus('🔄 Resumed session.');
+    enable('fetch-tracks');
+  }
+};
+
+// Events
+document.getElementById('fetch-tracks').onclick = () => {
+  if (!spotifyToken) return;
+  disable('fetch-tracks');
+  fetchSavedTracks(spotifyToken);
+};
+
+document.getElementById('fetch-genres').onclick = () => {
+  disable('fetch-genres');
+  fetchGenres();
+};
+
+document.getElementById('reset-session').onclick = async () => {
+  await clearDB();
+  localStorage.clear();
+  updateStatus('🧹 Session reset. Reload to start over.');
+};
+
 
 
 
