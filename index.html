@@ -3,132 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <title>Playlist Alchemist</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
-  <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      margin: 0;
-      padding: 2rem;
-      background: #121212;
-      color: #fff;
-    }
-
-    h1 {
-      text-align: center;
-      color: #1DB954;
-    }
-
-    .stepper {
-      display: flex;
-      justify-content: center;
-      margin: 2rem 0;
-      gap: 1rem;
-    }
-
-    .step {
-      padding: 0.75rem 1rem;
-      border-radius: 6px;
-      background-color: #333;
-      color: #aaa;
-    }
-
-    .step.active {
-      background-color: #1DB954;
-      color: #fff;
-      font-weight: bold;
-    }
-
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 1rem;
-      margin-bottom: 2rem;
-    }
-
-    button {
-      padding: 0.75rem 1.5rem;
-      border: none;
-      border-radius: 5px;
-      font-size: 16px;
-      cursor: pointer;
-      background: #1DB954;
-      color: white;
-      transition: background 0.3s;
-    }
-
-    button:disabled {
-      background: #444;
-      cursor: not-allowed;
-    }
-
-    #status {
-      text-align: center;
-      margin-bottom: 1rem;
-      color: #ccc;
-    }
-
-    #buckets, #playlists {
-      max-width: 800px;
-      margin: 2rem auto;
-      background: #1e1e1e;
-      padding: 1rem;
-      border-radius: 8px;
-    }
-
-    #buckets label {
-      display: block;
-      margin: 0.5rem 0;
-    }
-
-    #playlists ul {
-      list-style: none;
-      padding: 0;
-    }
-
-    #playlists li {
-      margin-bottom: 0.5rem;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <h1>Playlist Alchemist</h1>
 
-  <h1>🎶 Playlist Alchemist</h1>
-
-  <div class="stepper" id="stepper">
-    <div class="step active">1. Login</div>
-    <div class="step">2. Songs</div>
-    <div class="step">3. Genres</div>
-    <div class="step">4. Buckets</div>
-    <div class="step">5. Playlists</div>
-  </div>
-
-  <div class="controls">
-    <button id="login">🔐 Login</button>
-    <button id="fetch-tracks" disabled>🎵 Fetch Songs</button>
+  <div id="stepper">
+    <button id="login">🔐 Login to Spotify</button>
+    <button id="fetch-tracks" disabled>🎵 Fetch My Songs</button>
     <button id="fetch-genres" disabled>🔍 Fetch Genres</button>
-    <button id="analyze-buckets" disabled>🧪 Analyze Genres</button>
-    <button id="create-playlists" disabled>🎁 Create Playlists</button>
-    <button id="reset-session">🔄 Reset</button>
+    <button id="detect-buckets" disabled>🧪 Detect Genre Buckets</button>
+    <button id="create-playlists" disabled>🪄 Create Playlists</button>
+    <button id="reset-session">🧹 Reset Session</button>
   </div>
 
-  <div id="status">Waiting for login…</div>
-
-  <div id="buckets" style="display:none;">
-    <h3>Select Genre Buckets</h3>
-    <div><label><input type="checkbox" id="select-all-buckets" /> Select all</label></div>
-    <div id="bucket-list"></div>
-  </div>
-
-  <div id="playlists" style="display:none;">
-    <h3>🎉 Created Playlists</h3>
-    <ul id="playlist-links"></ul>
-  </div>
+  <div id="status">Please login to begin.</div>
+  <div id="selection-container" style="display:none;"></div>
+  <div id="playlists-container" style="display:none;"></div>
 
   <script src="app.js"></script>
 </body>
 </html>
+
 
 
 
