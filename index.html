@@ -3,28 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <title>Playlist Alchemist</title>
-  <!-- Favicon embedded as Base64 (drumsticks icon) -->
-  <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAAZlBMVEUAAAD///////////////////////////////////////////////////////////////8JCQn7+/vx8fHq6urR0dG4uLiGhoaxsbGSkpKgoKCEhISFhYWJiYmOjo6+vr7b29vd3d2oqKiPj49UVFRTU1PPz8/r6+tidw96AAAAXUlEQVQY02NgQAcYGBgMKCgoYGRgYGRkYGBgUGhgYGxiBFxAYGBgYGRkYGBrYGBjIyMjAwMDAwMDIyMiBCfQAAAAASUVORK5CYII=" type="image/png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
+      font-family: 'Inter', sans-serif;
       background-color: #121212;
       color: #fff;
-      font-family: sans-serif;
-      padding: 40px;
       display: flex;
       flex-direction: column;
       align-items: center;
+      padding: 40px;
     }
     h1 {
       color: #1DB954;
       margin-bottom: 20px;
     }
     .buttons {
+      margin: 20px 0;
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
       justify-content: center;
-      margin-bottom: 20px;
     }
     button {
       background-color: #1DB954;
@@ -42,44 +41,44 @@
     }
     #status {
       margin-top: 20px;
-      font-size: 16px;
-      max-width: 600px;
+      font-size: 18px;
+      color: #aaa;
       text-align: center;
-      color: #ccc;
+      max-width: 700px;
     }
-    #genre‑selection, #playlist‑results {
+    #instructions {
       margin-top: 30px;
+      padding: 20px;
+      background-color: #1e1e1e;
+      border-radius: 8px;
+      width: 80%;
+      color: #ccc;
+      font-size: 16px;
+    }
+    #bucket-selection {
+      margin-top: 30px;
+      max-width: 800px;
       background-color: #1e1e1e;
       padding: 20px;
       border-radius: 8px;
-      width: 90%;
-      max-width: 600px;
       display: none;
     }
-    #genre‑selection label {
+    #bucket-selection h3 {
+      margin-top: 0;
+      color: #fff;
+    }
+    #bucket-selection label {
       display: block;
-      margin-bottom: 8px;
-    }
-    #playlist‑results ul {
-      list-style: none;
-      padding: 0;
-    }
-    #playlist‑results li {
       margin: 6px 0;
-      color: #aaa;
-      word-break: break-word;
+      color: #fff;
     }
-    a.playlist-link {
-      color: #1DB954;
-      text-decoration: none;
+    #bucket-selection input[type="checkbox"] {
+      margin-right: 8px;
     }
-    #genre‑selection > .controls {
-      margin-bottom: 10px;
-    }
-    #genre‑selection > .controls button {
-      padding: 6px 12px;
-      font-size: 14px;
-      margin-right: 5px;
+    #bucket-selection-buttons {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 15px;
     }
   </style>
 </head>
@@ -87,31 +86,40 @@
   <h1>Playlist Alchemist</h1>
 
   <div class="buttons">
-    <button id="login">Login to Spotify</button>
-    <button id="fetch-tracks" disabled>Fetch My Songs</button>
-    <button id="fetch-genres" disabled>Gather Genres</button>
-    <button id="create-playlists" disabled>Create Playlists</button>
+    <button id="login">🔐 Login to Spotify</button>
+    <button id="fetch-tracks" disabled>🎵 Fetch Songs</button>
+    <button id="fetch-genres" disabled>🔍 Fetch Genres</button>
+    <button id="normalize-genres" disabled>🎛️ Detect Buckets</button>
+    <button id="create-playlists" disabled>🎬 Create Playlists</button>
   </div>
 
-  <div id="status">Please login to begin.</div>
+  <div id="status">Welcome! Please log in to begin.</div>
 
-  <div id="genre‑selection">
-    <h3>Select Genres to Build Playlists</h3>
-    <div class="controls">
-      <button id="select-all-genres">Select All</button>
-      <button id="clear-genres">Clear All</button>
+  <div id="instructions">
+    <p>🧪 <strong>How this works:</strong></p>
+    <ul>
+      <li><strong>Login:</strong> Authenticate so we can access your liked songs.</li>
+      <li><strong>Fetch Songs:</strong> We’ll retrieve all your liked tracks.</li>
+      <li><strong>Fetch Genres:</strong> We'll look up genres for each artist.</li>
+      <li><strong>Detect Buckets:</strong> Tracks are grouped into genre buckets for you to pick from.</li>
+      <li><strong>Create Playlists:</strong> Generate playlists based on your selection — each labeled and sorted.</li>
+    </ul>
+  </div>
+
+  <div id="bucket-selection">
+    <h3>🧠 Choose which genre buckets to turn into playlists:</h3>
+    <div id="selection-container"></div>
+    <div id="bucket-selection-buttons">
+      <button id="select-all">✅ Select All</button>
+      <button id="confirm-selection">🎬 Create Selected Playlists</button>
     </div>
-    <div id="genre‑list"></div>
-  </div>
-
-  <div id="playlist‑results">
-    <h3>Created Playlists</h3>
-    <ul id="playlist‑list"></ul>
   </div>
 
   <script src="app.js"></script>
 </body>
 </html>
+
+
 
 
 
