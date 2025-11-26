@@ -1,29 +1,71 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Playlist Alchemist</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: 'Inter', sans-serif;
       background-color: #121212;
       color: #fff;
+      font-family: sans-serif;
+      margin: 0; padding: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 40px;
+      min-height: 100vh;
+    }
+    .container {
+      width: 100%;
+      max-width: 800px;
+      padding: 20px;
     }
     h1 {
       color: #1DB954;
-      margin-bottom: 20px;
+      text-align: center;
     }
-    .buttons {
-      margin: 20px 0;
+    .stepper {
       display: flex;
-      gap: 10px;
+      justify-content: space-between;
+      margin: 20px 0;
+      list-style: none;
+      padding: 0;
+    }
+    .stepper .step {
+      flex: 1;
+      text-align: center;
+      position: relative;
+    }
+    .stepper .step:not(:last-child):after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      right: 0;
+      width: 100%;
+      height: 2px;
+      background: #444;
+      transform: translateX(50%);
+      z-index: 0;
+    }
+    .stepper .step .step-label {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 20px;
+      background: #444;
+      z-index: 1;
+      position: relative;
+      color: #aaa;
+    }
+    .stepper .step.active .step-label {
+      background: #1DB954;
+      color: #fff;
+    }
+
+    .buttons {
+      display: flex;
       flex-wrap: wrap;
+      gap: 10px;
       justify-content: center;
+      margin-bottom: 20px;
     }
     button {
       background-color: #1DB954;
@@ -40,84 +82,103 @@
       cursor: not-allowed;
     }
     #status {
-      margin-top: 20px;
-      font-size: 18px;
-      color: #aaa;
-      text-align: center;
-      max-width: 700px;
-    }
-    #instructions {
-      margin-top: 30px;
-      padding: 20px;
-      background-color: #1e1e1e;
-      border-radius: 8px;
-      width: 80%;
-      color: #ccc;
+      margin-top: 10px;
       font-size: 16px;
+      text-align: center;
+      color: #ccc;
+      min-height: 24px;
     }
-    #bucket-selection {
-      margin-top: 30px;
-      max-width: 800px;
-      background-color: #1e1e1e;
-      padding: 20px;
+    .card {
+      background: #1e1e1e;
       border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      width: 100%;
+    }
+    #genre-selection, #playlist-results {
       display: none;
     }
-    #bucket-selection h3 {
-      margin-top: 0;
-      color: #fff;
-    }
-    #bucket-selection label {
+    #genre-list label {
       display: block;
       margin: 6px 0;
-      color: #fff;
     }
-    #bucket-selection input[type="checkbox"] {
-      margin-right: 8px;
+    #genre-controls {
+      margin-bottom: 10px;
     }
-    #bucket-selection-buttons {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 15px;
+    #playlist-list li {
+      margin: 6px 0;
+      word-break: break-word;
+    }
+    a.playlist-link {
+      color: #1DB954;
+      text-decoration: none;
+    }
+    .option-toggle {
+      margin: 10px 0;
+    }
+    @media (max-width: 600px) {
+      .stepper {
+        flex-direction: column;
+      }
+      .stepper .step:not(:last-child):after {
+        height: 50px;
+        width: 2px;
+        top: auto;
+        left: 50%;
+        transform: translateY(25%) translateX(-50%);
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Playlist Alchemist</h1>
+  <div class="container">
+    <h1>Playlist Alchemist</h1>
 
-  <div class="buttons">
-    <button id="login">🔐 Login to Spotify</button>
-    <button id="fetch-tracks" disabled>🎵 Fetch Songs</button>
-    <button id="fetch-genres" disabled>🔍 Fetch Genres</button>
-    <button id="normalize-genres" disabled>🎛️ Detect Buckets</button>
-    <button id="create-playlists" disabled>🎬 Create Playlists</button>
-  </div>
+    <ol class="stepper">
+      <li class="step active"><span class="step-label">1. Login</span></li>
+      <li class="step"><span class="step-label">2. Fetch Songs</span></li>
+      <li class="step"><span class="step-label">3. Fetch Genres</span></li>
+      <li class="step"><span class="step-label">4. Buckets</span></li>
+      <li class="step"><span class="step-label">5. Create</span></li>
+    </ol>
 
-  <div id="status">Welcome! Please log in to begin.</div>
+    <div class="card buttons">
+      <button id="login">Login to Spotify</button>
+      <button id="fetch-tracks" disabled>Fetch Songs</button>
+      <button id="fetch-genres" disabled>Fetch Genres</button>
+    </div>
 
-  <div id="instructions">
-    <p>🧪 <strong>How this works:</strong></p>
-    <ul>
-      <li><strong>Login:</strong> Authenticate so we can access your liked songs.</li>
-      <li><strong>Fetch Songs:</strong> We’ll retrieve all your liked tracks.</li>
-      <li><strong>Fetch Genres:</strong> We'll look up genres for each artist.</li>
-      <li><strong>Detect Buckets:</strong> Tracks are grouped into genre buckets for you to pick from.</li>
-      <li><strong>Create Playlists:</strong> Generate playlists based on your selection — each labeled and sorted.</li>
-    </ul>
-  </div>
+    <div id="status">Please login to begin.</div>
 
-  <div id="bucket-selection">
-    <h3>🧠 Choose which genre buckets to turn into playlists:</h3>
-    <div id="selection-container"></div>
-    <div id="bucket-selection-buttons">
-      <button id="select-all">✅ Select All</button>
-      <button id="confirm-selection">🎬 Create Selected Playlists</button>
+    <div id="genre-selection" class="card">
+      <div id="genre-controls">
+        <button id="select-all-genres">Select All</button>
+        <button id="clear-genres">Clear All</button>
+      </div>
+      <div>
+        <label class="option-toggle">
+          <input type="checkbox" id="allow-overlap" checked /> Allow track overlap across playlists
+        </label>
+      </div>
+      <div id="genre-list"></div>
+      <div style="margin-top:20px;">
+        <button id="create-playlists">Create Playlists</button>
+      </div>
+    </div>
+
+    <div id="playlist-results" class="card">
+      <h3>Created Playlists</h3>
+      <ul id="playlist-list"></ul>
+      <div style="margin-top:20px;">
+        <button id="reset-session">Start New Session</button>
+      </div>
     </div>
   </div>
 
   <script src="app.js"></script>
 </body>
 </html>
+
 
 
 
