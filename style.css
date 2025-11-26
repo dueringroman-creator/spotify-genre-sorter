@@ -1,0 +1,189 @@
+/* ===================================================
+   Playlist Alchemist — v8 UI Styles (based on your palette)
+   =================================================== */
+
+/* --- Color Variables / Design Tokens --- */
+:root {
+  /* Primary / Brand Colors */
+  --clr-primary:        #1DB954;
+  --clr-primary-hover:  #12803A;
+  --clr-primary-light:  #A4F3C0;
+
+  /* Neutral / Background / Text */
+  --clr-bg-main:        #FAFAFA;
+  --clr-bg-panel:       #FFFFFF;
+  --clr-gray-soft:      #F0F0F0;
+  --clr-gray-mid:       #D9D9D9;
+  --clr-text-main:      #1A1A1A;
+  --clr-text-light:     #666666;
+
+  /* Semantic / State Colors */
+  --clr-success:        #34C759;
+  --clr-warning:        #FFD60A;
+  --clr-error:          #FF3B30;
+  --clr-info:           #0A84FF;
+
+  /* Border / Line Colors */
+  --clr-border-light:   #D9D9D9;
+}
+
+/* --- Base / Layout Styles --- */
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--clr-bg-main);
+  color: var(--clr-text-main);
+  font-family: 'Inter', sans-serif;
+}
+
+h1, h2, h3 {
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  color: var(--clr-info);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* --- Container / Panels --- */
+.container {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.panel {
+  background-color: var(--clr-bg-panel);
+  border: 1px solid var(--clr-border-light);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* --- Button Styles --- */
+button {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+button.primary {
+  background-color: var(--clr-primary);
+  color: #fff;
+}
+button.primary:hover,
+button.primary:focus {
+  background-color: var(--clr-primary-hover);
+}
+
+button.secondary {
+  background-color: var(--clr-gray-soft);
+  color: var(--clr-text-main);
+}
+
+button.disabled {
+  background-color: var(--clr-gray-mid);
+  color: var(--clr-text-light);
+  cursor: not-allowed;
+}
+
+button.danger {
+  background-color: var(--clr-error);
+  color: #fff;
+}
+button.danger:hover,
+button.danger:focus {
+  filter: brightness(1.1);
+}
+
+/* --- Stepper / Wizard UI (vertical) --- */
+.stepper {
+  list-style: none;
+  padding-left: 0;
+  margin: 0 0 1.5rem 0;
+}
+.stepper .step {
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--clr-border-light);
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+}
+.stepper .step.active {
+  border-left-color: var(--clr-primary);
+  background-color: var(--clr-gray-soft);
+}
+.stepper .step.completed {
+  border-left-color: var(--clr-primary-light);
+  color: var(--clr-text-light);
+}
+
+/* --- Status / Message Styles --- */
+.status {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+}
+
+.status.success {
+  background-color: var(--clr-success);
+  color: #fff;
+}
+.status.error {
+  background-color: var(--clr-error);
+  color: #fff;
+}
+.status.warning {
+  background-color: var(--clr-warning);
+  color: var(--clr-text-main);
+}
+.status.info {
+  background-color: var(--clr-info);
+  color: #fff;
+}
+
+/* --- Genre‑selection list / multi‑select --- */
+#genre-select-container {
+  margin-top: 1rem;
+}
+
+select[multiple] {
+  width: 100%;
+  min-height: 180px;
+  padding: 0.5rem;
+  background-color: var(--clr-bg-panel);
+  border: 1px solid var(--clr-border-light);
+  border-radius: 6px;
+  color: var(--clr-text-main);
+}
+
+/* --- Created playlists list --- */
+#created-playlists {
+  margin-top: 1.5rem;
+}
+#created-playlists ul {
+  list-style: none;
+  padding-left: 0;
+}
+#created-playlists li {
+  margin: 0.5rem 0;
+}
+
+/* --- Responsive / Utility --- */
+@media (max-width: 600px) {
+  .container {
+    padding: 0.5rem;
+  }
+  button {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+}
