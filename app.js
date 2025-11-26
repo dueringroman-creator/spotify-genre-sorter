@@ -1,4 +1,3 @@
-// Wait until DOM is ready
 document.addEventListener('DOMContentLoaded', main);
 
 function main() {
@@ -82,6 +81,65 @@ function main() {
     localStorage.removeItem(STORAGE_KEY);
   }
 
+  async function refreshTokenIfNeeded() {
+    const st = loadState();
+    if (!st) return false;
+    const now = Date.now();
+    const expiresAt = st.tokenExpiresAt || 0;
+    if (now < expiresAt && st.spotifyToken) {
+      window.spotifyToken = st.spotifyToken;
+      return true;
+    }
+    // token expired — attempt refresh if we have refresh token
+    if (st.refreshToken) {
+      updateStatus('Refreshing Spotify token…');
+      const body = new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: st.refreshToken,
+        client_id: CLIENT_ID
+      });
+      try {
+        const resp = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body
+        });
+        const data = await resp.json();
+        if (data.access_token && data.expires_in) {
+          window.spotifyToken = data.access_token;
+          const newExpiry = Date.now() + data.expires_in * 1000;
+          saveState({ 
+            spotifyToken: data.access_token, 
+            refreshToken: st.refreshToken, 
+            tokenExpiresAt: newExpiry,
+            savedTrackIDs: st.savedTrackIDs,
+            artistGenreMap: st.artistGenreMap
+          });
+          updateStatus('✅ Token refreshed, proceeding…');
+          return true;
+        } else {
+          throw new Error('No access_token in refresh response');
+        }
+      } catch (err) {
+        console.error('Refresh failed', err);
+        showError('Session expired — please login again.');
+        resetToLogin();
+        return false;
+      }
+    } else {
+      // no refresh token — require login
+      showError('No valid session found — please login.');
+      resetToLogin();
+      return false;
+    }
+  }
+
+  async function ensureValidToken() {
+    const ok = await refreshTokenIfNeeded();
+    if (!ok) throw new Error('No valid token');
+    return window.spotifyToken;
+  }
+
   async function fetchAccessToken(code) {
     const verifier = localStorage.getItem(CODE_VERIFIER_KEY);
     const body = new URLSearchParams({
@@ -97,9 +155,14 @@ function main() {
       body
     });
     const data = await resp.json();
-    if (data.access_token) {
+    if (data.access_token && data.refresh_token && data.expires_in) {
       window.spotifyToken = data.access_token;
-      saveState({ spotifyToken: data.access_token });
+      const expiresAt = Date.now() + data.expires_in * 1000;
+      saveState({
+        spotifyToken: data.access_token,
+        refreshToken: data.refresh_token,
+        tokenExpiresAt: expiresAt
+      });
       updateStatus('✅ Logged in — you can fetch your saved songs.');
       clearError();
       disable('login');
@@ -111,7 +174,13 @@ function main() {
     }
   }
 
-  async function fetchSavedTracks(token) {
+  async function fetchSavedTracks() {
+    try {
+      await ensureValidToken();
+    } catch {
+      return;
+    }
+
     updateStatus('🎵 Fetching your saved songs…');
     clearError();
     disable('fetch-songs');
@@ -121,16 +190,15 @@ function main() {
 
     while (true) {
       const resp = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${window.spotifyToken}` }
       });
       if (resp.status === 401) {
-        // Unauthorized – token invalid or expired
-        showError('❗ Authorization expired — please login again.');
+        showError('❗ Authorization error — please login again.');
         resetToLogin();
         return;
       }
       if (!resp.ok) {
-        showError(`Error fetching songs (HTTP ${resp.status}).`);
+        showError(`Error fetching songs (HTTP ${resp.status})`);
         return;
       }
       const data = await resp.json();
@@ -142,15 +210,24 @@ function main() {
 
     window.savedTracks = all;
     saveState({
-      spotifyToken: token,
-      savedTrackIDs: all.map(i => i.track.id)
+      spotifyToken: window.spotifyToken,
+      refreshToken: loadState().refreshToken,
+      tokenExpiresAt: loadState().tokenExpiresAt,
+      savedTrackIDs: all.map(i => i.track.id),
+      artistGenreMap: loadState().artistGenreMap
     });
     updateStatus(`✅ Retrieved ${all.length} songs. Next: fetch genres.`);
     enable('fetch-genres');
     updateStep('genres');
   }
 
-  async function fetchArtistGenres(token) {
+  async function fetchArtistGenres() {
+    try {
+      await ensureValidToken();
+    } catch {
+      return;
+    }
+
     updateStatus('🔍 Gathering artist genres…');
     clearError();
     disable('fetch-genres');
@@ -166,28 +243,30 @@ function main() {
     for (let i = 0; i < artistIds.length; i += 50) {
       const batch = artistIds.slice(i, i + 50).join(',');
       const resp = await fetch(`https://api.spotify.com/v1/artists?ids=${batch}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${window.spotifyToken}` }
       });
       if (resp.status === 401) {
-        showError('❗ Authorization expired — please login again.');
+        showError('❗ Authorization error — please login again.');
         resetToLogin();
         return;
       }
       if (!resp.ok) {
-        showError(`Error fetching artist data (HTTP ${resp.status}).`);
+        showError(`Error fetching artist data (HTTP ${resp.status})`);
         return;
       }
       const data = await resp.json();
       data.artists.forEach(a => {
         genreMap[a.id] = a.genres || [];
       });
-      updateStatus(`Processed ${Math.min(i+50, artistIds.length)} of ${artistIds.length} artists...`);
+      updateStatus(`Processed ${Math.min(i+50, artistIds.length)} / ${artistIds.length} artists…`);
     }
 
     window.artistGenreMap = genreMap;
     saveState({
-      spotifyToken: token,
-      savedTrackIDs: window.savedTracks.map(i => i.track.id),
+      spotifyToken: window.spotifyToken,
+      refreshToken: loadState().refreshToken,
+      tokenExpiresAt: loadState().tokenExpiresAt,
+      savedTrackIDs: loadState().savedTrackIDs,
       artistGenreMap: genreMap
     });
     updateStatus('✅ Genres gathered. Build buckets now.');
@@ -223,25 +302,29 @@ function main() {
     updateStatus('Select genre buckets to create playlists.');
   }
 
-  async function createPlaylists(token) {
+  async function createPlaylists() {
+    try {
+      await ensureValidToken();
+    } catch {
+      return;
+    }
+
     updateStatus('🚀 Creating playlists…');
     clearError();
     disable('create-playlists');
 
-    const allowOverlap = document.getElementById('allow-overlap')?.checked ?? true; // if you implement, else default true
     const respProfile = await fetch('https://api.spotify.com/v1/me', {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${window.spotifyToken}` }
     });
     if (respProfile.status === 401) {
-      showError('❗ Authorization expired — please login again.');
+      showError('❗ Authorization error — please login again.');
       resetToLogin();
       return;
     }
     const profile = await respProfile.json();
     const uid = profile.id;
 
-    const selected = Array.from(document.querySelectorAll('#genre-buckets input:checked'))
-      .map(el => el.value);
+    const selected = Array.from(document.querySelectorAll('#genre-buckets input:checked')).map(el => el.value);
     const resultsEl = document.getElementById('playlist-links');
     resultsEl.innerHTML = '';
     document.getElementById('created-playlists').style.display = 'block';
@@ -249,25 +332,20 @@ function main() {
     const usedURIs = new Set();
 
     for (const genre of selected) {
-      let tracks = window.genreBuckets[genre];
-      if (!allowOverlap) {
-        tracks = tracks.filter(t => !usedURIs.has(t.uri));
-      }
-      if (!tracks.length) continue;
-
+      const tracks = window.genreBuckets[genre];
+      if (!tracks || !tracks.length) continue;
       const uris = tracks.map(t => t.uri);
-      uris.forEach(u => usedURIs.add(u));
 
       const playlistName = `Alchemist: ${genre}`;
       const description = `Playlist with tracks of genre: ${genre}`;
 
       const respCreate = await fetch(`https://api.spotify.com/v1/users/${uid}/playlists`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type':'application/json' },
+        headers: { Authorization: `Bearer ${window.spotifyToken}`, 'Content-Type':'application/json' },
         body: JSON.stringify({ name: playlistName, description, public: false })
       });
       if (respCreate.status === 401) {
-        showError('❗ Authorization expired — please login again.');
+        showError('❗ Authorization error — please login again.');
         resetToLogin();
         return;
       }
@@ -278,7 +356,7 @@ function main() {
         const chunk = uris.slice(i, i + 100);
         await fetch(`https://api.spotify.com/v1/playlists/${pid}/tracks`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type':'application/json' },
+          headers: { Authorization: `Bearer ${window.spotifyToken}`, 'Content-Type':'application/json' },
           body: JSON.stringify({ uris: chunk })
         });
       }
@@ -297,6 +375,7 @@ function main() {
     clearState();
     window.spotifyToken = null;
     updateStatus('Session cleared. Please login again.');
+    clearError();
     disable('fetch-songs');
     disable('fetch-genres');
     disable('detect-buckets');
@@ -309,62 +388,36 @@ function main() {
 
   function resetSessionHandler() {
     resetToLogin();
-    clearError();
   }
 
-  // Attach listeners safely
+  // Attach safe listeners
   document.getElementById('login')?.addEventListener('click', async () => {
     const verifier = generateRandomString(128);
     const challenge = await generateCodeChallenge(verifier);
     localStorage.setItem(CODE_VERIFIER_KEY, verifier);
+
     const url = `https://accounts.spotify.com/authorize?response_type=code` +
                 `&client_id=${CLIENT_ID}` +
                 `&scope=${SCOPES.join('%20')}` +
                 `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
                 `&state=${STATE}` +
-                `&code_challenge=${challenge}` +
-                `&code_challenge_method=S256`;
+                `&code_challenge=${challenge}&code_challenge_method=S256`;
     window.location = url;
   });
 
-  document.getElementById('fetch-songs')?.addEventListener('click', () => {
-    if (!window.spotifyToken) {
-      showError('Please login first.');
-      return;
-    }
-    fetchSavedTracks(window.spotifyToken);
-  });
-
-  document.getElementById('fetch-genres')?.addEventListener('click', () => {
-    if (!window.savedTracks) {
-      showError('No songs fetched yet.');
-      return;
-    }
-    fetchArtistGenres(window.spotifyToken);
-  });
-
-  document.getElementById('detect-buckets')?.addEventListener('click', () => {
-    if (!window.artistGenreMap) {
-      showError('No genre data available.');
-      return;
-    }
-    buildGenreBuckets();
-  });
-
-  document.getElementById('create-playlists')?.addEventListener('click', () => {
-    createPlaylists(window.spotifyToken);
-  });
-
+  document.getElementById('fetch-songs')?.addEventListener('click', fetchSavedTracks);
+  document.getElementById('fetch-genres')?.addEventListener('click', fetchArtistGenres);
+  document.getElementById('detect-buckets')?.addEventListener('click', buildGenreBuckets);
+  document.getElementById('create-playlists')?.addEventListener('click', createPlaylists);
   document.getElementById('select-all')?.addEventListener('click', () => {
     document.querySelectorAll('#genre-buckets input[type="checkbox"]').forEach(cb => cb.checked = true);
   });
   document.getElementById('deselect-all')?.addEventListener('click', () => {
     document.querySelectorAll('#genre-buckets input[type="checkbox"]').forEach(cb => cb.checked = false);
   });
-
   document.getElementById('reset-session')?.addEventListener('click', resetSessionHandler);
 
-  // On load: auth callback or resume
+  // On load: auth redirect or restore
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
   const stateParam = params.get('state');
@@ -375,7 +428,7 @@ function main() {
     const st = loadState();
     if (st && st.spotifyToken) {
       window.spotifyToken = st.spotifyToken;
-      updateStatus('Session restored. You may resume.');
+      updateStatus('Session restored. You may proceed.');
       disable('login');
       enable('fetch-songs');
       updateStep('songs');
