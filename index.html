@@ -1,29 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Playlist Alchemist</title>
   <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: 'Inter', sans-serif;
       background-color: #121212;
       color: #fff;
+      font-family: sans-serif;
+      padding: 40px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 40px;
     }
     h1 {
       color: #1DB954;
       margin-bottom: 20px;
     }
-    .flow {
+    .buttons {
       display: flex;
-      gap: 20px;
+      gap: 10px;
       flex-wrap: wrap;
       justify-content: center;
+      margin-bottom: 20px;
     }
     button {
       background-color: #1DB954;
@@ -40,47 +40,69 @@
       cursor: not-allowed;
     }
     #status {
-      margin-top: 30px;
+      margin-top: 20px;
       font-size: 16px;
       max-width: 600px;
       text-align: center;
       color: #ccc;
     }
-    #bucket-selection {
+    #genre‑selection {
       margin-top: 30px;
-      padding: 20px;
       background-color: #1e1e1e;
-      border-radius: 10px;
-      width: 80%;
+      padding: 20px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 600px;
       display: none;
     }
-    #bucket-selection label {
+    #genre‑selection label {
       display: block;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
+    }
+    #playlist‑results {
+      margin-top: 30px;
+      background-color: #1e1e1e;
+      padding: 20px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 600px;
+      display: none;
+    }
+    #playlist‑results ul {
+      list-style: none;
+      padding: 0;
+    }
+    #playlist‑results li {
+      margin: 6px 0;
+      color: #aaa;
     }
   </style>
 </head>
 <body>
   <h1>Playlist Alchemist</h1>
-
-  <div class="flow">
-    <button id="login">🔐 Login</button>
-    <button id="fetch-tracks" disabled>🎵 Fetch Songs</button>
-    <button id="fetch-genres" disabled>🔍 Detect Genres</button>
-    <button id="normalize-genres" disabled>🧪 Bucket Magic</button>
-    <button id="create-playlists" disabled>📀 Summon Playlists</button>
+  <div class="buttons">
+    <button id="login">Login to Spotify</button>
+    <button id="fetch-tracks" disabled>Fetch My Songs</button>
+    <button id="fetch-genres" disabled>Gather Genres</button>
+    <button id="create-playlists" disabled>Create Playlists</button>
   </div>
 
-  <div id="status">Start your transformation journey above.</div>
+  <div id="status">Please login to begin.</div>
 
-  <div id="bucket-selection">
-    <h3>Select your genre‑buckets</h3>
-    <div id="selection-container"></div>
+  <div id="genre‑selection">
+    <h3>Select Genres to Build Playlists</h3>
+    <div id="genre‑list"></div>
+  </div>
+
+  <div id="playlist‑results">
+    <h3>Created Playlists</h3>
+    <ul id="playlist‑list"></ul>
   </div>
 
   <script src="app.js"></script>
 </body>
 </html>
+
 
 
 
