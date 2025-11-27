@@ -7,6 +7,63 @@ const CODE_VERIFIER_KEY = 'spotify_code_verifier';
 let selectedGenres = new Set();
 let genreSongMap = {}; // genre -> array of track objects
 let playlistHistory = []; // Store created playlists
+let cachedLibraryData = null; // Cache for library data
+
+// ===== CACHE MANAGEMENT =====
+
+function getCacheKey(dataSource) {
+  return `library_cache_${dataSource}`;
+}
+
+function getCacheTimestampKey(dataSource) {
+  return `library_cache_timestamp_${dataSource}`;
+}
+
+function saveToCache(dataSource, data) {
+  try {
+    localStorage.setItem(getCacheKey(dataSource), JSON.stringify(data));
+    localStorage.setItem(getCacheTimestampKey(dataSource), Date.now().toString());
+  } catch (e) {
+    console.warn('Cache storage failed:', e);
+  }
+}
+
+function loadFromCache(dataSource) {
+  try {
+    const cached = localStorage.getItem(getCacheKey(dataSource));
+    const timestamp = localStorage.getItem(getCacheTimestampKey(dataSource));
+    
+    if (cached && timestamp) {
+      return {
+        data: JSON.parse(cached),
+        timestamp: parseInt(timestamp)
+      };
+    }
+  } catch (e) {
+    console.warn('Cache load failed:', e);
+  }
+  return null;
+}
+
+function clearCache(dataSource) {
+  localStorage.removeItem(getCacheKey(dataSource));
+  localStorage.removeItem(getCacheTimestampKey(dataSource));
+}
+
+function updateCacheInfo(timestamp) {
+  const cacheInfo = document.getElementById('cache-info');
+  const refreshBtn = document.getElementById('refresh-cache');
+  
+  if (timestamp) {
+    const timeAgo = getTimeAgo(new Date(timestamp));
+    cacheInfo.innerHTML = `<strong>Cached:</strong> Last updated ${timeAgo}`;
+    cacheInfo.style.display = 'block';
+    refreshBtn.style.display = 'inline-block';
+  } else {
+    cacheInfo.style.display = 'none';
+    refreshBtn.style.display = 'none';
+  }
+}
 
 // ===== UTILITY FUNCTIONS =====
 
@@ -202,14 +259,67 @@ window.addEventListener('load', () => {
 
 // ===== LIBRARY MODE - FETCH TRACKS =====
 
-async function fetchAllLikedTracks(token) {
+document.getElementById('fetch-tracks').addEventListener('click', async () => {
+  if (!window.spotifyToken) return;
+  
+  const dataSource = document.querySelector('input[name="data-source"]:checked').value;
+  document.getElementById('fetch-tracks').disabled = true;
+  
+  // Check cache first
+  const cached = loadFromCache(dataSource);
+  if (cached) {
+    const useCache = confirm(`Found cached data from ${getTimeAgo(new Date(cached.timestamp))}. Use cached data? (Cancel to fetch fresh data)`);
+    if (useCache) {
+      cachedLibraryData = cached.data;
+      await processLibraryData(dataSource);
+      document.getElementById('fetch-tracks').disabled = false;
+      updateCacheInfo(cached.timestamp);
+      return;
+    }
+  }
+  
+  try {
+    switch (dataSource) {
+      case 'liked-songs':
+        await fetchLikedSongs();
+        break;
+      case 'top-artists':
+        await fetchTopArtists();
+        break;
+      case 'playlists':
+        await fetchFromPlaylists();
+        break;
+    }
+    
+    // Save to cache
+    saveToCache(dataSource, cachedLibraryData);
+    updateCacheInfo(Date.now());
+    
+    await processLibraryData(dataSource);
+  } catch (e) {
+    updateStatus(`❌ Error: ${e.message}`);
+  }
+  
+  document.getElementById('fetch-tracks').disabled = false;
+});
+
+// Refresh cache button
+document.getElementById('refresh-cache').addEventListener('click', async () => {
+  const dataSource = document.querySelector('input[name="data-source"]:checked').value;
+  clearCache(dataSource);
+  updateCacheInfo(null);
+  updateStatus('Cache cleared. Click "Load Music Library" to fetch fresh data.');
+});
+
+async function fetchLikedSongs() {
+  updateStatus('🎵 Fetching your liked songs...');
   let all = [];
   const limit = 50;
   let offset = 0;
   
   while (true) {
     const resp = await fetchWithRetry(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
     });
     const data = await resp.json();
     all.push(...data.items);
@@ -217,51 +327,147 @@ async function fetchAllLikedTracks(token) {
     if (!data.next) break;
     offset += limit;
   }
-  return all;
+  
+  cachedLibraryData = { type: 'tracks', items: all };
+  updateStatus(`✅ Fetched ${all.length} tracks!`);
 }
 
-document.getElementById('fetch-tracks').addEventListener('click', async () => {
-  if (!window.spotifyToken) return;
-  document.getElementById('fetch-tracks').disabled = true;
-  updateStatus('🎵 Fetching your liked songs...');
+async function fetchTopArtists() {
+  updateStatus('⭐ Fetching your top artists...');
   
-  try {
-    const tracks = await fetchAllLikedTracks(window.spotifyToken);
-    window.savedTracks = tracks;
-    updateStatus(`✅ Fetched ${tracks.length} tracks!`);
-    document.getElementById('fetch-genres').disabled = false;
-  } catch (e) {
-    updateStatus(`❌ Error: ${e.message}`);
-    document.getElementById('fetch-tracks').disabled = false;
+  const resp = await fetchWithRetry(
+    'https://api.spotify.com/v1/me/top/artists?limit=50&time_range=medium_term',
+    { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+  );
+  const data = await resp.json();
+  
+  // Get top tracks for each artist
+  updateStatus('🎵 Fetching top tracks from your favorite artists...');
+  let allTracks = [];
+  
+  for (let i = 0; i < data.items.length; i++) {
+    const artist = data.items[i];
+    const tracksResp = await fetchWithRetry(
+      `https://api.spotify.com/v1/artists/${artist.id}/top-tracks?market=US`,
+      { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+    );
+    const tracksData = await tracksResp.json();
+    
+    // Add tracks in liked songs format
+    tracksData.tracks.slice(0, 5).forEach(track => {
+      allTracks.push({ track: track });
+    });
+    
+    updateStatus(`Processed ${i + 1}/${data.items.length} artists...`);
   }
-});
+  
+  cachedLibraryData = { type: 'tracks', items: allTracks };
+  updateStatus(`✅ Loaded ${allTracks.length} tracks from your top artists!`);
+}
 
-// ===== LIBRARY MODE - FETCH GENRES & BUILD MAP =====
+async function fetchFromPlaylists() {
+  updateStatus('📚 Fetching your playlists...');
+  
+  // Get all user playlists
+  let allPlaylists = [];
+  let offset = 0;
+  const limit = 50;
+  
+  while (true) {
+    const resp = await fetchWithRetry(
+      `https://api.spotify.com/v1/me/playlists?limit=${limit}&offset=${offset}`,
+      { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+    );
+    const data = await resp.json();
+    allPlaylists.push(...data.items);
+    if (!data.next) break;
+    offset += limit;
+  }
+  
+  updateStatus(`Found ${allPlaylists.length} playlists. Scanning tracks...`);
+  
+  // Get tracks from all playlists
+  let allTracks = [];
+  const trackSet = new Set(); // Avoid duplicates
+  
+  for (let i = 0; i < allPlaylists.length; i++) {
+    const playlist = allPlaylists[i];
+    
+    let playlistTracks = [];
+    let trackOffset = 0;
+    
+    while (true) {
+      const resp = await fetchWithRetry(
+        `https://api.spotify.com/v1/playlists/${playlist.id}/tracks?limit=100&offset=${trackOffset}`,
+        { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+      );
+      const data = await resp.json();
+      playlistTracks.push(...data.items);
+      if (!data.next) break;
+      trackOffset += 100;
+    }
+    
+    // Add unique tracks
+    playlistTracks.forEach(item => {
+      if (item.track && item.track.id && !trackSet.has(item.track.id)) {
+        trackSet.add(item.track.id);
+        allTracks.push(item);
+      }
+    });
+    
+    updateStatus(`Scanned ${i + 1}/${allPlaylists.length} playlists... (${allTracks.length} unique tracks)`);
+  }
+  
+  cachedLibraryData = { type: 'tracks', items: allTracks };
+  updateStatus(`✅ Loaded ${allTracks.length} unique tracks from ${allPlaylists.length} playlists!`);
+}
 
-async function fetchAllGenres(token, tracks) {
-  const artistIds = new Set(tracks.map(i => i.track.artists[0].id));
+async function processLibraryData(dataSource) {
+  updateStatus('🔍 Processing genres...');
+  
+  const tracks = cachedLibraryData.items;
+  
+  // Extract unique artist IDs
+  const artistIds = new Set();
+  tracks.forEach(item => {
+    if (item.track && item.track.artists && item.track.artists[0]) {
+      artistIds.add(item.track.artists[0].id);
+    }
+  });
+  
   const ids = Array.from(artistIds);
   const artistGenreMap = {};
-
+  
+  // Fetch genres for all artists
   for (let i = 0; i < ids.length; i += 50) {
     const batch = ids.slice(i, i + 50).join(',');
     const resp = await fetchWithRetry(`https://api.spotify.com/v1/artists?ids=${batch}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
     });
     const data = await resp.json();
     data.artists.forEach(a => {
-      artistGenreMap[a.id] = a.genres;
+      if (a) artistGenreMap[a.id] = a.genres;
     });
-    updateStatus(`Processed ${Math.min(i + 50, ids.length)} / ${ids.length} artists...`);
+    updateStatus(`Processing artists: ${Math.min(i + 50, ids.length)} / ${ids.length}...`);
   }
-  return artistGenreMap;
+  
+  // Build genre -> songs map
+  genreSongMap = buildGenreSongMap(tracks, artistGenreMap);
+  
+  // Display genre selection UI
+  displayGenreSelection(tracks.length);
+  updateStatus('✅ Genres loaded! Select genres to create a playlist.');
 }
+
+// ===== LIBRARY MODE - FETCH GENRES & BUILD MAP =====
 
 // Build genre -> songs mapping
 function buildGenreSongMap(tracks, artistGenreMap) {
   const map = {};
   
   tracks.forEach(item => {
+    if (!item.track || !item.track.artists || !item.track.artists[0]) return;
+    
     const track = item.track;
     const artistId = track.artists[0].id;
     const genres = artistGenreMap[artistId] || [];
@@ -280,30 +486,9 @@ function buildGenreSongMap(tracks, artistGenreMap) {
   return map;
 }
 
-document.getElementById('fetch-genres').addEventListener('click', async () => {
-  if (!window.savedTracks) return;
-  document.getElementById('fetch-genres').disabled = true;
-  updateStatus('🔍 Fetching genres and organizing tracks...');
-  
-  try {
-    const artistGenreMap = await fetchAllGenres(window.spotifyToken, window.savedTracks);
-    window.artistGenreMap = artistGenreMap;
-    
-    // Build genre -> songs map
-    genreSongMap = buildGenreSongMap(window.savedTracks, artistGenreMap);
-    
-    // Display genre selection UI
-    displayGenreSelection();
-    updateStatus('✅ Genres loaded! Select genres to create a playlist.');
-  } catch (e) {
-    updateStatus(`❌ Error: ${e.message}`);
-    document.getElementById('fetch-genres').disabled = false;
-  }
-});
-
 // ===== DISPLAY GENRE SELECTION UI =====
 
-function displayGenreSelection() {
+function displayGenreSelection(totalTracks) {
   // Show genre selection area
   document.getElementById('genre-selection-area').classList.remove('hidden');
   
@@ -312,7 +497,7 @@ function displayGenreSelection() {
     .sort((a, b) => b[1].length - a[1].length);
   
   // Display stats
-  displayGenreStats(sortedGenres);
+  displayGenreStats(sortedGenres, totalTracks);
   
   // Display genre grid
   const grid = document.getElementById('genre-grid');
@@ -332,9 +517,8 @@ function displayGenreSelection() {
   });
 }
 
-function displayGenreStats(sortedGenres) {
+function displayGenreStats(sortedGenres, totalTracks) {
   const totalGenres = sortedGenres.length;
-  const totalTracks = window.savedTracks.length;
   
   const statsHTML = `
     <div class="stat-item">
