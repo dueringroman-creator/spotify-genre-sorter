@@ -1,118 +1,102 @@
-<link rel="stylesheet" href="style.css">
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Playlist Alchemist</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #121212;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px;
-    }
-    h1 {
-      color: #1DB954;
-      margin-bottom: 20px;
-    }
-    .buttons {
-      margin: 20px 0;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    button {
-      background-color: #1DB954;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-    }
-    button:disabled {
-      background-color: #444;
-      cursor: not-allowed;
-    }
-    #status {
-      margin-top: 20px;
-      font-size: 18px;
-      color: #aaa;
-      text-align: center;
-      max-width: 600px;
-    }
-    #genre-select-container {
-      margin-top: 20px;
-      width: 80%;
-      max-width: 600px;
-    }
-    select {
-      width: 100%;
-      min-height: 150px;
-    }
-    #created-playlists {
-      margin-top: 30px;
-      width: 80%;
-      max-width: 600px;
-      background-color: #1e1e1e;
-      border-radius: 8px;
-      padding: 20px;
-    }
-    #created-playlists h2 {
-      margin-top: 0;
-      color: #1DB954;
-    }
-    #created-playlists ul {
-      list-style: none;
-      padding-left: 0;
-    }
-    #created-playlists li {
-      margin: 8px 0;
-      color: #fff;
-    }
-    #reset-session {
-      margin-top: 20px;
-      background-color: #FF4C4C;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Playlist Alchemist</h1>
+  <div class="container">
+    <h1>🎵 Playlist Alchemist</h1>
+    
+    <!-- Login Section -->
+    <div id="login-section" class="section">
+      <button id="login" class="btn-primary">Login with Spotify</button>
+      <p class="subtitle">Discover and create personalized playlists</p>
+    </div>
 
-  <div class="buttons">
-    <button id="login">🔐 Login to Spotify</button>
-    <button id="fetch-tracks" disabled>🎵 Fetch My Songs</button>
-    <button id="fetch-genres" disabled>🔍 Fetch Genres</button>
-  </div>
+    <!-- Main App (hidden until logged in) -->
+    <div id="app-section" class="section hidden">
+      
+      <!-- Tab Navigation -->
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="library">📚 My Library</button>
+        <button class="tab-btn" data-tab="artist">🎤 Artist Discovery</button>
+      </div>
 
-  <div id="status">Please login to begin.</div>
+      <!-- Tab Content: My Library -->
+      <div id="library-tab" class="tab-content active">
+        <h2>Create Playlist from Your Library Genres</h2>
+        
+        <div class="library-controls">
+          <button id="fetch-tracks" class="btn-secondary">1. Fetch My Liked Songs</button>
+          <button id="fetch-genres" class="btn-secondary" disabled>2. Load Genres</button>
+        </div>
 
-  <div id="genre-select-container" style="display:none;">
-    <p>Select genres to create playlists (you can select multiple):</p>
-    <select id="genre-select" multiple></select>
-    <div style="margin-top: 10px;">
-      <button id="select-all-genres">Select All</button>
-      <button id="deselect-all-genres">Deselect All</button>
-      <button id="create-playlists" disabled>🪄 Create Playlists</button>
+        <!-- Genre Selection Area -->
+        <div id="genre-selection-area" class="hidden">
+          <div class="genre-header">
+            <h3>Select Genres for Your Playlist</h3>
+            <div class="genre-actions">
+              <input type="text" id="genre-filter" placeholder="Filter genres..." />
+              <button id="select-all-genres" class="btn-small">Select All</button>
+              <button id="clear-genres" class="btn-small">Clear All</button>
+            </div>
+          </div>
+          
+          <div id="genre-stats" class="genre-stats"></div>
+          <div id="genre-grid" class="genre-grid"></div>
+          
+          <div class="playlist-controls">
+            <input type="text" id="playlist-name" placeholder="Playlist name (optional)" />
+            <button id="create-library-playlist" class="btn-primary" disabled>Create Playlist</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Artist Discovery -->
+      <div id="artist-tab" class="tab-content">
+        <h2>Discover Music from Any Artist</h2>
+        
+        <!-- Artist Search -->
+        <div class="search-container">
+          <input 
+            type="text" 
+            id="artist-search" 
+            placeholder="Search for an artist (e.g., Tame Impala, Arctic Monkeys)..."
+            autocomplete="off"
+          />
+          <div id="search-results" class="search-results"></div>
+        </div>
+
+        <!-- Selected Artist Display -->
+        <div id="selected-artist" class="selected-artist hidden">
+          <h3>Selected Artist</h3>
+          <div id="artist-card" class="artist-card"></div>
+          <button id="find-related" class="btn-secondary">Find Related Artists</button>
+        </div>
+
+        <!-- Related Artists Grid -->
+        <div id="related-artists-section" class="hidden">
+          <h3>Related Artists <span class="hint">(click to select)</span></h3>
+          <div id="related-artists-grid" class="artists-grid"></div>
+          
+          <div class="playlist-controls">
+            <input type="text" id="discovery-playlist-name" placeholder="Playlist name (optional)" />
+            <button id="generate-discovery-playlist" class="btn-primary">Generate Playlist</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Messages -->
+      <div id="status" class="status-box">Ready to start!</div>
     </div>
   </div>
-
-  <div id="created-playlists" style="display:none;">
-    <h2>Your Created Playlists</h2>
-    <ul id="playlist-list"></ul>
-  </div>
-
-  <button id="reset-session">🧹 Reset Session</button>
 
   <script src="app.js"></script>
 </body>
 </html>
-
 
 
 
