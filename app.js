@@ -1573,37 +1573,131 @@ function selectArtist(artist) {
 document.getElementById('find-related').addEventListener('click', async () => {
   if (!selectedArtist) return;
   
-  updateStatus('Finding similar artists...');
+  updateStatus('Scanning your library for artists with matching genres...');
   document.getElementById('find-related').disabled = true;
   
   try {
-    const resp = await fetch(
-      `https://api.spotify.com/v1/artists/${selectedArtist.id}/related-artists`,
-      { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
-    );
-    const data = await resp.json();
+    // Get the selected artist's genres
+    const selectedGenres = selectedArtist.genres || [];
     
-    displayRelatedArtists(data.artists);
-    updateStatus(`Found ${data.artists.length} similar artists. Click to select`);
+    if (selectedGenres.length === 0) {
+      updateStatus('This artist has no genres listed - cannot find similar artists');
+      document.getElementById('find-related').disabled = false;
+      return;
+    }
+    
+    // Get all artists from cached library data with their genres
+    if (!cachedLibraryData || !cachedLibraryData.items) {
+      updateStatus('Please load your library first (go to My Library tab and click "Let\'s Go")');
+      document.getElementById('find-related').disabled = false;
+      return;
+    }
+    
+    const tracks = cachedLibraryData.items;
+    
+    // Build map of artist ID -> {name, genres, imageUrl, matchCount}
+    const artistMap = new Map();
+    
+    tracks.forEach(item => {
+      if (!item.track || !item.track.artists || !item.track.artists[0]) return;
+      
+      const artist = item.track.artists[0];
+      
+      // Skip the selected artist itself
+      if (artist.id === selectedArtist.id) return;
+      
+      if (!artistMap.has(artist.id)) {
+        artistMap.set(artist.id, {
+          id: artist.id,
+          name: artist.name,
+          genres: [],
+          images: item.track.album.images,
+          matchCount: 0,
+          matchingGenres: []
+        });
+      }
+    });
+    
+    // Fetch genres for all artists (we need to get this from Spotify)
+    const artistIds = Array.from(artistMap.keys());
+    
+    for (let i = 0; i < artistIds.length; i += 50) {
+      const batch = artistIds.slice(i, i + 50).join(',');
+      const resp = await fetchWithRetry(`https://api.spotify.com/v1/artists?ids=${batch}`, {
+        headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
+      });
+      const data = await resp.json();
+      
+      data.artists.forEach(a => {
+        if (a && artistMap.has(a.id)) {
+          const artistData = artistMap.get(a.id);
+          artistData.genres = a.genres || [];
+          
+          // Calculate matching genres
+          const matches = artistData.genres.filter(g => selectedGenres.includes(g));
+          artistData.matchCount = matches.length;
+          artistData.matchingGenres = matches;
+        }
+      });
+    }
+    
+    // Filter to only artists with at least 1 matching genre and sort by match count
+    const relatedArtists = Array.from(artistMap.values())
+      .filter(a => a.matchCount > 0)
+      .sort((a, b) => b.matchCount - a.matchCount)
+      .slice(0, 20); // Top 20 matches
+    
+    if (relatedArtists.length === 0) {
+      updateStatus('No artists in your library share genres with this artist');
+      document.getElementById('find-related').disabled = false;
+      return;
+    }
+    
+    // Show how many high vs medium matches
+    const highMatches = relatedArtists.filter(a => a.matchCount >= 3).length;
+    const mediumMatches = relatedArtists.filter(a => a.matchCount === 2).length;
+    const lowMatches = relatedArtists.filter(a => a.matchCount === 1).length;
+    
+    let matchSummary = `Found ${relatedArtists.length} similar artists: `;
+    const parts = [];
+    if (highMatches > 0) parts.push(`${highMatches} with 3+ genre matches`);
+    if (mediumMatches > 0) parts.push(`${mediumMatches} with 2 matches`);
+    if (lowMatches > 0) parts.push(`${lowMatches} with 1 match`);
+    matchSummary += parts.join(', ');
+    
+    displayRelatedArtists(relatedArtists, selectedGenres);
+    updateStatus(matchSummary);
     document.getElementById('find-related').disabled = false;
   } catch (e) {
-    updateStatus(`Could not find related artists: ${e.message}`);
+    updateStatus(`Error finding related artists: ${e.message}`);
     document.getElementById('find-related').disabled = false;
   }
 });
 
-function displayRelatedArtists(artists) {
+function displayRelatedArtists(artists, selectedGenres) {
   const container = document.getElementById('related-artists-grid');
   selectedRelatedArtists.clear();
+  
+  // Safety check for undefined or empty artists
+  if (!artists || artists.length === 0) {
+    container.innerHTML = '<p style="color: #7f7f7f; padding: 20px;">No related artists found.</p>';
+    return;
+  }
   
   container.innerHTML = artists.slice(0, 12).map(artist => {
     const imageUrl = artist.images && artist.images[0] ? artist.images[0].url : 'https://via.placeholder.com/200';
     const musicMapUrl = getMusicMapUrl(artist.name);
     
+    // Show match info if available
+    const matchInfo = artist.matchCount ? 
+      `<div style="font-size: 11px; color: #1db954; margin-top: 4px;">${artist.matchCount} genre match${artist.matchCount !== 1 ? 'es' : ''}</div>` : 
+      '';
+    
     return `
       <div class="artist-item" data-artist-id="${artist.id}">
         <img src="${imageUrl}" alt="${artist.name}">
         <h4>${artist.name}</h4>
+        ${matchInfo}
         <div class="artist-item-footer">
           <a href="${musicMapUrl}" target="_blank" class="music-map-link" 
              onclick="event.stopPropagation()" title="Find similar artists">
