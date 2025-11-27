@@ -133,6 +133,57 @@ button:disabled {
   gap: 10px;
   margin-bottom: 20px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.cache-info {
+  color: #7f7f7f;
+  font-size: 13px;
+  padding: 8px 12px;
+  background: #1a1a1a;
+  border-radius: 6px;
+  border: 1px solid #282828;
+}
+
+.cache-info strong {
+  color: #1ed760;
+}
+
+/* Data Source Options */
+.data-source-options {
+  background: #1a1a1a;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  border: 1px solid #282828;
+}
+
+.data-source-options h4 {
+  margin: 0 0 16px 0;
+}
+
+.data-source-options label {
+  display: flex;
+  align-items: center;
+  color: #b3b3b3;
+  font-size: 15px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.data-source-options input[type="radio"] {
+  margin-right: 10px;
+  accent-color: #1ed760;
+  cursor: pointer;
+}
+
+.data-source-options .option-description {
+  font-size: 12px;
+  color: #7f7f7f;
+  margin-left: 28px;
+  margin-top: -8px;
+  margin-bottom: 12px;
 }
 
 /* Tabs */
