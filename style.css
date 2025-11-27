@@ -608,6 +608,7 @@ button:disabled {
 
 .genre-name {
   font-weight: 600;
+  font-family: inherit;
   color: #e3e3e3;
   margin-bottom: 8px;
   font-size: 15px;
@@ -616,12 +617,13 @@ button:disabled {
 
 .genre-count {
   font-size: 13px;
+  font-family: inherit;
   color: #7f7f7f;
 }
 
 .genre-item.selected .genre-count {
   color: #1ed760;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* Genre expand button and artist lists */
@@ -633,6 +635,8 @@ button:disabled {
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
   margin-top: 10px;
   width: 100%;
   transition: all 0.2s;
@@ -642,6 +646,87 @@ button:disabled {
   border-color: #1db954;
   color: #1db954;
   background: rgba(29, 185, 84, 0.05);
+}
+
+/* Genre mapping button */
+.genre-map-btn {
+  background: transparent;
+  border: 1px solid #ff6b35;
+  color: #ff6b35;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 500;
+  margin-top: 8px;
+  width: 100%;
+  transition: all 0.2s;
+}
+
+.genre-map-btn:hover {
+  background: rgba(255, 107, 53, 0.1);
+  border-color: #ff8c66;
+  color: #ff8c66;
+}
+
+/* Genre mapping modal */
+.genre-mapping-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.genre-mapping-content {
+  background: #1a1a1a;
+  border: 1px solid #282828;
+  border-radius: 12px;
+  padding: 30px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.genre-mapping-content h3 {
+  color: #ffffff;
+  margin-bottom: 12px;
+  font-size: 20px;
+}
+
+.family-select {
+  width: 100%;
+  padding: 12px;
+  background: #282828;
+  border: 1px solid #404040;
+  border-radius: 6px;
+  color: #e3e3e3;
+  font-size: 14px;
+  font-family: inherit;
+  margin-bottom: 20px;
+  cursor: pointer;
+}
+
+.family-select:focus {
+  outline: none;
+  border-color: #1db954;
+}
+
+.genre-mapping-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.genre-mapping-buttons button {
+  padding: 10px 20px;
 }
 
 .genre-artists-list {
@@ -692,11 +777,14 @@ button:disabled {
   flex: 1;
   color: #e3e3e3;
   font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
 }
 
 .artist-track-count {
   color: #7f7f7f;
   font-size: 12px;
+  font-family: inherit;
 }
 
 /* Track expand button and track lists */
@@ -769,6 +857,8 @@ button:disabled {
   flex: 1;
   color: #d3d3d3;
   font-size: 12px;
+  font-family: inherit;
+  font-weight: 400;
 }
 
 .track-duration {
@@ -1563,4 +1653,102 @@ button:disabled {
   .stats-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Playlist Selection Modal */
+.playlist-selection-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.playlist-selection-content {
+  background: #181818;
+  border-radius: 12px;
+  padding: 32px;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.playlist-selection-content h3 {
+  margin: 0 0 8px 0;
+  color: #fff;
+  font-size: 24px;
+}
+
+.playlist-selection-list {
+  overflow-y: auto;
+  margin: 16px 0;
+  flex: 1;
+  border: 1px solid #282828;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.playlist-selection-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-bottom: 8px;
+}
+
+.playlist-selection-item:hover {
+  background: #282828;
+}
+
+.playlist-selection-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #1db954;
+}
+
+.playlist-thumb {
+  width: 50px;
+  height: 50px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.playlist-info {
+  flex: 1;
+}
+
+.playlist-name {
+  color: #e3e3e3;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.playlist-tracks-count {
+  color: #7f7f7f;
+  font-size: 12px;
+}
+
+.playlist-selection-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.playlist-selection-actions {
+  display: flex;
+  gap: 8px;
 }
