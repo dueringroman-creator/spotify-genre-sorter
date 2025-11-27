@@ -624,6 +624,159 @@ button:disabled {
   font-weight: 600;
 }
 
+/* Genre expand button and artist lists */
+.genre-expand-btn {
+  background: transparent;
+  border: 1px solid #404040;
+  color: #b3b3b3;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-top: 10px;
+  width: 100%;
+  transition: all 0.2s;
+}
+
+.genre-expand-btn:hover {
+  border-color: #1db954;
+  color: #1db954;
+  background: rgba(29, 185, 84, 0.05);
+}
+
+.genre-artists-list {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.genre-artists-list.expanded {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-top: 12px;
+  border-top: 1px solid #282828;
+  padding-top: 12px;
+}
+
+.artist-in-genre {
+  padding: 6px 0;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.artist-in-genre:last-child {
+  border-bottom: none;
+}
+
+.artist-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.artist-checkbox-label:hover {
+  background: #282828;
+}
+
+.artist-checkbox {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  accent-color: #1db954;
+}
+
+.artist-name {
+  flex: 1;
+  color: #e3e3e3;
+  font-size: 13px;
+}
+
+.artist-track-count {
+  color: #7f7f7f;
+  font-size: 12px;
+}
+
+/* Track expand button and track lists */
+.track-expand-btn {
+  background: transparent;
+  border: 1px solid #333;
+  color: #999;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  margin-top: 6px;
+  margin-left: 26px;
+  width: calc(100% - 26px);
+  transition: all 0.2s;
+}
+
+.track-expand-btn:hover {
+  border-color: #1db954;
+  color: #1db954;
+  background: rgba(29, 185, 84, 0.03);
+}
+
+.artist-tracks-list {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  margin-left: 26px;
+}
+
+.artist-tracks-list.expanded {
+  max-height: 500px;
+  overflow-y: auto;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #222;
+}
+
+.track-in-artist {
+  padding: 4px 0;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.track-in-artist:last-child {
+  border-bottom: none;
+}
+
+.track-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.track-checkbox-label:hover {
+  background: #222;
+}
+
+.track-checkbox {
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+  accent-color: #1db954;
+}
+
+.track-name {
+  flex: 1;
+  color: #d3d3d3;
+  font-size: 12px;
+}
+
+.track-duration {
+  color: #666;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+}
+
 /* Playlist Controls */
 .playlist-controls {
   margin-top: 30px;
