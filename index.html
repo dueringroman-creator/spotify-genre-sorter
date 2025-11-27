@@ -42,11 +42,34 @@
 
       <!-- Tab Content: My Library -->
       <div id="library-tab" class="tab-content active">
-        <h2>Create Playlist from Your Library Genres</h2>
+        <h2>Create Playlist from Your Music Library</h2>
+        
+        <!-- Data Source Selection -->
+        <div class="data-source-options">
+          <h4 style="color: #e3e3e3; margin-bottom: 12px;">Choose Your Data Source</h4>
+          <label>
+            <input type="radio" name="data-source" value="liked-songs" checked>
+            <span>My Liked Songs</span>
+          </label>
+          <div class="option-description">Best for DJs and curators with large libraries (recommended)</div>
+          
+          <label>
+            <input type="radio" name="data-source" value="top-artists">
+            <span>My Top Artists</span>
+          </label>
+          <div class="option-description">Based on your most listened to artists (50 artists)</div>
+          
+          <label>
+            <input type="radio" name="data-source" value="playlists">
+            <span>My Playlists</span>
+          </label>
+          <div class="option-description">Scan all your playlists for artists and genres</div>
+        </div>
         
         <div class="library-controls">
-          <button id="fetch-tracks" class="btn-secondary">1. Fetch My Liked Songs</button>
-          <button id="fetch-genres" class="btn-secondary" disabled>2. Load Genres</button>
+          <button id="fetch-tracks" class="btn-secondary">Load Music Library</button>
+          <button id="refresh-cache" class="btn-small" style="display: none;">Refresh Cache</button>
+          <div id="cache-info" class="cache-info" style="display: none;"></div>
         </div>
 
         <!-- Genre Selection Area -->
