@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Playlist Alchemist</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="container">
-    <h1>🎵 Playlist Alchemist</h1>
+    <h1>Playlist Alchemist</h1>
     
     <!-- Login Section -->
     <div id="login-section" class="section">
@@ -19,10 +20,24 @@
     <!-- Main App (hidden until logged in) -->
     <div id="app-section" class="section hidden">
       
+      <!-- Onboarding Banner -->
+      <div id="onboarding" class="onboarding-banner">
+        <div class="onboarding-content">
+          <h3>Welcome to Playlist Alchemist!</h3>
+          <p><strong>Two ways to create playlists:</strong></p>
+          <ul>
+            <li><strong>My Library:</strong> Fetch your liked songs → Load genres → Select genres → Create playlist</li>
+            <li><strong>Artist Discovery:</strong> Search an artist → Find related artists → Select favorites → Generate playlist</li>
+          </ul>
+          <button id="close-onboarding" class="btn-small">Got it!</button>
+        </div>
+      </div>
+      
       <!-- Tab Navigation -->
       <div class="tabs">
-        <button class="tab-btn active" data-tab="library">📚 My Library</button>
-        <button class="tab-btn" data-tab="artist">🎤 Artist Discovery</button>
+        <button class="tab-btn active" data-tab="library">My Library</button>
+        <button class="tab-btn" data-tab="artist">Artist Discovery</button>
+        <button class="tab-btn" data-tab="history">Playlist History</button>
       </div>
 
       <!-- Tab Content: My Library -->
@@ -48,8 +63,24 @@
           <div id="genre-stats" class="genre-stats"></div>
           <div id="genre-grid" class="genre-grid"></div>
           
+          <!-- Playlist Creation Options -->
+          <div class="playlist-options">
+            <h4 style="color: #e3e3e3; margin-bottom: 12px;">Playlist Creation Mode</h4>
+            <label>
+              <input type="radio" name="playlist-mode" value="merged" checked>
+              <span>Merge all into one playlist</span>
+            </label>
+            <div class="option-description">Combine all selected genres into a single playlist</div>
+            
+            <label>
+              <input type="radio" name="playlist-mode" value="separate">
+              <span>Create separate playlists</span>
+            </label>
+            <div class="option-description">Create individual playlists for each selected genre</div>
+          </div>
+          
           <div class="playlist-controls">
-            <input type="text" id="playlist-name" placeholder="Playlist name (optional)" />
+            <input type="text" id="playlist-name" placeholder="Playlist name (optional, auto-generated if empty)" />
             <button id="create-library-playlist" class="btn-primary" disabled>Create Playlist</button>
           </div>
         </div>
@@ -85,6 +116,16 @@
           <div class="playlist-controls">
             <input type="text" id="discovery-playlist-name" placeholder="Playlist name (optional)" />
             <button id="generate-discovery-playlist" class="btn-primary">Generate Playlist</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Playlist History -->
+      <div id="history-tab" class="tab-content">
+        <div class="playlist-history">
+          <h3>Your Created Playlists</h3>
+          <div id="history-list" class="history-list">
+            <div class="history-empty">No playlists created yet. Start creating!</div>
           </div>
         </div>
       </div>
