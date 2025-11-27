@@ -1,53 +1,21 @@
-// ===== CONFIG =====
+// ===== SPOTIFY OAUTH SETUP =====
 const CLIENT_ID = '97762324651b49d1bb703566c9c36072';
 const REDIRECT_URI = 'https://dueringroman-creator.github.io/spotify-genre-sorter/';
-const SCOPES = ['user-library-read', 'playlist-modify-public', 'playlist-modify-private'];
-const STATE = 'alchemist_state';
+const CODE_VERIFIER_KEY = 'spotify_code_verifier';
 
-let spotifyToken = null;
+// ===== GLOBAL STATE =====
+let selectedGenres = new Set();
+let genreSongMap = {}; // genre -> array of track objects
 
-// ===== UTILITY =====
-function updateStatus(msg) {
-  const s = document.getElementById('status');
-  if (s) s.innerText = msg;
-  console.log(msg);
-}
+// ===== UTILITY FUNCTIONS =====
 
-function enable(id) {
-  const b = document.getElementById(id);
-  if (b) b.disabled = false;
-}
-function disable(id) {
-  const b = document.getElementById(id);
-  if (b) b.disabled = true;
-}
-
-// ===== AUTH & LOGIN =====
-document.getElementById('login').onclick = async () => {
-  const codeVerifier = generateRandomString(128);  
-  const codeChallenge = await generateCodeChallenge(codeVerifier);
-  localStorage.setItem('pkce_code_verifier', codeVerifier);
-
-  const authUrl = `https://accounts.spotify.com/authorize?` +
-    `response_type=code&client_id=${CLIENT_ID}` +
-    `&scope=${encodeURIComponent(SCOPES.join(' '))}` +
-    `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-    `&state=${STATE}` +
-    `&code_challenge=${codeChallenge}` +
-    `&code_challenge_method=S256`;
-
-  window.location = authUrl;
-};
-
-// ===== PKCE Utils =====
 function generateRandomString(length) {
-  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let res = '';
-  const values = window.crypto.getRandomValues(new Uint8Array(length));
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
   for (let i = 0; i < length; i++) {
-    res += charset[values[i] % charset.length];
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return res;
+  return result;
 }
 
 async function generateCodeChallenge(verifier) {
@@ -60,8 +28,33 @@ async function generateCodeChallenge(verifier) {
     .replace(/\//g, '_');
 }
 
-async function exchangeCodeForToken(code) {
-  const verifier = localStorage.getItem('pkce_code_verifier');
+function updateStatus(msg) {
+  document.getElementById('status').innerText = msg;
+  console.log(msg);
+}
+
+// ===== LOGIN FLOW =====
+
+document.getElementById('login').addEventListener('click', async () => {
+  const verifier = generateRandomString(128);
+  const challenge = await generateCodeChallenge(verifier);
+  localStorage.setItem(CODE_VERIFIER_KEY, verifier);
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    scope: 'user-library-read playlist-modify-public playlist-modify-private user-top-read',
+    state: generateRandomString(16),
+    code_challenge_method: 'S256',
+    code_challenge: challenge
+  });
+  
+  window.location = `https://accounts.spotify.com/authorize?${params.toString()}`;
+});
+
+async function fetchAccessToken(code) {
+  const verifier = localStorage.getItem(CODE_VERIFIER_KEY);
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     code: code,
@@ -69,224 +62,534 @@ async function exchangeCodeForToken(code) {
     client_id: CLIENT_ID,
     code_verifier: verifier
   });
-
+  
   const resp = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body
   });
+  
   const data = await resp.json();
-  return data.access_token;
+  if (data.access_token) {
+    window.spotifyToken = data.access_token;
+    updateStatus('✅ Logged in successfully!');
+    
+    document.getElementById('login-section').classList.add('hidden');
+    document.getElementById('app-section').classList.remove('hidden');
+  } else {
+    updateStatus('❌ Login failed');
+    console.error(data);
+  }
 }
 
-// ===== FETCH LIKED SONGS =====
-async function fetchLikedSongs(token) {
+// ===== TAB SWITCHING =====
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    
+    btn.classList.add('active');
+    const tabName = btn.getAttribute('data-tab');
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+  });
+});
+
+// ===== LIBRARY MODE - FETCH TRACKS =====
+
+async function fetchAllLikedTracks(token) {
   let all = [];
   const limit = 50;
   let offset = 0;
-
-  updateStatus('🎵 Fetching your saved songs…');
-  disable('fetch-tracks');
-
+  
   while (true) {
     const resp = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${token}` }
     });
-    if (!resp.ok) {
-      updateStatus(`❌ Error fetching songs: ${resp.status}`);
-      break;
-    }
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
-    if (!data.items || data.items.length === 0) break;
     all.push(...data.items);
+    updateStatus(`Fetched ${all.length} tracks...`);
+    if (!data.next) break;
     offset += limit;
-    updateStatus(`Fetched ${all.length} songs so far…`);
   }
-
-  window.likedTracks = all;
-  updateStatus(`✅ Done! ${all.length} songs retrieved. Ready to fetch genres.`);
-  enable('fetch-genres');
+  return all;
 }
 
-// ===== FETCH GENRES (ARTISTS) =====
-async function fetchGenres(token) {
-  const artistIds = new Set();
-  window.likedTracks.forEach(item => {
-    const track = item.track;
-    if (!track || !track.artists) return;
-    track.artists.forEach(a => artistIds.add(a.id));
-  });
+document.getElementById('fetch-tracks').addEventListener('click', async () => {
+  if (!window.spotifyToken) return;
+  document.getElementById('fetch-tracks').disabled = true;
+  updateStatus('🎵 Fetching your liked songs...');
+  
+  try {
+    const tracks = await fetchAllLikedTracks(window.spotifyToken);
+    window.savedTracks = tracks;
+    updateStatus(`✅ Fetched ${tracks.length} tracks!`);
+    document.getElementById('fetch-genres').disabled = false;
+  } catch (e) {
+    updateStatus(`❌ Error: ${e.message}`);
+    document.getElementById('fetch-tracks').disabled = false;
+  }
+});
 
+// ===== LIBRARY MODE - FETCH GENRES & BUILD MAP =====
+
+async function fetchAllGenres(token, tracks) {
+  const artistIds = new Set(tracks.map(i => i.track.artists[0].id));
   const ids = Array.from(artistIds);
-  updateStatus(`🔍 Fetching genres for ${ids.length} artists…`);
-  disable('fetch-genres');
-
   const artistGenreMap = {};
+
   for (let i = 0; i < ids.length; i += 50) {
     const batch = ids.slice(i, i + 50).join(',');
     const resp = await fetch(`https://api.spotify.com/v1/artists?ids=${batch}`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${token}` }
     });
-    if (!resp.ok) {
-      updateStatus(`❌ Error fetching artist info: ${resp.status}`);
-      continue;
-    }
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     data.artists.forEach(a => {
-      artistGenreMap[a.id] = a.genres || [];
+      artistGenreMap[a.id] = a.genres;
     });
-    updateStatus(`Processed ${Math.min(i + 50, ids.length)}/${ids.length} artists…`);
+    updateStatus(`Processed ${Math.min(i + 50, ids.length)} / ${ids.length} artists...`);
   }
-
-  window.artistGenreMap = artistGenreMap;
-  updateStatus('🎯 Genres loaded. Build your genre‑list now.');
-  populateGenreSelector();
+  return artistGenreMap;
 }
 
-// ===== POPULATE GENRE SELECTOR =====
-function populateGenreSelector() {
-  const genreSet = new Set();
-
-  window.likedTracks.forEach(item => {
+// Build genre -> songs mapping
+function buildGenreSongMap(tracks, artistGenreMap) {
+  const map = {};
+  
+  tracks.forEach(item => {
     const track = item.track;
-    if (!track || !track.artists) return;
-    track.artists.forEach(a => {
-      const gs = window.artistGenreMap[a.id] || [];
-      gs.forEach(g => genreSet.add(g.toLowerCase()));
+    const artistId = track.artists[0].id;
+    const genres = artistGenreMap[artistId] || [];
+    
+    genres.forEach(genre => {
+      if (!map[genre]) {
+        map[genre] = [];
+      }
+      // Avoid duplicates
+      if (!map[genre].find(t => t.id === track.id)) {
+        map[genre].push(track);
+      }
     });
   });
-
-  const select = document.getElementById('genre-select');
-  select.innerHTML = '';
-  Array.from(genreSet).sort().forEach(g => {
-    const opt = document.createElement('option');
-    opt.value = g;
-    opt.text = g;
-    select.appendChild(opt);
-  });
-
-  document.getElementById('genre-select-container').style.display = 'block';
-  updateStatus(`🎛️ Found ${genreSet.size} genres. Choose which to turn into playlists.`);
-  enable('create-playlists');
+  
+  return map;
 }
 
-// ===== PLAYLIST CREATION =====
-document.getElementById('create-playlists').onclick = async () => {
-  const sel = document.getElementById('genre-select');
-  const chosen = Array.from(sel.selectedOptions).map(o => o.value);
-  if (!chosen.length) {
-    alert('Select at least one genre.');
-    return;
+document.getElementById('fetch-genres').addEventListener('click', async () => {
+  if (!window.savedTracks) return;
+  document.getElementById('fetch-genres').disabled = true;
+  updateStatus('🔍 Fetching genres and organizing tracks...');
+  
+  try {
+    const artistGenreMap = await fetchAllGenres(window.spotifyToken, window.savedTracks);
+    window.artistGenreMap = artistGenreMap;
+    
+    // Build genre -> songs map
+    genreSongMap = buildGenreSongMap(window.savedTracks, artistGenreMap);
+    
+    // Display genre selection UI
+    displayGenreSelection();
+    updateStatus('✅ Genres loaded! Select genres to create a playlist.');
+  } catch (e) {
+    updateStatus(`❌ Error: ${e.message}`);
+    document.getElementById('fetch-genres').disabled = false;
   }
+});
 
-  updateStatus('🚀 Creating playlists…');
-  const profile = await fetch('https://api.spotify.com/v1/me', {
-    headers: { Authorization: `Bearer ${spotifyToken}` }
-  }).then(r => r.json());
-  const userId = profile.id;
+// ===== DISPLAY GENRE SELECTION UI =====
 
-  document.getElementById('created-playlists').style.display = 'block';
-  const list = document.getElementById('playlist-list');
-  list.innerHTML = '';
+function displayGenreSelection() {
+  // Show genre selection area
+  document.getElementById('genre-selection-area').classList.remove('hidden');
+  
+  // Sort genres by number of tracks (descending)
+  const sortedGenres = Object.entries(genreSongMap)
+    .sort((a, b) => b[1].length - a[1].length);
+  
+  // Display stats
+  displayGenreStats(sortedGenres);
+  
+  // Display genre grid
+  const grid = document.getElementById('genre-grid');
+  grid.innerHTML = sortedGenres.map(([genre, tracks]) => `
+    <div class="genre-item" data-genre="${genre}">
+      <div class="genre-name">${genre}</div>
+      <div class="genre-count">${tracks.length} song${tracks.length !== 1 ? 's' : ''}</div>
+    </div>
+  `).join('');
+  
+  // Add click handlers
+  grid.querySelectorAll('.genre-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const genre = item.getAttribute('data-genre');
+      toggleGenreSelection(genre, item);
+    });
+  });
+}
 
-  for (const genre of chosen) {
-    const playlistName = `Alchemist – ${genre}`;
-    const desc = `Playlist generated from genre: ${genre}`;
-    const resp = await fetch(`https://api.spotify.com/v1/users/${userId}/playlists`, {
+function displayGenreStats(sortedGenres) {
+  const totalGenres = sortedGenres.length;
+  const totalTracks = window.savedTracks.length;
+  const avgTracksPerGenre = Math.round(totalTracks / totalGenres);
+  
+  const statsHTML = `
+    <div class="stat-item">
+      <div class="stat-label">Total Genres</div>
+      <div class="stat-value">${totalGenres}</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Total Tracks</div>
+      <div class="stat-value">${totalTracks}</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Selected</div>
+      <div class="stat-value" id="selected-count">0</div>
+    </div>
+  `;
+  
+  document.getElementById('genre-stats').innerHTML = statsHTML;
+}
+
+function toggleGenreSelection(genre, element) {
+  if (selectedGenres.has(genre)) {
+    selectedGenres.delete(genre);
+    element.classList.remove('selected');
+  } else {
+    selectedGenres.add(genre);
+    element.classList.add('selected');
+  }
+  
+  updateSelectedCount();
+}
+
+function updateSelectedCount() {
+  const countElement = document.getElementById('selected-count');
+  if (countElement) {
+    countElement.textContent = selectedGenres.size;
+  }
+  
+  // Enable/disable create playlist button
+  const createBtn = document.getElementById('create-library-playlist');
+  createBtn.disabled = selectedGenres.size === 0;
+}
+
+// ===== GENRE FILTER =====
+
+document.getElementById('genre-filter').addEventListener('input', (e) => {
+  const filter = e.target.value.toLowerCase();
+  const items = document.querySelectorAll('.genre-item');
+  
+  items.forEach(item => {
+    const genre = item.getAttribute('data-genre').toLowerCase();
+    if (genre.includes(filter)) {
+      item.style.display = '';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+});
+
+// ===== SELECT ALL / CLEAR ALL =====
+
+document.getElementById('select-all-genres').addEventListener('click', () => {
+  const items = document.querySelectorAll('.genre-item');
+  items.forEach(item => {
+    const genre = item.getAttribute('data-genre');
+    if (item.style.display !== 'none') { // Only visible items
+      selectedGenres.add(genre);
+      item.classList.add('selected');
+    }
+  });
+  updateSelectedCount();
+});
+
+document.getElementById('clear-genres').addEventListener('click', () => {
+  selectedGenres.clear();
+  document.querySelectorAll('.genre-item').forEach(item => {
+    item.classList.remove('selected');
+  });
+  updateSelectedCount();
+});
+
+// ===== CREATE PLAYLIST FROM LIBRARY =====
+
+document.getElementById('create-library-playlist').addEventListener('click', async () => {
+  if (selectedGenres.size === 0) return;
+  
+  document.getElementById('create-library-playlist').disabled = true;
+  updateStatus('🎵 Creating playlist...');
+  
+  try {
+    // Collect all tracks from selected genres
+    const trackSet = new Set();
+    selectedGenres.forEach(genre => {
+      genreSongMap[genre].forEach(track => {
+        trackSet.add(track.uri);
+      });
+    });
+    
+    const trackUris = Array.from(trackSet);
+    
+    // Get user ID
+    const userResp = await fetch('https://api.spotify.com/v1/me', {
+      headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
+    });
+    const userData = await userResp.json();
+    
+    // Create playlist name
+    const customName = document.getElementById('playlist-name').value.trim();
+    const genreList = Array.from(selectedGenres).slice(0, 3).join(', ');
+    const playlistName = customName || `${genreList}${selectedGenres.size > 3 ? ' + more' : ''}`;
+    
+    // Create playlist
+    const createResp = await fetch(`https://api.spotify.com/v1/users/${userData.id}/playlists`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${spotifyToken}`,
+        'Authorization': `Bearer ${window.spotifyToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ name: playlistName, description: desc, public: false })
+      body: JSON.stringify({
+        name: playlistName,
+        description: `Created by Playlist Alchemist from ${selectedGenres.size} genre${selectedGenres.size !== 1 ? 's' : ''}`,
+        public: false
+      })
     });
-    if (!resp.ok) {
-      updateStatus(`❌ Error creating playlist "${playlistName}": ${resp.status}`);
-      continue;
-    }
-    const pd = await resp.json();
-    const pid = pd.id;
-
-    const uris = window.likedTracks
-      .map(it => it.track)
-      .filter(tr => tr.artists.some(a => {
-        const gs = window.artistGenreMap[a.id] || [];
-        return gs.map(x => x.toLowerCase()).includes(genre);
-      }))
-      .map(t => t.uri);
-
-    for (let i = 0; i < uris.length; i += 100) {
-      await fetch(`https://api.spotify.com/v1/playlists/${pid}/tracks`, {
+    const playlist = await createResp.json();
+    
+    // Add tracks (Spotify limit: 100 per request)
+    for (let i = 0; i < trackUris.length; i += 100) {
+      const batch = trackUris.slice(i, i + 100);
+      await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${spotifyToken}`,
+          'Authorization': `Bearer ${window.spotifyToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ uris: uris.slice(i, i + 100) })
+        body: JSON.stringify({ uris: batch })
       });
     }
-
-    const li = document.createElement('li');
-    const a = document.createElement('a');
-    a.href = `https://open.spotify.com/playlist/${pid}`;
-    a.target = '_blank';
-    a.textContent = `${playlistName} (${uris.length} songs)`;
-    li.appendChild(a);
-    list.appendChild(li);
+    
+    updateStatus(`✅ Created "${playlistName}" with ${trackUris.length} tracks!\n\nOpen in Spotify: ${playlist.external_urls.spotify}`);
+    document.getElementById('create-library-playlist').disabled = false;
+    
+    // Clear playlist name input
+    document.getElementById('playlist-name').value = '';
+  } catch (e) {
+    updateStatus(`❌ Error creating playlist: ${e.message}`);
+    document.getElementById('create-library-playlist').disabled = false;
   }
+});
 
-  updateStatus('✅ All selected playlists created.');
-};
+// ===== ARTIST DISCOVERY MODE =====
 
-// ===== RESET SESSION =====
-document.getElementById('reset-session').onclick = () => {
-  localStorage.removeItem('spotify_token');
-  window.likedTracks = null;
-  window.artistGenreMap = null;
-  document.getElementById('genre-select-container').style.display = 'none';
-  document.getElementById('created-playlists').style.display = 'none';
-  disable('fetch-tracks');
-  disable('fetch-genres');
-  disable('create-playlists');
-  updateStatus('🧹 Session reset. Please login to start again.');
-};
+let searchTimeout;
+let selectedArtist = null;
+let selectedRelatedArtists = new Set();
 
-// ===== ON LOAD: check auth code or existing session =====
-window.onload = async () => {
+document.getElementById('artist-search').addEventListener('input', (e) => {
+  const query = e.target.value.trim();
+  
+  clearTimeout(searchTimeout);
+  
+  if (query.length < 2) {
+    document.getElementById('search-results').innerHTML = '';
+    return;
+  }
+  
+  searchTimeout = setTimeout(() => searchArtist(query), 300);
+});
+
+async function searchArtist(query) {
+  if (!window.spotifyToken) return;
+  
+  try {
+    const resp = await fetch(
+      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=artist&limit=5`,
+      { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+    );
+    const data = await resp.json();
+    displaySearchResults(data.artists.items);
+  } catch (e) {
+    console.error('Search error:', e);
+  }
+}
+
+function displaySearchResults(artists) {
+  const container = document.getElementById('search-results');
+  
+  if (artists.length === 0) {
+    container.innerHTML = '<div style="padding: 12px; color: #666;">No artists found</div>';
+    return;
+  }
+  
+  container.innerHTML = artists.map(artist => `
+    <div class="search-result-item" data-artist-id="${artist.id}">
+      <img src="${artist.images[0]?.url || 'https://via.placeholder.com/50'}" alt="${artist.name}">
+      <div class="search-result-info">
+        <h4>${artist.name}</h4>
+        <p>${artist.genres.slice(0, 2).join(', ') || 'No genres listed'}</p>
+      </div>
+    </div>
+  `).join('');
+  
+  container.querySelectorAll('.search-result-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const artistId = item.getAttribute('data-artist-id');
+      const artist = artists.find(a => a.id === artistId);
+      selectArtist(artist);
+    });
+  });
+}
+
+function selectArtist(artist) {
+  selectedArtist = artist;
+  
+  document.getElementById('artist-search').value = '';
+  document.getElementById('search-results').innerHTML = '';
+  
+  document.getElementById('selected-artist').classList.remove('hidden');
+  document.getElementById('artist-card').innerHTML = `
+    <img src="${artist.images[0]?.url || 'https://via.placeholder.com/100'}" alt="${artist.name}">
+    <div class="artist-info">
+      <h3>${artist.name}</h3>
+      <div class="genre-tags">
+        ${artist.genres.slice(0, 3).map(g => `<span class="genre-tag">${g}</span>`).join('')}
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('related-artists-section').classList.add('hidden');
+  updateStatus(`Selected: ${artist.name}`);
+}
+
+document.getElementById('find-related').addEventListener('click', async () => {
+  if (!selectedArtist) return;
+  
+  updateStatus('🔍 Finding related artists...');
+  document.getElementById('find-related').disabled = true;
+  
+  try {
+    const resp = await fetch(
+      `https://api.spotify.com/v1/artists/${selectedArtist.id}/related-artists`,
+      { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+    );
+    const data = await resp.json();
+    
+    displayRelatedArtists(data.artists);
+    updateStatus(`✅ Found ${data.artists.length} related artists! Click to select.`);
+    document.getElementById('find-related').disabled = false;
+  } catch (e) {
+    updateStatus(`❌ Error: ${e.message}`);
+    document.getElementById('find-related').disabled = false;
+  }
+});
+
+function displayRelatedArtists(artists) {
+  const container = document.getElementById('related-artists-grid');
+  selectedRelatedArtists.clear();
+  
+  container.innerHTML = artists.slice(0, 12).map(artist => `
+    <div class="artist-item" data-artist-id="${artist.id}">
+      <img src="${artist.images[0]?.url || 'https://via.placeholder.com/200'}" alt="${artist.name}">
+      <h4>${artist.name}</h4>
+    </div>
+  `).join('');
+  
+  container.querySelectorAll('.artist-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const artistId = item.getAttribute('data-artist-id');
+      
+      if (selectedRelatedArtists.has(artistId)) {
+        selectedRelatedArtists.delete(artistId);
+        item.classList.remove('selected');
+      } else {
+        selectedRelatedArtists.add(artistId);
+        item.classList.add('selected');
+      }
+      
+      updateStatus(`Selected ${selectedRelatedArtists.size} related artist${selectedRelatedArtists.size !== 1 ? 's' : ''}`);
+    });
+  });
+  
+  document.getElementById('related-artists-section').classList.remove('hidden');
+}
+
+document.getElementById('generate-discovery-playlist').addEventListener('click', async () => {
+  if (!selectedArtist && selectedRelatedArtists.size === 0) {
+    updateStatus('⚠️ Please select at least the main artist or some related artists');
+    return;
+  }
+  
+  updateStatus('🎵 Generating playlist...');
+  document.getElementById('generate-discovery-playlist').disabled = true;
+  
+  try {
+    const artistIds = [selectedArtist.id, ...Array.from(selectedRelatedArtists)];
+    
+    let allTracks = [];
+    for (const artistId of artistIds) {
+      const resp = await fetch(
+        `https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=US`,
+        { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+      );
+      const data = await resp.json();
+      allTracks.push(...data.tracks.slice(0, 5));
+    }
+    
+    const userResp = await fetch('https://api.spotify.com/v1/me', {
+      headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
+    });
+    const userData = await userResp.json();
+    
+    const customName = document.getElementById('discovery-playlist-name').value.trim();
+    const playlistName = customName || `${selectedArtist.name} + Related Artists`;
+    
+    const createResp = await fetch(`https://api.spotify.com/v1/users/${userData.id}/playlists`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${window.spotifyToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: playlistName,
+        description: `Created by Playlist Alchemist featuring ${selectedArtist.name} and similar artists`,
+        public: false
+      })
+    });
+    const playlist = await createResp.json();
+    
+    const trackUris = allTracks.map(t => t.uri);
+    await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${window.spotifyToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ uris: trackUris })
+    });
+    
+    updateStatus(`✅ Created "${playlistName}" with ${allTracks.length} tracks!\n\nOpen in Spotify: ${playlist.external_urls.spotify}`);
+    document.getElementById('generate-discovery-playlist').disabled = false;
+    document.getElementById('discovery-playlist-name').value = '';
+  } catch (e) {
+    updateStatus(`❌ Error creating playlist: ${e.message}`);
+    document.getElementById('generate-discovery-playlist').disabled = false;
+  }
+});
+
+// ===== PAGE LOAD: Handle OAuth Redirect =====
+
+window.onload = () => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
-  const state = params.get('state');
-  if (code && state === STATE) {
-    spotifyToken = await exchangeCodeForToken(code);
-    localStorage.setItem('spotify_token', spotifyToken);
-    window.history.replaceState({}, document.title, REDIRECT_URI);
-    updateStatus('🎉 Logged in — ready to fetch songs.');
-    enable('fetch-tracks');
-    return;
+  
+  if (code) {
+    fetchAccessToken(code).then(() => {
+      window.history.replaceState({}, document.title, REDIRECT_URI);
+    });
   }
-  const stored = localStorage.getItem('spotify_token');
-  if (stored) {
-    spotifyToken = stored;
-    updateStatus('🔄 Session resumed. Ready to fetch songs.');
-    enable('fetch-tracks');
-  }
-};
-
-// ===== FETCH & GENRE button handlers =====
-document.getElementById('fetch-tracks').onclick = () => {
-  if (!spotifyToken) {
-    updateStatus('👆 Please login first.');
-    return;
-  }
-  fetchLikedSongs(spotifyToken);
-};
-
-document.getElementById('fetch-genres').onclick = () => {
-  if (!window.likedTracks) {
-    updateStatus('👆 Please fetch your songs first.');
-    return;
-  }
-  fetchGenres(spotifyToken);
 };
 
 
