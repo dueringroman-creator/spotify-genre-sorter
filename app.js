@@ -6,6 +6,7 @@ const CODE_VERIFIER_KEY = 'spotify_code_verifier';
 // ===== GLOBAL STATE =====
 let selectedGenres = new Set();
 let genreSongMap = {}; // genre -> array of track objects
+let playlistHistory = []; // Store created playlists
 
 // ===== UTILITY FUNCTIONS =====
 
@@ -16,6 +17,23 @@ function generateRandomString(length) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+}
+
+// Retry mechanism for network requests
+async function fetchWithRetry(url, options = {}, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return response;
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      updateStatus(`⚠️ Network error, retrying... (${i + 1}/${maxRetries})`);
+      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+    }
+  }
 }
 
 async function generateCodeChallenge(verifier) {
@@ -31,6 +49,72 @@ async function generateCodeChallenge(verifier) {
 function updateStatus(msg) {
   document.getElementById('status').innerText = msg;
   console.log(msg);
+}
+
+// ===== PLAYLIST HISTORY MANAGEMENT =====
+
+function loadPlaylistHistory() {
+  const stored = localStorage.getItem('playlist_history');
+  if (stored) {
+    playlistHistory = JSON.parse(stored);
+    displayPlaylistHistory();
+  }
+}
+
+function savePlaylistHistory() {
+  localStorage.setItem('playlist_history', JSON.stringify(playlistHistory));
+}
+
+function addToHistory(playlist) {
+  playlistHistory.unshift({
+    name: playlist.name,
+    url: playlist.external_urls.spotify,
+    trackCount: playlist.tracks?.total || 0,
+    createdAt: new Date().toISOString()
+  });
+  
+  // Keep only last 20 playlists
+  if (playlistHistory.length > 20) {
+    playlistHistory = playlistHistory.slice(0, 20);
+  }
+  
+  savePlaylistHistory();
+  displayPlaylistHistory();
+}
+
+function displayPlaylistHistory() {
+  const container = document.getElementById('history-list');
+  
+  if (playlistHistory.length === 0) {
+    container.innerHTML = '<div class="history-empty">No playlists created yet. Start creating!</div>';
+    return;
+  }
+  
+  container.innerHTML = playlistHistory.map(item => {
+    const date = new Date(item.createdAt);
+    const timeAgo = getTimeAgo(date);
+    
+    return `
+      <div class="history-item">
+        <div class="history-item-info">
+          <div class="history-item-name">${item.name}</div>
+          <div class="history-item-meta">${item.trackCount} tracks • ${timeAgo}</div>
+        </div>
+        <a href="${item.url}" target="_blank" class="history-item-link">Open in Spotify</a>
+      </div>
+    `;
+  }).join('');
+}
+
+function getTimeAgo(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  
+  return date.toLocaleDateString();
 }
 
 // ===== LOGIN FLOW =====
@@ -76,6 +160,9 @@ async function fetchAccessToken(code) {
     
     document.getElementById('login-section').classList.add('hidden');
     document.getElementById('app-section').classList.remove('hidden');
+    
+    // Load playlist history
+    loadPlaylistHistory();
   } else {
     updateStatus('❌ Login failed');
     console.error(data);
@@ -95,6 +182,24 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
+// ===== ONBOARDING =====
+
+document.getElementById('close-onboarding')?.addEventListener('click', () => {
+  const onboarding = document.getElementById('onboarding');
+  if (onboarding) {
+    onboarding.style.display = 'none';
+    localStorage.setItem('onboarding_seen', 'true');
+  }
+});
+
+// Check if user has seen onboarding before
+window.addEventListener('load', () => {
+  if (localStorage.getItem('onboarding_seen') === 'true') {
+    const onboarding = document.getElementById('onboarding');
+    if (onboarding) onboarding.style.display = 'none';
+  }
+});
+
 // ===== LIBRARY MODE - FETCH TRACKS =====
 
 async function fetchAllLikedTracks(token) {
@@ -103,10 +208,9 @@ async function fetchAllLikedTracks(token) {
   let offset = 0;
   
   while (true) {
-    const resp = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
+    const resp = await fetchWithRetry(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     all.push(...data.items);
     updateStatus(`Fetched ${all.length} tracks...`);
@@ -141,10 +245,9 @@ async function fetchAllGenres(token, tracks) {
 
   for (let i = 0; i < ids.length; i += 50) {
     const batch = ids.slice(i, i + 50).join(',');
-    const resp = await fetch(`https://api.spotify.com/v1/artists?ids=${batch}`, {
+    const resp = await fetchWithRetry(`https://api.spotify.com/v1/artists?ids=${batch}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     data.artists.forEach(a => {
       artistGenreMap[a.id] = a.genres;
@@ -232,7 +335,6 @@ function displayGenreSelection() {
 function displayGenreStats(sortedGenres) {
   const totalGenres = sortedGenres.length;
   const totalTracks = window.savedTracks.length;
-  const avgTracksPerGenre = Math.round(totalTracks / totalGenres);
   
   const statsHTML = `
     <div class="stat-item">
@@ -319,7 +421,21 @@ document.getElementById('create-library-playlist').addEventListener('click', asy
   if (selectedGenres.size === 0) return;
   
   document.getElementById('create-library-playlist').disabled = true;
-  updateStatus('🎵 Creating playlist...');
+  
+  // Get playlist mode
+  const mode = document.querySelector('input[name="playlist-mode"]:checked').value;
+  
+  if (mode === 'merged') {
+    await createMergedPlaylist();
+  } else {
+    await createSeparatePlaylists();
+  }
+  
+  document.getElementById('create-library-playlist').disabled = false;
+});
+
+async function createMergedPlaylist() {
+  updateStatus('🎵 Creating merged playlist...');
   
   try {
     // Collect all tracks from selected genres
@@ -371,16 +487,83 @@ document.getElementById('create-library-playlist').addEventListener('click', asy
       });
     }
     
+    // Add to history
+    addToHistory({
+      name: playlistName,
+      external_urls: { spotify: playlist.external_urls.spotify },
+      tracks: { total: trackUris.length }
+    });
+    
     updateStatus(`✅ Created "${playlistName}" with ${trackUris.length} tracks!\n\nOpen in Spotify: ${playlist.external_urls.spotify}`);
-    document.getElementById('create-library-playlist').disabled = false;
     
     // Clear playlist name input
     document.getElementById('playlist-name').value = '';
   } catch (e) {
     updateStatus(`❌ Error creating playlist: ${e.message}`);
-    document.getElementById('create-library-playlist').disabled = false;
   }
-});
+}
+
+async function createSeparatePlaylists() {
+  updateStatus('🎵 Creating separate playlists...');
+  
+  try {
+    const userResp = await fetch('https://api.spotify.com/v1/me', {
+      headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
+    });
+    const userData = await userResp.json();
+    
+    let createdCount = 0;
+    const genreArray = Array.from(selectedGenres);
+    
+    for (const genre of genreArray) {
+      const tracks = genreSongMap[genre];
+      const trackUris = tracks.map(t => t.uri);
+      
+      // Create playlist for this genre
+      const createResp = await fetch(`https://api.spotify.com/v1/users/${userData.id}/playlists`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${window.spotifyToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: genre,
+          description: `${genre} playlist created by Playlist Alchemist`,
+          public: false
+        })
+      });
+      const playlist = await createResp.json();
+      
+      // Add tracks
+      for (let i = 0; i < trackUris.length; i += 100) {
+        const batch = trackUris.slice(i, i + 100);
+        await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${window.spotifyToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ uris: batch })
+        });
+      }
+      
+      // Add to history
+      addToHistory({
+        name: genre,
+        external_urls: { spotify: playlist.external_urls.spotify },
+        tracks: { total: trackUris.length }
+      });
+      
+      createdCount++;
+      updateStatus(`Created ${createdCount}/${genreArray.length} playlists...`);
+    }
+    
+    updateStatus(`✅ Created ${createdCount} separate playlists! Check the Playlist History tab.`);
+    document.getElementById('playlist-name').value = '';
+  } catch (e) {
+    updateStatus(`❌ Error creating playlists: ${e.message}`);
+  }
+}
 
 // ===== ARTIST DISCOVERY MODE =====
 
@@ -424,15 +607,20 @@ function displaySearchResults(artists) {
     return;
   }
   
-  container.innerHTML = artists.map(artist => `
-    <div class="search-result-item" data-artist-id="${artist.id}">
-      <img src="${artist.images[0]?.url || 'https://via.placeholder.com/50'}" alt="${artist.name}">
-      <div class="search-result-info">
-        <h4>${artist.name}</h4>
-        <p>${artist.genres.slice(0, 2).join(', ') || 'No genres listed'}</p>
+  container.innerHTML = artists.map(artist => {
+    const imageUrl = artist.images && artist.images[0] ? artist.images[0].url : 'https://via.placeholder.com/50';
+    const genres = artist.genres && artist.genres.length > 0 ? artist.genres.slice(0, 2).join(', ') : 'No genres listed';
+    
+    return `
+      <div class="search-result-item" data-artist-id="${artist.id}">
+        <img src="${imageUrl}" alt="${artist.name}">
+        <div class="search-result-info">
+          <h4>${artist.name}</h4>
+          <p>${genres}</p>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
   
   container.querySelectorAll('.search-result-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -449,13 +637,18 @@ function selectArtist(artist) {
   document.getElementById('artist-search').value = '';
   document.getElementById('search-results').innerHTML = '';
   
+  const imageUrl = artist.images && artist.images[0] ? artist.images[0].url : 'https://via.placeholder.com/100';
+  const genreTags = artist.genres && artist.genres.length > 0 
+    ? artist.genres.slice(0, 3).map(g => `<span class="genre-tag">${g}</span>`).join('')
+    : '<span class="genre-tag">No genres</span>';
+  
   document.getElementById('selected-artist').classList.remove('hidden');
   document.getElementById('artist-card').innerHTML = `
-    <img src="${artist.images[0]?.url || 'https://via.placeholder.com/100'}" alt="${artist.name}">
+    <img src="${imageUrl}" alt="${artist.name}">
     <div class="artist-info">
       <h3>${artist.name}</h3>
       <div class="genre-tags">
-        ${artist.genres.slice(0, 3).map(g => `<span class="genre-tag">${g}</span>`).join('')}
+        ${genreTags}
       </div>
     </div>
   `;
@@ -490,12 +683,16 @@ function displayRelatedArtists(artists) {
   const container = document.getElementById('related-artists-grid');
   selectedRelatedArtists.clear();
   
-  container.innerHTML = artists.slice(0, 12).map(artist => `
-    <div class="artist-item" data-artist-id="${artist.id}">
-      <img src="${artist.images[0]?.url || 'https://via.placeholder.com/200'}" alt="${artist.name}">
-      <h4>${artist.name}</h4>
-    </div>
-  `).join('');
+  container.innerHTML = artists.slice(0, 12).map(artist => {
+    const imageUrl = artist.images && artist.images[0] ? artist.images[0].url : 'https://via.placeholder.com/200';
+    
+    return `
+      <div class="artist-item" data-artist-id="${artist.id}">
+        <img src="${imageUrl}" alt="${artist.name}">
+        <h4>${artist.name}</h4>
+      </div>
+    `;
+  }).join('');
   
   container.querySelectorAll('.artist-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -568,6 +765,13 @@ document.getElementById('generate-discovery-playlist').addEventListener('click',
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ uris: trackUris })
+    });
+    
+    // Add to history
+    addToHistory({
+      name: playlistName,
+      external_urls: { spotify: playlist.external_urls.spotify },
+      tracks: { total: allTracks.length }
     });
     
     updateStatus(`✅ Created "${playlistName}" with ${allTracks.length} tracks!\n\nOpen in Spotify: ${playlist.external_urls.spotify}`);
