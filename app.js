@@ -15,6 +15,7 @@ let cachedLibraryData = null;
 let genreViewMode = 'families';
 let excludedArtists = new Map(); // Map of genre -> Set of excluded artist IDs
 let excludedTracks = new Map(); // Map of "genre:artistId" -> Set of excluded track IDs
+let manualGenreMappings = {}; // User-defined genre mappings: { "tekno": "techno" }
 
 // ===== GENRE FAMILY MAPPING =====
 
@@ -40,9 +41,15 @@ const genreFamilies = {
   },
   "techno": {
     name: "Techno",
-    keywords: ["techno"],
+    keywords: ["techno", "tekno", "industrial techno", "dub techno", "minimal techno", "detroit techno", "berlin techno", "hard techno", "acid techno"],
     exclude: ["tech house"],
     color: "#4ECDC4"
+  },
+  "industrial": {
+    name: "Industrial",
+    keywords: ["industrial", "ebm", "electro-industrial", "power electronics", "noise"],
+    exclude: ["industrial techno"],
+    color: "#666666"
   },
   "trance": {
     name: "Trance",
@@ -170,6 +177,23 @@ const genreFamilies = {
 function detectGenreFamily(spotifyGenre) {
   const lowerGenre = spotifyGenre.toLowerCase().trim();
   
+  // Check manual mappings first
+  if (manualGenreMappings[lowerGenre]) {
+    const mappedGenre = manualGenreMappings[lowerGenre];
+    // Recursively detect family for the mapped genre
+    for (const [familyId, family] of Object.entries(genreFamilies)) {
+      const matches = family.keywords.some(kw => mappedGenre.toLowerCase().includes(kw.toLowerCase()));
+      if (matches) {
+        return {
+          id: familyId,
+          name: family.name,
+          color: family.color
+        };
+      }
+    }
+  }
+  
+  // First pass: exact keyword matching
   for (const [familyId, family] of Object.entries(genreFamilies)) {
     const isExcluded = family.exclude.some(exc => lowerGenre.includes(exc.toLowerCase()));
     if (isExcluded) continue;
@@ -181,6 +205,83 @@ function detectGenreFamily(spotifyGenre) {
         name: family.name,
         color: family.color
       };
+    }
+  }
+  
+  // Second pass: fuzzy matching for common misspellings/variations
+  const fuzzyMappings = {
+    // Techno variations
+    'tekno': 'techno',
+    'technо': 'techno', // Cyrillic 'o'
+    'tecno': 'techno',
+    'tekk': 'techno',
+    'schranz': 'techno',
+    'hardtechno': 'techno',
+    'hard techno': 'techno',
+    
+    // House variations
+    'houze': 'house',
+    'housе': 'house', // Cyrillic 'e'
+    
+    // Hip hop variations
+    'hiphop': 'hip hop',
+    'hip-hop': 'hip hop',
+    'rap': 'hip hop',
+    'trap': 'hip hop',
+    
+    // Electronic variations
+    'electronica': 'electronic',
+    'electro': 'electronic',
+    'idm': 'electronic',
+    'glitch': 'electronic',
+    
+    // Industrial/experimental
+    'industrial': 'techno', // Often classified under techno family
+    'ebm': 'techno',
+    'noise': 'experimental',
+    
+    // Drum & bass
+    'dnb': 'drum and bass',
+    'd&b': 'drum and bass',
+    'jungle': 'drum and bass',
+    
+    // Dubstep/bass
+    'brostep': 'dubstep',
+    'riddim': 'dubstep'
+  };
+  
+  // Try fuzzy mappings
+  for (const [variant, canonical] of Object.entries(fuzzyMappings)) {
+    if (lowerGenre.includes(variant)) {
+      // Try to match the canonical version
+      for (const [familyId, family] of Object.entries(genreFamilies)) {
+        const matches = family.keywords.some(kw => canonical.includes(kw.toLowerCase()));
+        if (matches) {
+          return {
+            id: familyId,
+            name: family.name,
+            color: family.color
+          };
+        }
+      }
+    }
+  }
+  
+  // Third pass: word-based matching (catch compound genres)
+  const words = lowerGenre.split(/[\s\-]+/);
+  for (const word of words) {
+    for (const [familyId, family] of Object.entries(genreFamilies)) {
+      const isExcluded = family.exclude.some(exc => word.includes(exc.toLowerCase()));
+      if (isExcluded) continue;
+      
+      const matches = family.keywords.some(kw => word === kw.toLowerCase());
+      if (matches) {
+        return {
+          id: familyId,
+          name: family.name,
+          color: family.color
+        };
+      }
     }
   }
   
@@ -763,6 +864,17 @@ function prevTourStep(stepNum) {
 }
 
 window.addEventListener('load', () => {
+  // Load manual genre mappings from localStorage
+  const savedMappings = localStorage.getItem('manual_genre_mappings');
+  if (savedMappings) {
+    try {
+      manualGenreMappings = JSON.parse(savedMappings);
+    } catch (e) {
+      console.warn('Failed to load manual genre mappings:', e);
+    }
+  }
+  
+  // Show tour on first login (mandatory until completed or skipped)
   if (!localStorage.getItem('tour_completed')) {
     const checkLogin = setInterval(() => {
       if (!document.getElementById('app-section').classList.contains('hidden')) {
@@ -891,6 +1003,7 @@ async function fetchFromPlaylists() {
   let offset = 0;
   const limit = 50;
   
+  // First, fetch all playlists
   while (true) {
     const resp = await fetchWithRetry(
       `https://api.spotify.com/v1/me/playlists?limit=${limit}&offset=${offset}`,
@@ -902,13 +1015,31 @@ async function fetchFromPlaylists() {
     offset += limit;
   }
   
-  updateStatus(`Found ${allPlaylists.length} playlists. Scanning tracks...`);
+  // Show playlist selection UI
+  const shouldContinue = await showPlaylistSelectionUI(allPlaylists);
+  if (!shouldContinue) {
+    updateStatus('Playlist selection cancelled');
+    return;
+  }
+  
+  // Get selected playlists
+  const selectedPlaylists = allPlaylists.filter((_, index) => {
+    const checkbox = document.querySelector(`input[data-playlist-index="${index}"]`);
+    return checkbox && checkbox.checked;
+  });
+  
+  if (selectedPlaylists.length === 0) {
+    updateStatus('No playlists selected');
+    return;
+  }
+  
+  updateStatus(`Loading tracks from ${selectedPlaylists.length} selected playlists...`);
   
   let allTracks = [];
   const trackSet = new Set();
   
-  for (let i = 0; i < allPlaylists.length; i++) {
-    const playlist = allPlaylists[i];
+  for (let i = 0; i < selectedPlaylists.length; i++) {
+    const playlist = selectedPlaylists[i];
     
     let playlistTracks = [];
     let trackOffset = 0;
@@ -931,11 +1062,64 @@ async function fetchFromPlaylists() {
       }
     });
     
-    updateStatus(`Scanned ${i + 1}/${allPlaylists.length} playlists... (${allTracks.length} unique tracks)`);
+    updateStatus(`Scanned ${i + 1}/${selectedPlaylists.length} playlists... (${allTracks.length} unique tracks)`);
   }
   
   cachedLibraryData = { type: 'tracks', items: allTracks };
-  updateStatus(`Loaded ${allTracks.length} unique tracks from ${allPlaylists.length} playlists`);
+  updateStatus(`Loaded ${allTracks.length} unique tracks from ${selectedPlaylists.length} playlists`);
+}
+
+function showPlaylistSelectionUI(playlists) {
+  return new Promise((resolve) => {
+    // Create modal overlay
+    const modal = document.createElement('div');
+    modal.className = 'playlist-selection-modal';
+    modal.innerHTML = `
+      <div class="playlist-selection-content">
+        <h3>Select Playlists to Scan</h3>
+        <p style="color: #b3b3b3; font-size: 14px; margin-bottom: 16px;">
+          Choose which playlists to include in your library analysis
+        </p>
+        <div class="playlist-selection-actions" style="margin-bottom: 16px;">
+          <button class="btn-small" onclick="document.querySelectorAll('.playlist-selection-checkbox').forEach(cb => cb.checked = true)">Select All</button>
+          <button class="btn-small" onclick="document.querySelectorAll('.playlist-selection-checkbox').forEach(cb => cb.checked = false)">Deselect All</button>
+        </div>
+        <div class="playlist-selection-list">
+          ${playlists.map((playlist, index) => `
+            <label class="playlist-selection-item">
+              <input type="checkbox" 
+                     class="playlist-selection-checkbox" 
+                     data-playlist-index="${index}"
+                     checked>
+              <img src="${playlist.images && playlist.images[0] ? playlist.images[0].url : 'https://via.placeholder.com/50'}" 
+                   alt="${playlist.name}"
+                   class="playlist-thumb">
+              <div class="playlist-info">
+                <div class="playlist-name">${playlist.name}</div>
+                <div class="playlist-tracks-count">${playlist.tracks.total} tracks</div>
+              </div>
+            </label>
+          `).join('')}
+        </div>
+        <div class="playlist-selection-buttons">
+          <button class="btn-small" id="cancel-playlist-selection">Cancel</button>
+          <button class="btn-primary" id="confirm-playlist-selection">Continue</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    document.getElementById('cancel-playlist-selection').addEventListener('click', () => {
+      document.body.removeChild(modal);
+      resolve(false);
+    });
+    
+    document.getElementById('confirm-playlist-selection').addEventListener('click', () => {
+      document.body.removeChild(modal);
+      resolve(true);
+    });
+  });
 }
 
 async function processLibraryData(dataSource) {
@@ -1051,7 +1235,12 @@ function displayGenreSelection(totalTracks) {
   
   renderGenreView();
   
-  document.getElementById('genre-view-mode').addEventListener('change', (e) => {
+  // Remove old event listener and add new one (prevent duplicates)
+  const viewModeSelect = document.getElementById('genre-view-mode');
+  const newViewModeSelect = viewModeSelect.cloneNode(true);
+  viewModeSelect.parentNode.replaceChild(newViewModeSelect, viewModeSelect);
+  
+  newViewModeSelect.addEventListener('change', (e) => {
     genreViewMode = e.target.value;
     renderGenreView();
   });
@@ -1153,10 +1342,14 @@ function renderAllGenresView(grid) {
   grid.innerHTML = sortedGenres.map(([genre, tracks]) => {
     const artistCount = getArtistCountForGenre(genre);
     const safeGenreId = genre.replace(/[^a-z0-9]/gi, '_');
+    const family = detectGenreFamily(genre);
+    const isOther = family.id === 'other';
+    
     return `
       <div class="genre-item ${selectedGenres.has(genre) ? 'selected' : ''}" data-genre="${genre}">
         <div class="genre-name">${genre}</div>
         <div class="genre-count">${tracks.length} song${tracks.length !== 1 ? 's' : ''} • ${artistCount} artist${artistCount !== 1 ? 's' : ''}</div>
+        ${isOther ? `<button class="genre-map-btn" onclick="showGenreMappingDialog('${genre}', event)" title="Map to genre family">Map to Family</button>` : ''}
         <button class="genre-expand-btn" onclick="toggleGenreArtists('${genre}', event)">Show Artists ▼</button>
         <div class="genre-artists-list" id="genre-artists-${safeGenreId}"></div>
       </div>
@@ -1165,8 +1358,8 @@ function renderAllGenresView(grid) {
   
   grid.querySelectorAll('.genre-item').forEach(item => {
     item.addEventListener('click', (e) => {
-      // Don't toggle selection if clicking the expand button
-      if (e.target.classList.contains('genre-expand-btn')) return;
+      // Don't toggle selection if clicking the expand button or map button
+      if (e.target.classList.contains('genre-expand-btn') || e.target.classList.contains('genre-map-btn')) return;
       
       const genre = item.getAttribute('data-genre');
       toggleGenreSelection(genre, item);
@@ -1241,6 +1434,57 @@ function toggleGenreArtists(genre, event) {
     artistsList.classList.add('expanded');
     button.textContent = 'Hide Artists ▲';
   }
+}
+
+function showGenreMappingDialog(genre, event) {
+  event.stopPropagation();
+  
+  const modal = document.createElement('div');
+  modal.className = 'genre-mapping-modal';
+  
+  const familyOptions = Object.entries(genreFamilies)
+    .map(([id, family]) => `<option value="${id}">${family.name}</option>`)
+    .join('');
+  
+  modal.innerHTML = `
+    <div class="genre-mapping-content">
+      <h3>Map "${genre}" to Genre Family</h3>
+      <p style="color: #b3b3b3; font-size: 14px; margin-bottom: 20px;">
+        This genre is currently unmapped. Choose which family it belongs to:
+      </p>
+      <select id="family-select" class="family-select">
+        <option value="">-- Select Family --</option>
+        ${familyOptions}
+      </select>
+      <div class="genre-mapping-buttons">
+        <button class="btn-small" id="cancel-genre-mapping">Cancel</button>
+        <button class="btn-primary" id="confirm-genre-mapping">Map Genre</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  document.getElementById('cancel-genre-mapping').addEventListener('click', () => {
+    document.body.removeChild(modal);
+  });
+  
+  document.getElementById('confirm-genre-mapping').addEventListener('click', () => {
+    const selectedFamily = document.getElementById('family-select').value;
+    if (selectedFamily) {
+      // Store the mapping
+      manualGenreMappings[genre.toLowerCase()] = selectedFamily;
+      
+      // Save to localStorage
+      localStorage.setItem('manual_genre_mappings', JSON.stringify(manualGenreMappings));
+      
+      // Re-render the view
+      renderGenreView();
+      
+      updateStatus(`Mapped "${genre}" to ${genreFamilies[selectedFamily].name} family`);
+    }
+    document.body.removeChild(modal);
+  });
 }
 
 function handleArtistToggle(genre, artistId, isChecked) {
@@ -1435,7 +1679,7 @@ function displayGenreStats(sortedGenres, totalTracks) {
   
   const statsHTML = `
     <div class="stat-item">
-      <div class="stat-label">Total Genres</div>
+      <div class="stat-label">Genres Found</div>
       <div class="stat-value">${totalGenres}</div>
     </div>
     <div class="stat-item">
@@ -1443,7 +1687,7 @@ function displayGenreStats(sortedGenres, totalTracks) {
       <div class="stat-value">${totalTracks}</div>
     </div>
     <div class="stat-item">
-      <div class="stat-label">Selected</div>
+      <div class="stat-label">Genres Selected</div>
       <div class="stat-value" id="selected-count">0</div>
     </div>
   `;
@@ -2089,33 +2333,3 @@ window.onload = () => {
     });
   }
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
