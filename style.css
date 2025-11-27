@@ -1,3 +1,6 @@
+/* Playlist Alchemist - Stylesheet v1 (internal) */
+/* Dark Theme Design */
+
 /* Base Styles - Improved Dark Theme */
 * {
   margin: 0;
@@ -280,6 +283,10 @@ button:disabled {
 .playlist-options input[type="radio"] {
   margin-right: 10px;
   accent-color: #1ed760;
+}
+
+.playlist-options h4 {
+  margin: 0 0 12px 0;
 }
 
 .playlist-options .option-description {
@@ -652,6 +659,143 @@ button:disabled {
   color: #5a5a5a;
 }
 
+/* Music Stats Dashboard */
+.stats-container {
+  padding: 20px 0;
+}
+
+.stats-placeholder {
+  text-align: center;
+  padding: 60px 20px;
+  background: #1a1a1a;
+  border-radius: 12px;
+  border: 2px dashed #282828;
+}
+
+.stats-placeholder p {
+  font-size: 18px;
+  color: #b3b3b3;
+  margin-bottom: 10px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.stats-card {
+  background: #1a1a1a;
+  border: 1px solid #282828;
+  border-radius: 12px;
+  padding: 24px;
+  transition: all 0.3s;
+}
+
+.stats-card:hover {
+  border-color: #1ed760;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(30, 215, 96, 0.15);
+}
+
+.stats-card h3 {
+  color: #1ed760;
+  margin-bottom: 16px;
+  font-size: 1.3em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stats-card-content {
+  color: #b3b3b3;
+  line-height: 1.8;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #282828;
+}
+
+.stat-row:last-child {
+  border-bottom: none;
+}
+
+.stat-row-label {
+  color: #b3b3b3;
+  font-size: 14px;
+}
+
+.stat-row-value {
+  color: #1ed760;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.stat-bar {
+  width: 100%;
+  height: 8px;
+  background: #282828;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.stat-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1ed760, #1fdf64);
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.genre-breakdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.genre-breakdown-color {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.genre-breakdown-info {
+  flex: 1;
+}
+
+.genre-breakdown-name {
+  color: #e3e3e3;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.genre-breakdown-tracks {
+  color: #7f7f7f;
+  font-size: 12px;
+}
+
+.fun-fact {
+  background: rgba(30, 215, 96, 0.08);
+  border-left: 4px solid #1ed760;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin: 8px 0;
+  color: #b3b3b3;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.fun-fact strong {
+  color: #1ed760;
+}
+
 /* Playlist History */
 .playlist-history {
   background: #1a1a1a;
@@ -972,15 +1116,6 @@ button:disabled {
   border-left: 4px solid #1ed760;
 }
 
-/* Onboarding Banner */
-.onboarding-banner {
-  background: linear-gradient(135deg, rgba(30, 215, 96, 0.08) 0%, rgba(30, 215, 96, 0.05) 100%);
-  border: 2px solid rgba(30, 215, 96, 0.3);
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 30px;
-}
-
 /* Tour Overlay */
 .tour-overlay {
   position: fixed;
@@ -1270,5 +1405,9 @@ button:disabled {
   .history-item-link {
     flex: 1;
     text-align: center;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
   }
 }
