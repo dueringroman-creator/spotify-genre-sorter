@@ -47,7 +47,7 @@
               <li><strong>Playlists</strong> - Scan all your existing playlists</li>
             </ul>
             <p><strong>Step 2:</strong> We ask Spotify: "What genres are these artists?"</p>
-            <p><strong>Step 3:</strong> You select genres and we create organized playlists!</p>
+            <p><strong>Step 3:</strong> Choose your view mode and select genres!</p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(1)">← Back</button>
               <button class="btn-primary" onclick="nextTourStep(3)">Next →</button>
@@ -57,13 +57,14 @@
         
         <div class="tour-step hidden" id="tour-step-3">
           <div class="tour-content">
-            <h3>💾 Bonus: Export Your Lists</h3>
-            <p>Not just for Spotify! Export your playlists as:</p>
+            <h3>👁️ Three Ways to View Genres</h3>
+            <p>Spotify has 200+ messy micro-genres. We clean them up for you:</p>
             <ul>
-              <li><strong>CSV</strong> - Track, Artist, Album, Genre</li>
-              <li><strong>TXT</strong> - Simple list format</li>
+              <li><strong>Genre Families</strong> - Grouped (House, Techno, Rock). One click = all sub-genres!</li>
+              <li><strong>Detailed</strong> - Expandable families. Pick specific sub-genres if you want.</li>
+              <li><strong>All Genres</strong> - Flat list of everything. For power users.</li>
             </ul>
-            <p>Perfect for DJing software, Bandcamp purchases, or organizing local files.</p>
+            <p>💡 <strong>Tip:</strong> Start with "Genre Families" - it's the easiest!</p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(2)">← Back</button>
               <button class="btn-primary" onclick="nextTourStep(4)">Next →</button>
@@ -73,6 +74,18 @@
         
         <div class="tour-step hidden" id="tour-step-4">
           <div class="tour-content">
+            <h3>💾 Bonus Features</h3>
+            <p><strong>Export Playlists:</strong> Download your playlists as CSV or TXT files - perfect for DJing software, Bandcamp purchases, or organizing local files.</p>
+            <p><strong>Discover Similar Artists:</strong> Every artist has a "🔗 Similar Artists" link that opens Music-Map.com to explore artists with similar sounds!</p>
+            <div class="tour-actions">
+              <button class="btn-small" onclick="prevTourStep(3)">← Back</button>
+              <button class="btn-primary" onclick="nextTourStep(5)">Next →</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="tour-step hidden" id="tour-step-5">
+          <div class="tour-content">
             <h3>🔒 Your Privacy Matters</h3>
             <p><strong>No servers. No data storage.</strong></p>
             <p>Everything runs in <em>your browser</em>. We cache data locally for speed, but it never leaves your device.</p>
@@ -81,7 +94,7 @@
               Open source • No ads • No tracking
             </p>
             <div class="tour-actions">
-              <button class="btn-small" onclick="prevTourStep(3)">← Back</button>
+              <button class="btn-small" onclick="prevTourStep(4)">← Back</button>
               <button class="btn-primary" onclick="closeTour()">Start Using It! 🎉</button>
             </div>
           </div>
@@ -102,7 +115,12 @@
             
             <div class="about-card">
               <h4>✨ The Solution</h4>
-              <p>Spotify knows each artist's genre. We fetch that data, organize your tracks by genre, and create playlists automatically. Magic? Nope, just smart API usage.</p>
+              <p>Spotify knows each artist's genre. We fetch that data, <strong>intelligently group similar genres</strong> (because "deep house" and "house" should live together), and create playlists automatically. Magic? Nope, just smart API usage + pattern matching.</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>🎨 Smart Genre Grouping</h4>
+              <p>Spotify has 200+ micro-genres like "bubblegrunge" and "escape room." We auto-detect families (House, Techno, Hip-Hop) so you're not drowning in options. Choose your view: <strong>Grouped</strong> (simple), <strong>Detailed</strong> (expandable), or <strong>All</strong> (power user).</p>
             </div>
             
             <div class="about-card">
@@ -122,7 +140,9 @@
             
             <div class="about-card">
               <h4>💡 Pro Tips</h4>
-              <p>• Use "Merged" mode for large genre mixes<br>
+              <p>• Start with "Genre Families" view - cleanest<br>
+              • Use "Detailed" to cherry-pick sub-genres<br>
+              • Use "Merged" mode for large genre mixes<br>
               • Export playlists for DJ software<br>
               • Top Artists mode = instant discovery</p>
             </div>
@@ -179,6 +199,11 @@
           <div class="genre-header">
             <h3>Select Genres for Your Playlist</h3>
             <div class="genre-actions">
+              <select id="genre-view-mode" class="view-mode-select">
+                <option value="families">Genre Families (Grouped)</option>
+                <option value="detailed">Detailed (Expandable)</option>
+                <option value="all">All Genres (Flat)</option>
+              </select>
               <input type="text" id="genre-filter" placeholder="Filter genres..." />
               <button id="select-all-genres" class="btn-small">Select All</button>
               <button id="clear-genres" class="btn-small">Clear All</button>
@@ -186,6 +211,15 @@
           </div>
           
           <div id="genre-stats" class="genre-stats"></div>
+          
+          <div class="genre-tip-card">
+            <span class="genre-tip-icon">💡</span>
+            <span class="genre-tip-text">
+              Want to learn about genre history and relationships? Check out 
+              <a href="https://musicmap.info/" target="_blank" class="genre-tip-link">MusicMap.info</a>
+            </span>
+          </div>
+          
           <div id="genre-grid" class="genre-grid"></div>
           
           <!-- Playlist Creation Options -->
