@@ -324,6 +324,12 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 // Help button - reopen tour
 document.getElementById('help-button')?.addEventListener('click', () => {
+  // Check if user is logged in
+  const appSection = document.getElementById('app-section');
+  if (appSection && appSection.classList.contains('hidden')) {
+    alert('👋 Please login with Spotify first to see the interactive tour!\n\nThe tour will guide you through all features once you\'re logged in.');
+    return;
+  }
   showTour();
 });
 
