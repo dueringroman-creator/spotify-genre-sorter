@@ -12,6 +12,7 @@
 <body>
   <div class="container">
     <h1>Playlist Alchemist</h1>
+    <button id="help-button" class="help-button" title="Show help tour">?</button>
     
     <!-- Login Section -->
     <div id="login-section" class="section">
@@ -22,16 +23,110 @@
     <!-- Main App (hidden until logged in) -->
     <div id="app-section" class="section hidden">
       
-      <!-- Onboarding Banner -->
-      <div id="onboarding" class="onboarding-banner">
-        <div class="onboarding-content">
-          <h3>Welcome to Playlist Alchemist!</h3>
-          <p><strong>Two ways to create playlists:</strong></p>
-          <ul>
-            <li><strong>My Library:</strong> Fetch your liked songs → Load genres → Select genres → Create playlist</li>
-            <li><strong>Artist Discovery:</strong> Search an artist → Find related artists → Select favorites → Generate playlist</li>
-          </ul>
-          <button id="close-onboarding" class="btn-small">Got it!</button>
+      <!-- Welcome Tour Overlay -->
+      <div id="tour-overlay" class="tour-overlay hidden">
+        <div class="tour-step" id="tour-step-1">
+          <div class="tour-content">
+            <h3>👋 Welcome to Playlist Alchemist!</h3>
+            <p>Ever saved <strong>thousands of songs</strong> on Spotify but felt too lazy to actually organize them into playlists?</p>
+            <p><strong>Same.</strong> This tool does the heavy lifting for you.</p>
+            <div class="tour-actions">
+              <button class="btn-small" onclick="closeTour()">Skip Tour</button>
+              <button class="btn-primary" onclick="nextTourStep(2)">Let's Go! →</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="tour-step hidden" id="tour-step-2">
+          <div class="tour-content">
+            <h3>🎵 How It Works</h3>
+            <p><strong>Step 1:</strong> Choose where to pull your music from:</p>
+            <ul>
+              <li><strong>Liked Songs</strong> - Perfect for large collections (cached for speed!)</li>
+              <li><strong>Top Artists</strong> - Your most-listened artists</li>
+              <li><strong>Playlists</strong> - Scan all your existing playlists</li>
+            </ul>
+            <p><strong>Step 2:</strong> We ask Spotify: "What genres are these artists?"</p>
+            <p><strong>Step 3:</strong> You select genres and we create organized playlists!</p>
+            <div class="tour-actions">
+              <button class="btn-small" onclick="prevTourStep(1)">← Back</button>
+              <button class="btn-primary" onclick="nextTourStep(3)">Next →</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="tour-step hidden" id="tour-step-3">
+          <div class="tour-content">
+            <h3>💾 Bonus: Export Your Lists</h3>
+            <p>Not just for Spotify! Export your playlists as:</p>
+            <ul>
+              <li><strong>CSV</strong> - Track, Artist, Album, Genre</li>
+              <li><strong>TXT</strong> - Simple list format</li>
+            </ul>
+            <p>Perfect for DJing software, Bandcamp purchases, or organizing local files.</p>
+            <div class="tour-actions">
+              <button class="btn-small" onclick="prevTourStep(2)">← Back</button>
+              <button class="btn-primary" onclick="nextTourStep(4)">Next →</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="tour-step hidden" id="tour-step-4">
+          <div class="tour-content">
+            <h3>🔒 Your Privacy Matters</h3>
+            <p><strong>No servers. No data storage.</strong></p>
+            <p>Everything runs in <em>your browser</em>. We cache data locally for speed, but it never leaves your device.</p>
+            <p style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #282828; font-size: 13px; color: #7f7f7f;">
+              <strong>Built by a lazy music lover</strong> with help from Claude (AI assistant).<br>
+              Open source • No ads • No tracking
+            </p>
+            <div class="tour-actions">
+              <button class="btn-small" onclick="prevTourStep(3)">← Back</button>
+              <button class="btn-primary" onclick="closeTour()">Start Using It! 🎉</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- About Section (Expandable) -->
+      <div class="about-section">
+        <button class="about-toggle" onclick="toggleAbout()">
+          <span id="about-icon">▶</span> Learn More: Behind the Scenes
+        </button>
+        <div id="about-content" class="about-content hidden">
+          <div class="about-grid">
+            <div class="about-card">
+              <h4>🎯 The Problem</h4>
+              <p>You love music. You save everything. But organizing 1,000+ songs into playlists? Ain't nobody got time for that.</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>✨ The Solution</h4>
+              <p>Spotify knows each artist's genre. We fetch that data, organize your tracks by genre, and create playlists automatically. Magic? Nope, just smart API usage.</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>⚡ Why Caching?</h4>
+              <p>Fetching 13,000 songs takes time. So we save it locally. Next visit? Instant load. Update when you add new music with the "Refresh Cache" button.</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>🛠️ Tech Stack</h4>
+              <p><strong>Vanilla JavaScript</strong> + Spotify Web API + LocalStorage. No frameworks, no backend, no BS. Built collaboratively by a human + Claude AI.</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>🔐 Privacy First</h4>
+              <p>Zero data leaves your browser. No analytics, no tracking, no servers. Your Spotify token expires after an hour. We're too lazy to steal your data anyway.</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>💡 Pro Tips</h4>
+              <p>• Use "Merged" mode for large genre mixes<br>
+              • Export playlists for DJ software<br>
+              • Top Artists mode = instant discovery</p>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -48,7 +143,12 @@
         
         <!-- Data Source Selection -->
         <div class="data-source-options">
-          <h4 style="color: #e3e3e3; margin-bottom: 12px;">Choose Your Data Source</h4>
+          <h4 style="color: #e3e3e3; margin-bottom: 12px;">
+            Choose Your Data Source
+            <span class="tooltip">ℹ️
+              <span class="tooltiptext">Different ways to fetch your music. Liked Songs is cached for speed!</span>
+            </span>
+          </h4>
           <label>
             <input type="radio" name="data-source" value="liked-songs" checked>
             <span>My Liked Songs</span>
