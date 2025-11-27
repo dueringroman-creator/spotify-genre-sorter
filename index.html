@@ -16,7 +16,7 @@
     
     <!-- Login Section -->
     <div id="login-section" class="section">
-      <button id="login" class="btn-primary">Login with Spotify</button>
+      <button id="login" class="btn-primary">Let's see your music taste! 🎵</button>
       <p class="subtitle">Discover and create personalized playlists</p>
     </div>
 
@@ -77,6 +77,7 @@
             <h3>💾 Bonus Features</h3>
             <p><strong>Export Playlists:</strong> Download your playlists as CSV or TXT files - perfect for DJing software, Bandcamp purchases, or organizing local files.</p>
             <p><strong>Discover Similar Artists:</strong> Every artist has a "🔗 Similar Artists" link that opens Music-Map.com to explore artists with similar sounds!</p>
+            <p><strong>Music Stats:</strong> Check out your personal music insights in the stats tab!</p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(3)">← Back</button>
               <button class="btn-primary" onclick="nextTourStep(5)">Next →</button>
@@ -90,7 +91,6 @@
             <p><strong>No servers. No data storage.</strong></p>
             <p>Everything runs in <em>your browser</em>. We cache data locally for speed, but it never leaves your device.</p>
             <p style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #282828; font-size: 13px; color: #7f7f7f;">
-              <strong>Built by a lazy music lover</strong> with help from Claude (AI assistant).<br>
               Open source • No ads • No tracking
             </p>
             <div class="tour-actions">
@@ -130,12 +130,12 @@
             
             <div class="about-card">
               <h4>🛠️ Tech Stack</h4>
-              <p><strong>Vanilla JavaScript</strong> + Spotify Web API + LocalStorage. No frameworks, no backend, no BS. Built collaboratively by a human + Claude AI.</p>
+              <p><strong>Vanilla JavaScript</strong> + Spotify Web API + LocalStorage. No frameworks, no backend, no BS.</p>
             </div>
             
             <div class="about-card">
               <h4>🔐 Privacy First</h4>
-              <p>Zero data leaves your browser. No analytics, no tracking, no servers. Your Spotify token expires after an hour. We're too lazy to steal your data anyway.</p>
+              <p>Zero data leaves your browser. No analytics, no tracking, no servers. Your Spotify token expires after an hour.</p>
             </div>
             
             <div class="about-card">
@@ -154,6 +154,7 @@
       <div class="tabs">
         <button class="tab-btn active" data-tab="library">My Library</button>
         <button class="tab-btn" data-tab="artist">Artist Discovery</button>
+        <button class="tab-btn" data-tab="stats">Music Stats</button>
         <button class="tab-btn" data-tab="history">Playlist History</button>
       </div>
 
@@ -164,32 +165,32 @@
         <!-- Data Source Selection -->
         <div class="data-source-options">
           <h4 style="color: #e3e3e3; margin-bottom: 12px;">
-            Choose Your Data Source
+            What music should we dig into?
             <span class="tooltip">ℹ️
-              <span class="tooltiptext">Different ways to fetch your music. Liked Songs is cached for speed!</span>
+              <span class="tooltiptext">Pick where to pull your tracks from. Liked Songs is cached for speed!</span>
             </span>
           </h4>
           <label>
             <input type="radio" name="data-source" value="liked-songs" checked>
-            <span>My Liked Songs</span>
+            <span>Songs I've liked</span>
           </label>
-          <div class="option-description">Best for DJs and curators with large libraries (recommended)</div>
+          <div class="option-description">Your entire liked songs collection - perfect for big libraries!</div>
           
           <label>
             <input type="radio" name="data-source" value="top-artists">
-            <span>My Top Artists</span>
+            <span>Artists I listen to most</span>
           </label>
-          <div class="option-description">Based on your most listened to artists (50 artists)</div>
+          <div class="option-description">Your top 50 most-played artists - quick and personalized</div>
           
           <label>
             <input type="radio" name="data-source" value="playlists">
-            <span>My Playlists</span>
+            <span>All my playlists</span>
           </label>
-          <div class="option-description">Scan all your playlists for artists and genres</div>
+          <div class="option-description">Scan everything - your created playlists, saved ones, and followed ones</div>
         </div>
         
         <div class="library-controls">
-          <button id="fetch-tracks" class="btn-secondary">Load Music Library</button>
+          <button id="fetch-tracks" class="btn-secondary">Let's Go! 🚀</button>
           <button id="refresh-cache" class="btn-small" style="display: none;">Refresh Cache</button>
           <div id="cache-info" class="cache-info" style="display: none;"></div>
         </div>
@@ -222,24 +223,29 @@
           
           <div id="genre-grid" class="genre-grid"></div>
           
-          <!-- Playlist Creation Options -->
+          <!-- Playlist Mode Options -->
           <div class="playlist-options">
-            <h4 style="color: #e3e3e3; margin-bottom: 12px;">Playlist Creation Mode</h4>
+            <h4 style="color: #e3e3e3; margin-bottom: 12px;">
+              How should we organize this?
+              <span class="tooltip">ℹ️
+                <span class="tooltiptext">Merged = one big playlist. Separate = individual playlists per genre.</span>
+              </span>
+            </h4>
             <label>
               <input type="radio" name="playlist-mode" value="merged" checked>
-              <span>Merge all into one playlist</span>
+              <span>Merge into one playlist</span>
             </label>
-            <div class="option-description">Combine all selected genres into a single playlist</div>
+            <div class="option-description">Combine all selected genres into one epic playlist 🔥</div>
             
             <label>
               <input type="radio" name="playlist-mode" value="separate">
               <span>Create separate playlists</span>
             </label>
-            <div class="option-description">Create individual playlists for each selected genre</div>
+            <div class="option-description">Make individual playlists for each genre (power user mode!)</div>
           </div>
           
           <div class="playlist-controls">
-            <input type="text" id="playlist-name" placeholder="Playlist name (optional, auto-generated if empty)" />
+            <input type="text" id="playlist-name" placeholder="Name your playlist (or we'll name it for you!)" />
             <button id="create-library-playlist" class="btn-primary" disabled>Create Playlist</button>
           </div>
         </div>
@@ -275,6 +281,17 @@
           <div class="playlist-controls">
             <input type="text" id="discovery-playlist-name" placeholder="Playlist name (optional)" />
             <button id="generate-discovery-playlist" class="btn-primary">Generate Playlist</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Music Stats -->
+      <div id="stats-tab" class="tab-content">
+        <div class="stats-container">
+          <h2>🎵 Your Music DNA</h2>
+          <div id="stats-content" class="stats-placeholder">
+            <p>📊 Load your music library first to see your personalized stats!</p>
+            <p style="color: #7f7f7f; font-size: 14px; margin-top: 10px;">Go to "My Library" tab and click "Let's Go!" to analyze your music taste.</p>
           </div>
         </div>
       </div>
