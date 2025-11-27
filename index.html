@@ -16,7 +16,7 @@
     
     <!-- Login Section -->
     <div id="login-section" class="section">
-      <button id="login" class="btn-primary">Let's see your music taste! 🎵</button>
+      <button id="login" class="btn-primary">Let's see your music taste</button>
       <p class="subtitle">Discover and create personalized playlists</p>
     </div>
 
@@ -27,7 +27,7 @@
       <div id="tour-overlay" class="tour-overlay hidden">
         <div class="tour-step" id="tour-step-1">
           <div class="tour-content">
-            <h3>👋 Welcome to Playlist Alchemist!</h3>
+            <h3>Welcome to Playlist Alchemist</h3>
             <p>Ever saved <strong>thousands of songs</strong> on Spotify but felt too lazy to actually organize them into playlists?</p>
             <p><strong>Same.</strong> This tool does the heavy lifting for you.</p>
             <div class="tour-actions">
@@ -39,7 +39,7 @@
         
         <div class="tour-step hidden" id="tour-step-2">
           <div class="tour-content">
-            <h3>🎵 How It Works</h3>
+            <h3>How It Works</h3>
             <p><strong>Step 1:</strong> Choose where to pull your music from:</p>
             <ul>
               <li><strong>Liked Songs</strong> - Perfect for large collections (cached for speed!)</li>
@@ -57,14 +57,14 @@
         
         <div class="tour-step hidden" id="tour-step-3">
           <div class="tour-content">
-            <h3>👁️ Three Ways to View Genres</h3>
+            <h3>Three Ways to View Genres</h3>
             <p>Spotify has 200+ messy micro-genres. We clean them up for you:</p>
             <ul>
               <li><strong>Genre Families</strong> - Grouped (House, Techno, Rock). One click = all sub-genres!</li>
               <li><strong>Detailed</strong> - Expandable families. Pick specific sub-genres if you want.</li>
               <li><strong>All Genres</strong> - Flat list of everything. For power users.</li>
             </ul>
-            <p>💡 <strong>Tip:</strong> Start with "Genre Families" - it's the easiest!</p>
+            <p><strong>Tip:</strong> Start with "Genre Families" - it's the easiest!</p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(2)">← Back</button>
               <button class="btn-primary" onclick="nextTourStep(4)">Next →</button>
@@ -74,9 +74,9 @@
         
         <div class="tour-step hidden" id="tour-step-4">
           <div class="tour-content">
-            <h3>💾 Bonus Features</h3>
+            <h3>Bonus Features</h3>
             <p><strong>Export Playlists:</strong> Download your playlists as CSV or TXT files - perfect for DJing software, Bandcamp purchases, or organizing local files.</p>
-            <p><strong>Discover Similar Artists:</strong> Every artist has a "🔗 Similar Artists" link that opens Music-Map.com to explore artists with similar sounds!</p>
+            <p><strong>Discover Similar Artists:</strong> Every artist has a "Similar Artists" link that opens Music-Map.com to explore artists with similar sounds!</p>
             <p><strong>Music Stats:</strong> Check out your personal music insights in the stats tab!</p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(3)">← Back</button>
@@ -87,7 +87,7 @@
         
         <div class="tour-step hidden" id="tour-step-5">
           <div class="tour-content">
-            <h3>🔒 Your Privacy Matters</h3>
+            <h3>Your Privacy Matters</h3>
             <p><strong>No servers. No data storage.</strong></p>
             <p>Everything runs in <em>your browser</em>. We cache data locally for speed, but it never leaves your device.</p>
             <p style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #282828; font-size: 13px; color: #7f7f7f;">
@@ -95,7 +95,7 @@
             </p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(4)">← Back</button>
-              <button class="btn-primary" onclick="closeTour()">Start Using It! 🎉</button>
+              <button class="btn-primary" onclick="closeTour()">Start Using It</button>
             </div>
           </div>
         </div>
@@ -109,37 +109,37 @@
         <div id="about-content" class="about-content hidden">
           <div class="about-grid">
             <div class="about-card">
-              <h4>🎯 The Problem</h4>
+              <h4>The Problem</h4>
               <p>You love music. You save everything. But organizing 1,000+ songs into playlists? Ain't nobody got time for that.</p>
             </div>
             
             <div class="about-card">
-              <h4>✨ The Solution</h4>
+              <h4>The Solution</h4>
               <p>Spotify knows each artist's genre. We fetch that data, <strong>intelligently group similar genres</strong> (because "deep house" and "house" should live together), and create playlists automatically. Magic? Nope, just smart API usage + pattern matching.</p>
             </div>
             
             <div class="about-card">
-              <h4>🎨 Smart Genre Grouping</h4>
+              <h4>Smart Genre Grouping</h4>
               <p>Spotify has 200+ micro-genres like "bubblegrunge" and "escape room." We auto-detect families (House, Techno, Hip-Hop) so you're not drowning in options. Choose your view: <strong>Grouped</strong> (simple), <strong>Detailed</strong> (expandable), or <strong>All</strong> (power user).</p>
             </div>
             
             <div class="about-card">
-              <h4>⚡ Why Caching?</h4>
+              <h4>Why Caching?</h4>
               <p>Fetching 13,000 songs takes time. So we save it locally. Next visit? Instant load. Update when you add new music with the "Refresh Cache" button.</p>
             </div>
             
             <div class="about-card">
-              <h4>🛠️ Tech Stack</h4>
+              <h4>Tech Stack</h4>
               <p><strong>Vanilla JavaScript</strong> + Spotify Web API + LocalStorage. No frameworks, no backend, no BS.</p>
             </div>
             
             <div class="about-card">
-              <h4>🔐 Privacy First</h4>
+              <h4>Privacy First</h4>
               <p>Zero data leaves your browser. No analytics, no tracking, no servers. Your Spotify token expires after an hour.</p>
             </div>
             
             <div class="about-card">
-              <h4>💡 Pro Tips</h4>
+              <h4>Pro Tips</h4>
               <p>• Start with "Genre Families" view - cleanest<br>
               • Use "Detailed" to cherry-pick sub-genres<br>
               • Use "Merged" mode for large genre mixes<br>
@@ -166,7 +166,7 @@
         <div class="data-source-options">
           <h4 style="color: #e3e3e3; margin-bottom: 12px;">
             What music should we dig into?
-            <span class="tooltip">ℹ️
+            <span class="tooltip">i
               <span class="tooltiptext">Pick where to pull your tracks from. Liked Songs is cached for speed!</span>
             </span>
           </h4>
@@ -190,7 +190,7 @@
         </div>
         
         <div class="library-controls">
-          <button id="fetch-tracks" class="btn-secondary">Let's Go! 🚀</button>
+          <button id="fetch-tracks" class="btn-secondary">Let's Go</button>
           <button id="refresh-cache" class="btn-small" style="display: none;">Refresh Cache</button>
           <div id="cache-info" class="cache-info" style="display: none;"></div>
         </div>
@@ -214,7 +214,7 @@
           <div id="genre-stats" class="genre-stats"></div>
           
           <div class="genre-tip-card">
-            <span class="genre-tip-icon">💡</span>
+            <span class="genre-tip-icon">Tip:</span>
             <span class="genre-tip-text">
               Want to learn about genre history and relationships? Check out 
               <a href="https://musicmap.info/" target="_blank" class="genre-tip-link">MusicMap.info</a>
@@ -227,7 +227,7 @@
           <div class="playlist-options">
             <h4 style="color: #e3e3e3; margin-bottom: 12px;">
               How should we organize this?
-              <span class="tooltip">ℹ️
+              <span class="tooltip">i
                 <span class="tooltiptext">Merged = one big playlist. Separate = individual playlists per genre.</span>
               </span>
             </h4>
@@ -235,7 +235,7 @@
               <input type="radio" name="playlist-mode" value="merged" checked>
               <span>Merge into one playlist</span>
             </label>
-            <div class="option-description">Combine all selected genres into one epic playlist 🔥</div>
+            <div class="option-description">Combine all selected genres into one epic playlist</div>
             
             <label>
               <input type="radio" name="playlist-mode" value="separate">
@@ -288,9 +288,9 @@
       <!-- Tab Content: Music Stats -->
       <div id="stats-tab" class="tab-content">
         <div class="stats-container">
-          <h2>🎵 Your Music DNA</h2>
+          <h2>Your Music Profile</h2>
           <div id="stats-content" class="stats-placeholder">
-            <p>📊 Load your music library first to see your personalized stats!</p>
+            <p>Load your music library first to see your personalized stats.</p>
             <p style="color: #7f7f7f; font-size: 14px; margin-top: 10px;">Go to "My Library" tab and click "Let's Go!" to analyze your music taste.</p>
           </div>
         </div>
