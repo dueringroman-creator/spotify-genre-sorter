@@ -1,3 +1,7 @@
+// Playlist Alchemist - Main Application
+// Version: v1 (internal tracking)
+// Spotify Playlist Creator with Genre Sorting and Music Stats
+
 // ===== SPOTIFY OAUTH SETUP =====
 const CLIENT_ID = '97762324651b49d1bb703566c9c36072';
 const REDIRECT_URI = 'https://dueringroman-creator.github.io/spotify-genre-sorter/';
@@ -224,14 +228,186 @@ function buildGenreFamilyMap(genreSongMap) {
   return familyMap;
 }
 
+// ===== MUSIC STATS GENERATION ===== (v1 CODE BLOCK #1)
+
+function generateMusicStats() {
+  if (!cachedLibraryData || !genreSongMap || Object.keys(genreSongMap).length === 0) {
+    return;
+  }
+  
+  const tracks = cachedLibraryData.items;
+  const statsContainer = document.getElementById('stats-content');
+  
+  const totalTracks = tracks.length;
+  const totalGenres = Object.keys(genreSongMap).length;
+  const familyMap = buildGenreFamilyMap(genreSongMap);
+  
+  const sortedGenres = Object.entries(genreSongMap)
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 5);
+  
+  const diversityScore = Math.min(10, (totalGenres / 20) * 10).toFixed(1);
+  
+  const rareGenres = Object.entries(genreSongMap)
+    .filter(([_, tracks]) => tracks.length <= 5)
+    .sort((a, b) => a[1].length - b[1].length)
+    .slice(0, 3);
+  
+  const sortedFamilies = Object.entries(familyMap)
+    .sort((a, b) => b[1].totalTracks - a[1].totalTracks);
+  
+  const topFamily = sortedFamilies[0];
+  const topFamilyPercentage = ((topFamily[1].totalTracks / totalTracks) * 100).toFixed(0);
+  
+  const mostDiverseFamily = Object.entries(familyMap)
+    .map(([id, data]) => ({
+      id,
+      name: data.name,
+      subgenreCount: Object.keys(data.genres).length
+    }))
+    .sort((a, b) => b.subgenreCount - a.subgenreCount)[0];
+  
+  const durations = tracks
+    .filter(item => item.track && item.track.duration_ms)
+    .map(item => item.track.duration_ms);
+  const avgDuration = durations.length > 0 
+    ? Math.floor(durations.reduce((a, b) => a + b, 0) / durations.length / 1000)
+    : 0;
+  const avgMinutes = Math.floor(avgDuration / 60);
+  const avgSeconds = avgDuration % 60;
+  
+  const artistTrackCount = {};
+  tracks.forEach(item => {
+    if (item.track && item.track.artists && item.track.artists[0]) {
+      const artistName = item.track.artists[0].name;
+      artistTrackCount[artistName] = (artistTrackCount[artistName] || 0) + 1;
+    }
+  });
+  
+  const topArtist = Object.entries(artistTrackCount)
+    .sort((a, b) => b[1] - a[1])[0];
+  
+  const html = `
+    <div class="stats-grid">
+      <div class="stats-card">
+        <h3>📊 Overview</h3>
+        <div class="stats-card-content">
+          <div class="stat-row">
+            <span class="stat-row-label">Total Tracks</span>
+            <span class="stat-row-value">${totalTracks.toLocaleString()}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-row-label">Total Genres</span>
+            <span class="stat-row-value">${totalGenres}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-row-label">Genre Families</span>
+            <span class="stat-row-value">${Object.keys(familyMap).length}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-row-label">Avg Track Length</span>
+            <span class="stat-row-value">${avgMinutes}:${avgSeconds.toString().padStart(2, '0')}</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="stats-card">
+        <h3>🎸 Top Genre Families</h3>
+        <div class="stats-card-content">
+          ${sortedFamilies.slice(0, 5).map(([id, data]) => {
+            const percentage = ((data.totalTracks / totalTracks) * 100).toFixed(1);
+            return `
+              <div class="genre-breakdown-item">
+                <div class="genre-breakdown-color" style="background: ${data.color}"></div>
+                <div class="genre-breakdown-info">
+                  <div class="genre-breakdown-name">${data.name}</div>
+                  <div class="genre-breakdown-tracks">${data.totalTracks} tracks (${percentage}%)</div>
+                </div>
+              </div>
+              <div class="stat-bar">
+                <div class="stat-bar-fill" style="width: ${percentage}%; background: ${data.color}"></div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+      
+      <div class="stats-card">
+        <h3>🔥 Top Specific Genres</h3>
+        <div class="stats-card-content">
+          ${sortedGenres.map(([genre, tracks]) => {
+            const percentage = ((tracks.length / totalTracks) * 100).toFixed(1);
+            const family = detectGenreFamily(genre);
+            return `
+              <div class="stat-row">
+                <span class="stat-row-label">${genre}</span>
+                <span class="stat-row-value">${tracks.length} (${percentage}%)</span>
+              </div>
+              <div class="stat-bar">
+                <div class="stat-bar-fill" style="width: ${percentage}%; background: ${family.color}"></div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+      
+      <div class="stats-card">
+        <h3>💡 Fun Facts</h3>
+        <div class="stats-card-content">
+          <div class="fun-fact">
+            <strong>${topFamily[1].name}</strong> dominates your library at ${topFamilyPercentage}% of your tracks!
+            ${topFamilyPercentage > 40 ? " You're definitely a " + topFamily[1].name + " head! 🎧" : ""}
+          </div>
+          
+          ${mostDiverseFamily.subgenreCount > 5 ? `
+          <div class="fun-fact">
+            Most diverse family: <strong>${mostDiverseFamily.name}</strong> with ${mostDiverseFamily.subgenreCount} sub-genres! 
+            ${mostDiverseFamily.subgenreCount > 10 ? " Wow, eclectic taste! 🌈" : ""}
+          </div>
+          ` : ''}
+          
+          ${rareGenres.length > 0 ? `
+          <div class="fun-fact">
+            Rarest gems: <strong>${rareGenres.map(([g, _]) => g).join(', ')}</strong> 
+            ${rareGenres[0][1].length === 1 ? " (hipster alert! 😎)" : " - deep cuts!"}
+          </div>
+          ` : ''}
+          
+          ${topArtist ? `
+          <div class="fun-fact">
+            Most prolific artist: <strong>${topArtist[0]}</strong> with ${topArtist[1]} tracks! 
+            ${topArtist[1] > 50 ? " That's dedication! 🏆" : ""}
+          </div>
+          ` : ''}
+          
+          <div class="fun-fact">
+            Genre diversity score: <strong>${diversityScore}/10</strong> 
+            ${diversityScore > 7 ? " - Eclectic taste! 🎨" : diversityScore > 4 ? " - Balanced collection 👌" : " - Focused tastes 🎯"}
+          </div>
+          
+          ${totalTracks > 1000 ? `
+          <div class="fun-fact">
+            With <strong>${totalTracks.toLocaleString()} tracks</strong>, you could listen for 
+            <strong>${Math.floor(totalTracks * avgDuration / 3600)} hours</strong> straight! 
+            ${totalTracks > 5000 ? " That's a LOT of music! 🤯" : ""}
+          </div>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+  
+  statsContainer.innerHTML = html;
+}
+
 // ===== CACHE MANAGEMENT =====
 
 function getCacheKey(dataSource) {
-  return `library_cache_${dataSource}`;
+  return \`library_cache_\${dataSource}\`;
 }
 
 function getCacheTimestampKey(dataSource) {
-  return `library_cache_timestamp_${dataSource}`;
+  return \`library_cache_timestamp_\${dataSource}\`;
 }
 
 function saveToCache(dataSource, data) {
@@ -271,7 +447,7 @@ function updateCacheInfo(timestamp) {
   
   if (timestamp) {
     const timeAgo = getTimeAgo(new Date(timestamp));
-    cacheInfo.innerHTML = `<strong>Cached:</strong> Last updated ${timeAgo}`;
+    cacheInfo.innerHTML = \`<strong>Cached:</strong> Last updated \${timeAgo}\`;
     cacheInfo.style.display = 'block';
     refreshBtn.style.display = 'inline-block';
   } else {
@@ -293,9 +469,8 @@ function generateRandomString(length) {
 
 // Create Music-Map URL from artist name
 function getMusicMapUrl(artistName) {
-  // Replace spaces with + and encode
   const formattedName = artistName.trim().replace(/\s+/g, '+').toLowerCase();
-  return `https://www.music-map.com/${encodeURIComponent(formattedName)}`;
+  return \`https://www.music-map.com/\${encodeURIComponent(formattedName)}\`;
 }
 
 // Retry mechanism for network requests
@@ -304,13 +479,13 @@ async function fetchWithRetry(url, options = {}, maxRetries = 3) {
     try {
       const response = await fetch(url, options);
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(\`HTTP \${response.status}\`);
       }
       return response;
     } catch (error) {
       if (i === maxRetries - 1) throw error;
-      updateStatus(`⚠️ Network error, retrying... (${i + 1}/${maxRetries})`);
-      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+      updateStatus(\`⚠️ Network error, retrying... (\${i + 1}/\${maxRetries})\`);
+      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
     }
   }
 }
@@ -349,16 +524,33 @@ function addToHistory(playlist, tracks) {
     name: playlist.name,
     url: playlist.external_urls.spotify,
     trackCount: tracks.length,
-    tracks: tracks, // Store tracks for export
+    trackData: tracks.map(t => ({
+      name: t.name,
+      artists: t.artists ? t.artists.map(a => a.name) : [],
+      album: t.album ? t.album.name : '',
+      uri: t.uri,
+      duration_ms: t.duration_ms || 0,
+      external_urls: t.external_urls
+    })),
     createdAt: new Date().toISOString()
   });
   
-  // Keep only last 20 playlists
   if (playlistHistory.length > 20) {
     playlistHistory = playlistHistory.slice(0, 20);
   }
   
-  savePlaylistHistory();
+  try {
+    savePlaylistHistory();
+  } catch (e) {
+    console.warn('Storage quota exceeded, reducing history size');
+    playlistHistory = playlistHistory.slice(0, 10);
+    try {
+      savePlaylistHistory();
+    } catch (e2) {
+      console.error('Could not save playlist history:', e2);
+    }
+  }
+  
   displayPlaylistHistory();
 }
 
@@ -374,20 +566,20 @@ function displayPlaylistHistory() {
     const date = new Date(item.createdAt);
     const timeAgo = getTimeAgo(date);
     
-    return `
+    return \`
       <div class="history-item">
         <div class="history-item-info">
           <div class="history-item-name">
-            <a href="${item.url}" target="_blank">${item.name}</a>
+            <a href="\${item.url}" target="_blank">\${item.name}</a>
           </div>
-          <div class="history-item-meta">${item.trackCount} tracks • ${timeAgo}</div>
+          <div class="history-item-meta">\${item.trackCount} tracks • \${timeAgo}</div>
         </div>
         <div class="history-item-actions">
-          <button class="history-item-link" onclick="exportPlaylist(${index}, 'csv')">CSV</button>
-          <button class="history-item-link" onclick="exportPlaylist(${index}, 'txt')">TXT</button>
+          <button class="history-item-link" onclick="exportPlaylist(\${index}, 'csv')">CSV</button>
+          <button class="history-item-link" onclick="exportPlaylist(\${index}, 'txt')">TXT</button>
         </div>
       </div>
-    `;
+    \`;
   }).join('');
 }
 
@@ -395,9 +587,9 @@ function getTimeAgo(date) {
   const seconds = Math.floor((new Date() - date) / 1000);
   
   if (seconds < 60) return 'Just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 3600) return \`\${Math.floor(seconds / 60)}m ago\`;
+  if (seconds < 86400) return \`\${Math.floor(seconds / 3600)}h ago\`;
+  if (seconds < 604800) return \`\${Math.floor(seconds / 86400)}d ago\`;
   
   return date.toLocaleDateString();
 }
@@ -407,7 +599,7 @@ function getTimeAgo(date) {
 function exportPlaylist(historyIndex, format) {
   const playlist = playlistHistory[historyIndex];
   
-  if (!playlist.tracks || playlist.tracks.length === 0) {
+  if (!playlist.trackData || playlist.trackData.length === 0) {
     alert('No track data available for export. This playlist was created before export feature was added.');
     return;
   }
@@ -420,14 +612,13 @@ function exportPlaylist(historyIndex, format) {
 }
 
 function exportAsCSV(playlist) {
-  const headers = ['Track Name', 'Artist', 'Album', 'Genres', 'Duration (ms)', 'Spotify URL'];
+  const headers = ['Track Name', 'Artist', 'Album', 'Duration (ms)', 'Spotify URL'];
   const rows = [headers];
   
-  playlist.tracks.forEach(track => {
+  playlist.trackData.forEach(track => {
     const trackName = track.name || '';
-    const artist = track.artists ? track.artists.map(a => a.name).join('; ') : '';
-    const album = track.album ? track.album.name : '';
-    const genres = ''; // Genres are per-artist, would need additional API calls
+    const artist = track.artists ? track.artists.join('; ') : '';
+    const album = track.album || '';
     const duration = track.duration_ms || '';
     const url = track.external_urls ? track.external_urls.spotify : '';
     
@@ -435,32 +626,31 @@ function exportAsCSV(playlist) {
       escapeCSV(trackName),
       escapeCSV(artist),
       escapeCSV(album),
-      escapeCSV(genres),
       duration,
       url
     ]);
   });
   
   const csvContent = rows.map(row => row.join(',')).join('\n');
-  downloadFile(csvContent, `${playlist.name}.csv`, 'text/csv');
+  downloadFile(csvContent, \`\${playlist.name}.csv\`, 'text/csv');
 }
 
 function exportAsTXT(playlist) {
-  const lines = playlist.tracks.map(track => {
-    const artist = track.artists ? track.artists.map(a => a.name).join(', ') : 'Unknown Artist';
+  const lines = playlist.trackData.map(track => {
+    const artist = track.artists && track.artists.length > 0 ? track.artists.join(', ') : 'Unknown Artist';
     const trackName = track.name || 'Unknown Track';
-    return `${artist} - ${trackName}`;
+    return \`\${artist} - \${trackName}\`;
   });
   
   const txtContent = lines.join('\n');
-  downloadFile(txtContent, `${playlist.name}.txt`, 'text/plain');
+  downloadFile(txtContent, \`\${playlist.name}.txt\`, 'text/plain');
 }
 
 function escapeCSV(str) {
   if (!str) return '';
   str = str.toString();
   if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-    return `"${str.replace(/"/g, '""')}"`;
+    return \`"\${str.replace(/"/g, '""')}"\`;
   }
   return str;
 }
@@ -494,7 +684,7 @@ document.getElementById('login').addEventListener('click', async () => {
     code_challenge: challenge
   });
   
-  window.location = `https://accounts.spotify.com/authorize?${params.toString()}`;
+  window.location = \`https://accounts.spotify.com/authorize?\${params.toString()}\`;
 });
 
 async function fetchAccessToken(code) {
@@ -521,7 +711,6 @@ async function fetchAccessToken(code) {
     document.getElementById('login-section').classList.add('hidden');
     document.getElementById('app-section').classList.remove('hidden');
     
-    // Load playlist history
     loadPlaylistHistory();
   } else {
     updateStatus('❌ Login failed');
@@ -529,7 +718,7 @@ async function fetchAccessToken(code) {
   }
 }
 
-// ===== TAB SWITCHING =====
+// ===== TAB SWITCHING ===== (v1 CODE BLOCK #3 INTEGRATED)
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -538,15 +727,18 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     
     btn.classList.add('active');
     const tabName = btn.getAttribute('data-tab');
-    document.getElementById(`${tabName}-tab`).classList.add('active');
+    document.getElementById(\`\${tabName}-tab\`).classList.add('active');
+    
+    // v1 CODE BLOCK #3: Regenerate stats when switching to stats tab
+    if (tabName === 'stats' && cachedLibraryData) {
+      generateMusicStats();
+    }
   });
 });
 
 // ===== ONBOARDING =====
 
-// Help button - reopen tour
 document.getElementById('help-button')?.addEventListener('click', () => {
-  // Check if user is logged in
   const appSection = document.getElementById('app-section');
   if (appSection && appSection.classList.contains('hidden')) {
     alert('👋 Please login with Spotify first to see the interactive tour!\n\nThe tour will guide you through all features once you\'re logged in.');
@@ -555,7 +747,6 @@ document.getElementById('help-button')?.addEventListener('click', () => {
   showTour();
 });
 
-// About section toggle
 function toggleAbout() {
   const content = document.getElementById('about-content');
   const icon = document.getElementById('about-icon');
@@ -569,7 +760,6 @@ function toggleAbout() {
   }
 }
 
-// Tour functionality
 function showTour() {
   document.getElementById('tour-overlay').classList.remove('hidden');
   document.getElementById('tour-step-1').classList.remove('hidden');
@@ -583,18 +773,16 @@ function closeTour() {
 
 function nextTourStep(stepNum) {
   document.querySelectorAll('.tour-step').forEach(step => step.classList.add('hidden'));
-  document.getElementById(`tour-step-${stepNum}`).classList.remove('hidden');
+  document.getElementById(\`tour-step-\${stepNum}\`).classList.remove('hidden');
 }
 
 function prevTourStep(stepNum) {
   document.querySelectorAll('.tour-step').forEach(step => step.classList.add('hidden'));
-  document.getElementById(`tour-step-${stepNum}`).classList.remove('hidden');
+  document.getElementById(\`tour-step-\${stepNum}\`).classList.remove('hidden');
 }
 
-// Check if user has completed tour
 window.addEventListener('load', () => {
   if (!localStorage.getItem('tour_completed')) {
-    // Show tour on first visit after login
     const checkLogin = setInterval(() => {
       if (!document.getElementById('app-section').classList.contains('hidden')) {
         showTour();
@@ -612,10 +800,9 @@ document.getElementById('fetch-tracks').addEventListener('click', async () => {
   const dataSource = document.querySelector('input[name="data-source"]:checked').value;
   document.getElementById('fetch-tracks').disabled = true;
   
-  // Check cache first
   const cached = loadFromCache(dataSource);
   if (cached) {
-    const useCache = confirm(`Found cached data from ${getTimeAgo(new Date(cached.timestamp))}. Use cached data? (Cancel to fetch fresh data)`);
+    const useCache = confirm(\`Found cached data from \${getTimeAgo(new Date(cached.timestamp))}. Use cached data? (Cancel to fetch fresh data)\`);
     if (useCache) {
       cachedLibraryData = cached.data;
       await processLibraryData(dataSource);
@@ -638,19 +825,17 @@ document.getElementById('fetch-tracks').addEventListener('click', async () => {
         break;
     }
     
-    // Save to cache
     saveToCache(dataSource, cachedLibraryData);
     updateCacheInfo(Date.now());
     
     await processLibraryData(dataSource);
   } catch (e) {
-    updateStatus(`❌ Error: ${e.message}`);
+    updateStatus(\`❌ Error: \${e.message}\`);
   }
   
   document.getElementById('fetch-tracks').disabled = false;
 });
 
-// Refresh cache button
 document.getElementById('refresh-cache').addEventListener('click', async () => {
   const dataSource = document.querySelector('input[name="data-source"]:checked').value;
   clearCache(dataSource);
@@ -659,71 +844,76 @@ document.getElementById('refresh-cache').addEventListener('click', async () => {
 });
 
 async function fetchLikedSongs() {
-  updateStatus('🎵 Fetching your liked songs...');
+  updateStatus('🎵 Raiding your Spotify library...');
   let all = [];
   const limit = 50;
   let offset = 0;
   
   while (true) {
-    const resp = await fetchWithRetry(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
-      headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
+    const resp = await fetchWithRetry(\`https://api.spotify.com/v1/me/tracks?limit=\${limit}&offset=\${offset}\`, {
+      headers: { 'Authorization': \`Bearer \${window.spotifyToken}\` }
     });
     const data = await resp.json();
     all.push(...data.items);
-    updateStatus(`Fetched ${all.length} tracks...`);
+    
+    if (all.length > 5000) {
+      updateStatus(\`Whoa, \${all.length} songs?! Are you okay? This might take a minute... ☕\`);
+    } else if (all.length > 1000) {
+      updateStatus(\`Holy moly! \${all.length} tracks and counting... 🎧\`);
+    } else {
+      updateStatus(\`Fetched \${all.length} tracks...\`);
+    }
+    
     if (!data.next) break;
     offset += limit;
   }
   
   cachedLibraryData = { type: 'tracks', items: all };
-  updateStatus(`✅ Fetched ${all.length} tracks!`);
+  updateStatus(\`✅ Got \${all.length} tracks! Let's organize this chaos 🎨\`);
 }
 
 async function fetchTopArtists() {
-  updateStatus('⭐ Fetching your top artists...');
+  updateStatus('⭐ Checking out your favorite artists...');
   
   const resp = await fetchWithRetry(
     'https://api.spotify.com/v1/me/top/artists?limit=50&time_range=medium_term',
-    { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+    { headers: { 'Authorization': \`Bearer \${window.spotifyToken}\` } }
   );
   const data = await resp.json();
   
-  // Get top tracks for each artist
-  updateStatus('🎵 Fetching top tracks from your favorite artists...');
+  updateStatus('🎵 Grabbing their best tracks...');
   let allTracks = [];
   
   for (let i = 0; i < data.items.length; i++) {
     const artist = data.items[i];
     const tracksResp = await fetchWithRetry(
-      `https://api.spotify.com/v1/artists/${artist.id}/top-tracks?market=US`,
-      { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+      \`https://api.spotify.com/v1/artists/\${artist.id}/top-tracks?market=US\`,
+      { headers: { 'Authorization': \`Bearer \${window.spotifyToken}\` } }
     );
     const tracksData = await tracksResp.json();
     
-    // Add tracks in liked songs format
     tracksData.tracks.slice(0, 5).forEach(track => {
       allTracks.push({ track: track });
     });
     
-    updateStatus(`Processed ${i + 1}/${data.items.length} artists...`);
+    updateStatus(\`Digging through your taste... \${i + 1}/\${data.items.length} artists 🎧\`);
   }
   
   cachedLibraryData = { type: 'tracks', items: allTracks };
-  updateStatus(`✅ Loaded ${allTracks.length} tracks from your top artists!`);
+  updateStatus(\`✅ Loaded \${allTracks.length} tracks from your top artists! 🔥\`);
 }
 
 async function fetchFromPlaylists() {
   updateStatus('📚 Fetching your playlists...');
   
-  // Get all user playlists
   let allPlaylists = [];
   let offset = 0;
   const limit = 50;
   
   while (true) {
     const resp = await fetchWithRetry(
-      `https://api.spotify.com/v1/me/playlists?limit=${limit}&offset=${offset}`,
-      { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+      \`https://api.spotify.com/v1/me/playlists?limit=\${limit}&offset=\${offset}\`,
+      { headers: { 'Authorization': \`Bearer \${window.spotifyToken}\` } }
     );
     const data = await resp.json();
     allPlaylists.push(...data.items);
@@ -731,11 +921,10 @@ async function fetchFromPlaylists() {
     offset += limit;
   }
   
-  updateStatus(`Found ${allPlaylists.length} playlists. Scanning tracks...`);
+  updateStatus(\`Found \${allPlaylists.length} playlists. Scanning tracks...\`);
   
-  // Get tracks from all playlists
   let allTracks = [];
-  const trackSet = new Set(); // Avoid duplicates
+  const trackSet = new Set();
   
   for (let i = 0; i < allPlaylists.length; i++) {
     const playlist = allPlaylists[i];
@@ -745,8 +934,8 @@ async function fetchFromPlaylists() {
     
     while (true) {
       const resp = await fetchWithRetry(
-        `https://api.spotify.com/v1/playlists/${playlist.id}/tracks?limit=100&offset=${trackOffset}`,
-        { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+        \`https://api.spotify.com/v1/playlists/\${playlist.id}/tracks?limit=100&offset=\${trackOffset}\`,
+        { headers: { 'Authorization': \`Bearer \${window.spotifyToken}\` } }
       );
       const data = await resp.json();
       playlistTracks.push(...data.items);
@@ -754,7 +943,6 @@ async function fetchFromPlaylists() {
       trackOffset += 100;
     }
     
-    // Add unique tracks
     playlistTracks.forEach(item => {
       if (item.track && item.track.id && !trackSet.has(item.track.id)) {
         trackSet.add(item.track.id);
@@ -762,19 +950,18 @@ async function fetchFromPlaylists() {
       }
     });
     
-    updateStatus(`Scanned ${i + 1}/${allPlaylists.length} playlists... (${allTracks.length} unique tracks)`);
+    updateStatus(\`Scanned \${i + 1}/\${allPlaylists.length} playlists... (\${allTracks.length} unique tracks)\`);
   }
   
   cachedLibraryData = { type: 'tracks', items: allTracks };
-  updateStatus(`✅ Loaded ${allTracks.length} unique tracks from ${allPlaylists.length} playlists!`);
+  updateStatus(\`✅ Loaded \${allTracks.length} unique tracks from \${allPlaylists.length} playlists!\`);
 }
 
 async function processLibraryData(dataSource) {
-  updateStatus('🔍 Processing genres...');
+  updateStatus('🔍 Organizing your musical chaos...');
   
   const tracks = cachedLibraryData.items;
   
-  // Extract unique artist IDs
   const artistIds = new Set();
   tracks.forEach(item => {
     if (item.track && item.track.artists && item.track.artists[0]) {
@@ -785,30 +972,25 @@ async function processLibraryData(dataSource) {
   const ids = Array.from(artistIds);
   const artistGenreMap = {};
   
-  // Fetch genres for all artists
   for (let i = 0; i < ids.length; i += 50) {
     const batch = ids.slice(i, i + 50).join(',');
-    const resp = await fetchWithRetry(`https://api.spotify.com/v1/artists?ids=${batch}`, {
-      headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
+    const resp = await fetchWithRetry(\`https://api.spotify.com/v1/artists?ids=\${batch}\`, {
+      headers: { 'Authorization': \`Bearer \${window.spotifyToken}\` }
     });
     const data = await resp.json();
     data.artists.forEach(a => {
       if (a) artistGenreMap[a.id] = a.genres;
     });
-    updateStatus(`Processing artists: ${Math.min(i + 50, ids.length)} / ${ids.length}...`);
+    updateStatus(\`Decoding your music DNA... \${Math.min(i + 50, ids.length)} / \${ids.length} artists 🧬\`);
   }
   
-  // Build genre -> songs map
   genreSongMap = buildGenreSongMap(tracks, artistGenreMap);
   
-  // Display genre selection UI
   displayGenreSelection(tracks.length);
-  updateStatus('✅ Genres loaded! Select genres to create a playlist.');
+  generateMusicStats(); // v1 CODE BLOCK #2
+  updateStatus('✅ Alright, here\'s what you\'re into! Pick your favorites 👇');
 }
 
-// ===== LIBRARY MODE - FETCH GENRES & BUILD MAP =====
-
-// Build genre -> songs mapping
 function buildGenreSongMap(tracks, artistGenreMap) {
   const map = {};
   
@@ -823,7 +1005,6 @@ function buildGenreSongMap(tracks, artistGenreMap) {
       if (!map[genre]) {
         map[genre] = [];
       }
-      // Avoid duplicates
       if (!map[genre].find(t => t.id === track.id)) {
         map[genre].push(track);
       }
@@ -836,20 +1017,15 @@ function buildGenreSongMap(tracks, artistGenreMap) {
 // ===== DISPLAY GENRE SELECTION UI =====
 
 function displayGenreSelection(totalTracks) {
-  // Show genre selection area
   document.getElementById('genre-selection-area').classList.remove('hidden');
   
-  // Sort genres by number of tracks (descending)
   const sortedGenres = Object.entries(genreSongMap)
     .sort((a, b) => b[1].length - a[1].length);
   
-  // Display stats
   displayGenreStats(sortedGenres, totalTracks);
   
-  // Initial render with current view mode
   renderGenreView();
   
-  // Add view mode change listener
   document.getElementById('genre-view-mode').addEventListener('change', (e) => {
     genreViewMode = e.target.value;
     renderGenreView();
@@ -868,26 +1044,23 @@ function renderGenreView() {
   }
 }
 
-// View 1: Genre Families (Grouped)
 function renderFamiliesView(grid) {
   const familyMap = buildGenreFamilyMap(genreSongMap);
   
-  // Sort families by total tracks
   const sortedFamilies = Object.entries(familyMap)
     .sort((a, b) => b[1].totalTracks - a[1].totalTracks);
   
-  grid.innerHTML = sortedFamilies.map(([familyId, family]) => `
-    <div class="genre-family-item" data-family-id="${familyId}" 
-         style="border-color: ${family.color}40">
-      <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: ${family.color};"></div>
+  grid.innerHTML = sortedFamilies.map(([familyId, family]) => \`
+    <div class="genre-family-item" data-family-id="\${familyId}" 
+         style="border-color: \${family.color}40">
+      <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: \${family.color};"></div>
       <div class="genre-family-header">
-        <div class="genre-family-name">${family.name}</div>
+        <div class="genre-family-name">\${family.name}</div>
       </div>
-      <div class="genre-family-count">${family.totalTracks} tracks across ${Object.keys(family.genres).length} genres</div>
+      <div class="genre-family-count">\${family.totalTracks} tracks across \${Object.keys(family.genres).length} genres</div>
     </div>
-  `).join('');
+  \`).join('');
   
-  // Add click handlers
   grid.querySelectorAll('.genre-family-item').forEach(item => {
     item.addEventListener('click', () => {
       const familyId = item.getAttribute('data-family-id');
@@ -896,7 +1069,6 @@ function renderFamiliesView(grid) {
   });
 }
 
-// View 2: Detailed (Expandable)
 function renderDetailedView(grid) {
   const familyMap = buildGenreFamilyMap(genreSongMap);
   
@@ -906,33 +1078,32 @@ function renderDetailedView(grid) {
   grid.innerHTML = sortedFamilies.map(([familyId, family]) => {
     const subgenresHTML = Object.entries(family.genres)
       .sort((a, b) => b[1].length - a[1].length)
-      .map(([genre, tracks]) => `
-        <div class="subgenre-item ${selectedGenres.has(genre) ? 'selected' : ''}" 
-             data-genre="${genre}">
-          <span class="subgenre-name">${genre}</span>
-          <span class="subgenre-count">${tracks.length}</span>
+      .map(([genre, tracks]) => \`
+        <div class="subgenre-item \${selectedGenres.has(genre) ? 'selected' : ''}" 
+             data-genre="\${genre}">
+          <span class="subgenre-name">\${genre}</span>
+          <span class="subgenre-count">\${tracks.length}</span>
         </div>
-      `).join('');
+      \`).join('');
     
-    return `
-      <div class="genre-family-item" data-family-id="${familyId}"
-           style="border-color: ${family.color}40">
-        <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: ${family.color};"></div>
+    return \`
+      <div class="genre-family-item" data-family-id="\${familyId}"
+           style="border-color: \${family.color}40">
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: \${family.color};"></div>
         <div class="genre-family-header">
-          <div class="genre-family-name">${family.name}</div>
-          <button class="genre-family-expand" onclick="toggleFamilyExpand('${familyId}', event)">
+          <div class="genre-family-name">\${family.name}</div>
+          <button class="genre-family-expand" onclick="toggleFamilyExpand('\${familyId}', event)">
             Expand ▼
           </button>
         </div>
-        <div class="genre-family-count">${family.totalTracks} tracks</div>
-        <div class="genre-family-subgenres" id="family-${familyId}-subgenres">
-          ${subgenresHTML}
+        <div class="genre-family-count">\${family.totalTracks} tracks</div>
+        <div class="genre-family-subgenres" id="family-\${familyId}-subgenres">
+          \${subgenresHTML}
         </div>
       </div>
-    `;
+    \`;
   }).join('');
   
-  // Add click handlers for subgenres
   grid.querySelectorAll('.subgenre-item').forEach(item => {
     item.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -941,7 +1112,6 @@ function renderDetailedView(grid) {
     });
   });
   
-  // Add click handlers for family items (select all in family)
   grid.querySelectorAll('.genre-family-item').forEach(item => {
     item.addEventListener('click', (e) => {
       if (e.target.classList.contains('genre-family-expand')) return;
@@ -951,19 +1121,17 @@ function renderDetailedView(grid) {
   });
 }
 
-// View 3: All Genres (Flat)
 function renderAllGenresView(grid) {
   const sortedGenres = Object.entries(genreSongMap)
     .sort((a, b) => b[1].length - a[1].length);
   
-  grid.innerHTML = sortedGenres.map(([genre, tracks]) => `
-    <div class="genre-item ${selectedGenres.has(genre) ? 'selected' : ''}" data-genre="${genre}">
-      <div class="genre-name">${genre}</div>
-      <div class="genre-count">${tracks.length} song${tracks.length !== 1 ? 's' : ''}</div>
+  grid.innerHTML = sortedGenres.map(([genre, tracks]) => \`
+    <div class="genre-item \${selectedGenres.has(genre) ? 'selected' : ''}" data-genre="\${genre}">
+      <div class="genre-name">\${genre}</div>
+      <div class="genre-count">\${tracks.length} song\${tracks.length !== 1 ? 's' : ''}</div>
     </div>
-  `).join('');
+  \`).join('');
   
-  // Add click handlers
   grid.querySelectorAll('.genre-item').forEach(item => {
     item.addEventListener('click', () => {
       const genre = item.getAttribute('data-genre');
@@ -974,7 +1142,7 @@ function renderAllGenresView(grid) {
 
 function toggleFamilyExpand(familyId, event) {
   event.stopPropagation();
-  const subgenresDiv = document.getElementById(`family-${familyId}-subgenres`);
+  const subgenresDiv = document.getElementById(\`family-\${familyId}-subgenres\`);
   const button = event.target;
   
   if (subgenresDiv.classList.contains('expanded')) {
@@ -991,18 +1159,15 @@ function toggleFamilySelection(familyId, family, element) {
   const allSelected = allGenresInFamily.every(g => selectedGenres.has(g));
   
   if (allSelected) {
-    // Deselect all
     allGenresInFamily.forEach(g => selectedGenres.delete(g));
     element.classList.remove('selected');
   } else {
-    // Select all
     allGenresInFamily.forEach(g => selectedGenres.add(g));
     element.classList.add('selected');
   }
   
   updateSelectedCount();
   
-  // Update subgenre visuals if in detailed view
   if (genreViewMode === 'detailed') {
     element.querySelectorAll('.subgenre-item').forEach(subItem => {
       const genre = subItem.getAttribute('data-genre');
@@ -1018,20 +1183,20 @@ function toggleFamilySelection(familyId, family, element) {
 function displayGenreStats(sortedGenres, totalTracks) {
   const totalGenres = sortedGenres.length;
   
-  const statsHTML = `
+  const statsHTML = \`
     <div class="stat-item">
       <div class="stat-label">Total Genres</div>
-      <div class="stat-value">${totalGenres}</div>
+      <div class="stat-value">\${totalGenres}</div>
     </div>
     <div class="stat-item">
       <div class="stat-label">Total Tracks</div>
-      <div class="stat-value">${totalTracks}</div>
+      <div class="stat-value">\${totalTracks}</div>
     </div>
     <div class="stat-item">
       <div class="stat-label">Selected</div>
       <div class="stat-value" id="selected-count">0</div>
     </div>
-  `;
+  \`;
   
   document.getElementById('genre-stats').innerHTML = statsHTML;
 }
@@ -1054,9 +1219,16 @@ function updateSelectedCount() {
     countElement.textContent = selectedGenres.size;
   }
   
-  // Enable/disable create playlist button
   const createBtn = document.getElementById('create-library-playlist');
   createBtn.disabled = selectedGenres.size === 0;
+  
+  if (selectedGenres.size === 0) {
+    updateStatus('Pick some genres above! Don\'t be shy 👆');
+  } else if (selectedGenres.size === 1) {
+    updateStatus(\`Nice! Got \${selectedGenres.size} genre selected 🎵\`);
+  } else {
+    updateStatus(\`Looking good! \${selectedGenres.size} genres selected 🔥\`);
+  }
 }
 
 // ===== GENRE FILTER =====
@@ -1075,7 +1247,6 @@ document.getElementById('genre-filter').addEventListener('input', (e) => {
       }
     });
   } else {
-    // Filter families and subgenres
     const items = document.querySelectorAll('.genre-family-item');
     items.forEach(item => {
       const familyName = item.querySelector('.genre-family-name').textContent.toLowerCase();
@@ -1107,7 +1278,6 @@ document.getElementById('select-all-genres').addEventListener('click', () => {
       }
     });
   } else {
-    // Select all visible families
     const items = document.querySelectorAll('.genre-family-item');
     items.forEach(item => {
       if (item.style.display !== 'none') {
@@ -1118,7 +1288,6 @@ document.getElementById('select-all-genres').addEventListener('click', () => {
         Object.keys(family.genres).forEach(g => selectedGenres.add(g));
         item.classList.add('selected');
         
-        // Update subgenres if in detailed view
         item.querySelectorAll('.subgenre-item').forEach(sub => {
           sub.classList.add('selected');
         });
@@ -1153,7 +1322,6 @@ document.getElementById('create-library-playlist').addEventListener('click', asy
   
   document.getElementById('create-library-playlist').disabled = true;
   
-  // Get playlist mode
   const mode = document.querySelector('input[name="playlist-mode"]:checked').value;
   
   if (mode === 'merged') {
@@ -1169,7 +1337,6 @@ async function createMergedPlaylist() {
   updateStatus('🎵 Creating merged playlist...');
   
   try {
-    // Collect all tracks from selected genres
     const trackSet = new Set();
     selectedGenres.forEach(genre => {
       genreSongMap[genre].forEach(track => {
@@ -1179,48 +1346,42 @@ async function createMergedPlaylist() {
     
     const trackUris = Array.from(trackSet);
     
-    // Get user ID
     const userResp = await fetch('https://api.spotify.com/v1/me', {
-      headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
+      headers: { 'Authorization': \`Bearer \${window.spotifyToken}\` }
     });
     const userData = await userResp.json();
     
-    // Create playlist name
     const customName = document.getElementById('playlist-name').value.trim();
     const genreList = Array.from(selectedGenres).slice(0, 3).join(', ');
-    const playlistName = customName || `${genreList}${selectedGenres.size > 3 ? ' + more' : ''}`;
+    const playlistName = customName || \`\${genreList}\${selectedGenres.size > 3 ? ' + more' : ''}\`;
     
-    // Create playlist
-    const createResp = await fetch(`https://api.spotify.com/v1/users/${userData.id}/playlists`, {
+    const createResp = await fetch(\`https://api.spotify.com/v1/users/\${userData.id}/playlists\`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${window.spotifyToken}`,
+        'Authorization': \`Bearer \${window.spotifyToken}\`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         name: playlistName,
-        description: `Created by Playlist Alchemist from ${selectedGenres.size} genre${selectedGenres.size !== 1 ? 's' : ''}`,
+        description: \`Created by Playlist Alchemist from \${selectedGenres.size} genre\${selectedGenres.size !== 1 ? 's' : ''}\`,
         public: false
       })
     });
     const playlist = await createResp.json();
     
-    // Add tracks (Spotify limit: 100 per request)
     for (let i = 0; i < trackUris.length; i += 100) {
       const batch = trackUris.slice(i, i + 100);
-      await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
+      await fetch(\`https://api.spotify.com/v1/playlists/\${playlist.id}/tracks\`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${window.spotifyToken}`,
+          'Authorization': \`Bearer \${window.spotifyToken}\`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ uris: batch })
       });
     }
     
-    // Add to history with tracks for export
     const tracksForExport = Array.from(trackSet).map(uri => {
-      // Find the track object from genreSongMap
       let foundTrack = null;
       selectedGenres.forEach(genre => {
         const track = genreSongMap[genre].find(t => t.uri === uri);
@@ -1234,12 +1395,11 @@ async function createMergedPlaylist() {
       external_urls: { spotify: playlist.external_urls.spotify }
     }, tracksForExport);
     
-    updateStatus(`✅ Created "${playlistName}" with ${trackUris.length} tracks!\n\n[CSV Export] [TXT Export] available in Playlist History tab`);
+    updateStatus(\`✅ Created "\${playlistName}" with \${trackUris.length} tracks!\n\n[CSV Export] [TXT Export] available in Playlist History tab\`);
     
-    // Clear playlist name input
     document.getElementById('playlist-name').value = '';
   } catch (e) {
-    updateStatus(`❌ Error creating playlist: ${e.message}`);
+    updateStatus(\`❌ Error creating playlist: \${e.message}\`);
   }
 }
 
@@ -1248,7 +1408,7 @@ async function createSeparatePlaylists() {
   
   try {
     const userResp = await fetch('https://api.spotify.com/v1/me', {
-      headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
+      headers: { 'Authorization': \`Bearer \${window.spotifyToken}\` }
     });
     const userData = await userResp.json();
     
@@ -1259,48 +1419,45 @@ async function createSeparatePlaylists() {
       const tracks = genreSongMap[genre];
       const trackUris = tracks.map(t => t.uri);
       
-      // Create playlist for this genre
-      const createResp = await fetch(`https://api.spotify.com/v1/users/${userData.id}/playlists`, {
+      const createResp = await fetch(\`https://api.spotify.com/v1/users/\${userData.id}/playlists\`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${window.spotifyToken}`,
+          'Authorization': \`Bearer \${window.spotifyToken}\`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           name: genre,
-          description: `${genre} playlist created by Playlist Alchemist`,
+          description: \`\${genre} playlist created by Playlist Alchemist\`,
           public: false
         })
       });
       const playlist = await createResp.json();
       
-      // Add tracks
       for (let i = 0; i < trackUris.length; i += 100) {
         const batch = trackUris.slice(i, i + 100);
-        await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
+        await fetch(\`https://api.spotify.com/v1/playlists/\${playlist.id}/tracks\`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${window.spotifyToken}`,
+            'Authorization': \`Bearer \${window.spotifyToken}\`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ uris: batch })
         });
       }
       
-      // Add to history
       addToHistory({
         name: genre,
         external_urls: { spotify: playlist.external_urls.spotify }
       }, tracks);
       
       createdCount++;
-      updateStatus(`Created ${createdCount}/${genreArray.length} playlists...`);
+      updateStatus(\`Created \${createdCount}/\${genreArray.length} playlists...\`);
     }
     
-    updateStatus(`✅ Created ${createdCount} separate playlists! Check the Playlist History tab.`);
+    updateStatus(\`✅ Created \${createdCount} separate playlists! Check the Playlist History tab.\`);
     document.getElementById('playlist-name').value = '';
   } catch (e) {
-    updateStatus(`❌ Error creating playlists: ${e.message}`);
+    updateStatus(\`❌ Error creating playlists: \${e.message}\`);
   }
 }
 
@@ -1328,8 +1485,8 @@ async function searchArtist(query) {
   
   try {
     const resp = await fetch(
-      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=artist&limit=5`,
-      { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+      \`https://api.spotify.com/v1/search?q=\${encodeURIComponent(query)}&type=artist&limit=5\`,
+      { headers: { 'Authorization': \`Bearer \${window.spotifyToken}\` } }
     );
     const data = await resp.json();
     displaySearchResults(data.artists.items);
@@ -1351,18 +1508,18 @@ function displaySearchResults(artists) {
     const genres = artist.genres && artist.genres.length > 0 ? artist.genres.slice(0, 2).join(', ') : 'No genres listed';
     const musicMapUrl = getMusicMapUrl(artist.name);
     
-    return `
-      <div class="search-result-item" data-artist-id="${artist.id}">
-        <img src="${imageUrl}" alt="${artist.name}">
+    return \`
+      <div class="search-result-item" data-artist-id="\${artist.id}">
+        <img src="\${imageUrl}" alt="\${artist.name}">
         <div class="search-result-info">
-          <h4>${artist.name}</h4>
-          <p>${genres}</p>
+          <h4>\${artist.name}</h4>
+          <p>\${genres}</p>
         </div>
-        <a href="${musicMapUrl}" target="_blank" class="music-map-link" onclick="event.stopPropagation()" title="Find similar artists">
+        <a href="\${musicMapUrl}" target="_blank" class="music-map-link" onclick="event.stopPropagation()" title="Find similar artists">
           similar
         </a>
       </div>
-    `;
+    \`;
   }).join('');
   
   container.querySelectorAll('.search-result-item').forEach(item => {
@@ -1382,48 +1539,48 @@ function selectArtist(artist) {
   
   const imageUrl = artist.images && artist.images[0] ? artist.images[0].url : 'https://via.placeholder.com/100';
   const genreTags = artist.genres && artist.genres.length > 0 
-    ? artist.genres.slice(0, 3).map(g => `<span class="genre-tag">${g}</span>`).join('')
+    ? artist.genres.slice(0, 3).map(g => \`<span class="genre-tag">\${g}</span>\`).join('')
     : '<span class="genre-tag">No genres</span>';
   const musicMapUrl = getMusicMapUrl(artist.name);
   
   document.getElementById('selected-artist').classList.remove('hidden');
-  document.getElementById('artist-card').innerHTML = `
-    <img src="${imageUrl}" alt="${artist.name}">
+  document.getElementById('artist-card').innerHTML = \`
+    <img src="\${imageUrl}" alt="\${artist.name}">
     <div class="artist-info">
       <h3>
-        ${artist.name}
-        <a href="${musicMapUrl}" target="_blank" class="music-map-link" title="Find similar artists">
+        \${artist.name}
+        <a href="\${musicMapUrl}" target="_blank" class="music-map-link" title="Find similar artists">
           similar
         </a>
       </h3>
       <div class="genre-tags">
-        ${genreTags}
+        \${genreTags}
       </div>
     </div>
-  `;
+  \`;
   
   document.getElementById('related-artists-section').classList.add('hidden');
-  updateStatus(`Selected: ${artist.name}`);
+  updateStatus(\`Selected: \${artist.name}\`);
 }
 
 document.getElementById('find-related').addEventListener('click', async () => {
   if (!selectedArtist) return;
   
-  updateStatus('🔍 Finding related artists...');
+  updateStatus('🔍 Finding artists with similar vibes...');
   document.getElementById('find-related').disabled = true;
   
   try {
     const resp = await fetch(
-      `https://api.spotify.com/v1/artists/${selectedArtist.id}/related-artists`,
-      { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+      \`https://api.spotify.com/v1/artists/\${selectedArtist.id}/related-artists\`,
+      { headers: { 'Authorization': \`Bearer \${window.spotifyToken}\` } }
     );
     const data = await resp.json();
     
     displayRelatedArtists(data.artists);
-    updateStatus(`✅ Found ${data.artists.length} related artists! Click to select.`);
+    updateStatus(\`✅ Found \${data.artists.length} artists you might vibe with! Click to select 👇\`);
     document.getElementById('find-related').disabled = false;
   } catch (e) {
-    updateStatus(`❌ Error: ${e.message}`);
+    updateStatus(\`❌ Hmm, couldn't find related artists: \${e.message}\`);
     document.getElementById('find-related').disabled = false;
   }
 });
@@ -1436,18 +1593,18 @@ function displayRelatedArtists(artists) {
     const imageUrl = artist.images && artist.images[0] ? artist.images[0].url : 'https://via.placeholder.com/200';
     const musicMapUrl = getMusicMapUrl(artist.name);
     
-    return `
-      <div class="artist-item" data-artist-id="${artist.id}">
-        <img src="${imageUrl}" alt="${artist.name}">
-        <h4>${artist.name}</h4>
+    return \`
+      <div class="artist-item" data-artist-id="\${artist.id}">
+        <img src="\${imageUrl}" alt="\${artist.name}">
+        <h4>\${artist.name}</h4>
         <div class="artist-item-footer">
-          <a href="${musicMapUrl}" target="_blank" class="music-map-link" 
+          <a href="\${musicMapUrl}" target="_blank" class="music-map-link" 
              onclick="event.stopPropagation()" title="Find similar artists">
             similar
           </a>
         </div>
       </div>
-    `;
+    \`;
   }).join('');
   
   container.querySelectorAll('.artist-item').forEach(item => {
@@ -1462,7 +1619,7 @@ function displayRelatedArtists(artists) {
         item.classList.add('selected');
       }
       
-      updateStatus(`Selected ${selectedRelatedArtists.size} related artist${selectedRelatedArtists.size !== 1 ? 's' : ''}`);
+      updateStatus(\`Selected \${selectedRelatedArtists.size} related artist\${selectedRelatedArtists.size !== 1 ? 's' : ''}\`);
     });
   });
   
@@ -1471,11 +1628,11 @@ function displayRelatedArtists(artists) {
 
 document.getElementById('generate-discovery-playlist').addEventListener('click', async () => {
   if (!selectedArtist && selectedRelatedArtists.size === 0) {
-    updateStatus('⚠️ Please select at least the main artist or some related artists');
+    updateStatus('⚠️ You gotta pick at least one artist first!');
     return;
   }
   
-  updateStatus('🎵 Generating playlist...');
+  updateStatus('👨‍🍳 Mixing up a fresh playlist...');
   document.getElementById('generate-discovery-playlist').disabled = true;
   
   try {
@@ -1484,63 +1641,61 @@ document.getElementById('generate-discovery-playlist').addEventListener('click',
     let allTracks = [];
     for (const artistId of artistIds) {
       const resp = await fetch(
-        `https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=US`,
-        { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+        \`https://api.spotify.com/v1/artists/\${artistId}/top-tracks?market=US\`,
+        { headers: { 'Authorization': \`Bearer \${window.spotifyToken}\` } }
       );
       const data = await resp.json();
       allTracks.push(...data.tracks.slice(0, 5));
     }
     
     const userResp = await fetch('https://api.spotify.com/v1/me', {
-      headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
+      headers: { 'Authorization': \`Bearer \${window.spotifyToken}\` }
     });
     const userData = await userResp.json();
     
     const customName = document.getElementById('discovery-playlist-name').value.trim();
-    const playlistName = customName || `${selectedArtist.name} + Related Artists`;
+    const playlistName = customName || \`\${selectedArtist.name} + Similar Vibes\`;
     
-    const createResp = await fetch(`https://api.spotify.com/v1/users/${userData.id}/playlists`, {
+    const createResp = await fetch(\`https://api.spotify.com/v1/users/\${userData.id}/playlists\`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${window.spotifyToken}`,
+        'Authorization': \`Bearer \${window.spotifyToken}\`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         name: playlistName,
-        description: `Created by Playlist Alchemist featuring ${selectedArtist.name} and similar artists`,
+        description: \`Made with ❤️ by Playlist Alchemist - Inspired by \${selectedArtist.name}\`,
         public: false
       })
     });
     const playlist = await createResp.json();
     
     const trackUris = allTracks.map(t => t.uri);
-    await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
+    await fetch(\`https://api.spotify.com/v1/playlists/\${playlist.id}/tracks\`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${window.spotifyToken}`,
+        'Authorization': \`Bearer \${window.spotifyToken}\`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ uris: trackUris })
     });
     
-    // Add to history
     addToHistory({
       name: playlistName,
       external_urls: { spotify: playlist.external_urls.spotify }
     }, allTracks);
     
-    updateStatus(`✅ Created "${playlistName}" with ${allTracks.length} tracks!\n\n[CSV Export] [TXT Export] available in Playlist History tab`);
+    updateStatus(\`🎉 Boom! "\${playlistName}" is ready with \${allTracks.length} bangers!\n\nCheck it out in your Spotify 🎧\`);
     document.getElementById('generate-discovery-playlist').disabled = false;
     document.getElementById('discovery-playlist-name').value = '';
   } catch (e) {
-    updateStatus(`❌ Error creating playlist: ${e.message}`);
+    updateStatus(\`❌ Oops, something went wrong: \${e.message}\`);
     document.getElementById('generate-discovery-playlist').disabled = false;
   }
 });
 
 // ===== PAGE LOAD: Handle OAuth Redirect =====
 
-// Make functions globally accessible for onclick handlers
 window.toggleAbout = toggleAbout;
 window.closeTour = closeTour;
 window.nextTourStep = nextTourStep;
