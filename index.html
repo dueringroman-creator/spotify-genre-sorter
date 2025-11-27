@@ -65,6 +65,7 @@
               <li><strong>All Genres</strong> - Flat list of everything. For power users.</li>
             </ul>
             <p><strong>Tip:</strong> Start with "Genre Families" - it's the easiest!</p>
+            <p><strong>Advanced:</strong> Click "Show Artists" on any genre to see which artists are included. You can even expand individual artists to see their tracks and uncheck specific songs!</p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(2)">← Back</button>
               <button class="btn-primary" onclick="nextTourStep(4)">Next →</button>
@@ -75,9 +76,10 @@
         <div class="tour-step hidden" id="tour-step-4">
           <div class="tour-content">
             <h3>Bonus Features</h3>
-            <p><strong>Export Playlists:</strong> Download your playlists as CSV or TXT files - perfect for DJing software, Bandcamp purchases, or organizing local files.</p>
-            <p><strong>Artist Discovery:</strong> Search any artist, then find similar artists from your own library based on matching genres. See exactly how many genres overlap!</p>
-            <p><strong>Music Stats:</strong> Check out your personal music insights in the stats tab!</p>
+            <p><strong>3-Level Control:</strong> Click "Show Artists" to see who's in each genre. Click "Show Tracks" to drill down to individual songs. Uncheck anything you don't want!</p>
+            <p><strong>Manual Genre Mapping:</strong> See a genre in "Other" that should be elsewhere? Click the orange "Map to Family" button to assign it yourself. Your mappings are saved forever!</p>
+            <p><strong>Export & Discovery:</strong> Download playlists as CSV/TXT for DJ software. Find similar artists from your library in the Artist Discovery tab.</p>
+            <p><strong>Music Stats:</strong> See your top genres, diversity score, and fun insights about your taste!</p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(3)">← Back</button>
               <button class="btn-primary" onclick="nextTourStep(5)">Next →</button>
@@ -124,6 +126,11 @@
             </div>
             
             <div class="about-card">
+              <h4>3-Level Control</h4>
+              <p>Ultimate playlist curation: <strong>Genre level</strong> (select styles), <strong>Artist level</strong> (exclude specific artists with "Show Artists"), <strong>Track level</strong> (cherry-pick individual songs with "Show Tracks"). See artist/track counts update in real-time as you curate.</p>
+            </div>
+            
+            <div class="about-card">
               <h4>Why Caching?</h4>
               <p>Fetching 13,000 songs takes time. So we save it locally. Next visit? Instant load. Update when you add new music with the "Refresh Cache" button.</p>
             </div>
@@ -142,6 +149,9 @@
               <h4>Pro Tips</h4>
               <p>• Start with "Genre Families" view - cleanest<br>
               • Use "Detailed" to cherry-pick sub-genres<br>
+              • Click "Show Artists" to see & exclude specific artists<br>
+              • Click "Show Tracks" for song-level control<br>
+              • Orange "Map to Family" button on unmapped genres<br>
               • Use "Merged" mode for large genre mixes<br>
               • Export playlists for DJ software<br>
               • Top Artists mode = instant discovery</p>
