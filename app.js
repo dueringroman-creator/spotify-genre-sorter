@@ -8,6 +8,221 @@ let selectedGenres = new Set();
 let genreSongMap = {}; // genre -> array of track objects
 let playlistHistory = []; // Store created playlists
 let cachedLibraryData = null; // Cache for library data
+let genreViewMode = 'families'; // 'families', 'detailed', 'all'
+
+// ===== GENRE FAMILY MAPPING =====
+
+const genreFamilies = {
+  // Electronic families
+  "house": {
+    name: "House",
+    keywords: ["house"],
+    exclude: ["tech house", "deep house", "progressive house", "electro house", 
+              "tropical house", "future house", "bass house", "melodic house"],
+    color: "#FF6B6B"
+  },
+  "tech-house": {
+    name: "Tech House",
+    keywords: ["tech house"],
+    exclude: [],
+    color: "#FF8787"
+  },
+  "deep-house": {
+    name: "Deep House",
+    keywords: ["deep house"],
+    exclude: [],
+    color: "#FFA5A5"
+  },
+  "techno": {
+    name: "Techno",
+    keywords: ["techno"],
+    exclude: ["tech house"],
+    color: "#4ECDC4"
+  },
+  "trance": {
+    name: "Trance",
+    keywords: ["trance"],
+    exclude: [],
+    color: "#95E1D3"
+  },
+  "drum-and-bass": {
+    name: "Drum & Bass",
+    keywords: ["drum and bass", "dnb", "drum n bass", "liquid funk", "neurofunk", "jump up"],
+    exclude: [],
+    color: "#F38181"
+  },
+  "dubstep": {
+    name: "Dubstep",
+    keywords: ["dubstep", "brostep", "riddim"],
+    exclude: [],
+    color: "#AA96DA"
+  },
+  "ambient": {
+    name: "Ambient",
+    keywords: ["ambient", "downtempo", "chillout"],
+    exclude: [],
+    color: "#FCBAD3"
+  },
+  "breakbeat": {
+    name: "Breakbeat",
+    keywords: ["breakbeat", "breaks"],
+    exclude: [],
+    color: "#FFFFD2"
+  },
+  
+  // Hip-Hop families
+  "hip-hop": {
+    name: "Hip-Hop",
+    keywords: ["hip hop", "rap"],
+    exclude: ["trap", "boom bap", "conscious hip hop", "alternative hip hop"],
+    color: "#A8E6CF"
+  },
+  "trap": {
+    name: "Trap",
+    keywords: ["trap"],
+    exclude: [],
+    color: "#FFD3B6"
+  },
+  
+  // Rock families
+  "rock": {
+    name: "Rock",
+    keywords: ["rock"],
+    exclude: ["indie rock", "alternative rock", "punk", "metal", "hard rock", 
+              "progressive rock", "psychedelic rock", "garage rock"],
+    color: "#FFAAA5"
+  },
+  "indie-rock": {
+    name: "Indie Rock",
+    keywords: ["indie rock", "indie pop"],
+    exclude: [],
+    color: "#FF8B94"
+  },
+  "alternative-rock": {
+    name: "Alternative Rock",
+    keywords: ["alternative rock", "alt rock"],
+    exclude: [],
+    color: "#FFC6C7"
+  },
+  "punk": {
+    name: "Punk",
+    keywords: ["punk"],
+    exclude: ["post-punk"],
+    color: "#C7CEEA"
+  },
+  "metal": {
+    name: "Metal",
+    keywords: ["metal"],
+    exclude: [],
+    color: "#B4B4B8"
+  },
+  
+  // Pop families
+  "pop": {
+    name: "Pop",
+    keywords: ["pop"],
+    exclude: ["indie pop", "synth pop", "dream pop", "k-pop", "j-pop"],
+    color: "#FFDFD3"
+  },
+  
+  // Jazz/Blues
+  "jazz": {
+    name: "Jazz",
+    keywords: ["jazz"],
+    exclude: [],
+    color: "#FEC8D8"
+  },
+  "blues": {
+    name: "Blues",
+    keywords: ["blues"],
+    exclude: [],
+    color: "#957DAD"
+  },
+  
+  // R&B/Soul
+  "r-n-b": {
+    name: "R&B",
+    keywords: ["r&b", "rnb", "rhythm and blues"],
+    exclude: [],
+    color: "#D291BC"
+  },
+  "soul": {
+    name: "Soul",
+    keywords: ["soul", "neo soul"],
+    exclude: [],
+    color: "#E0BBE4"
+  },
+  
+  // Reggae
+  "reggae": {
+    name: "Reggae",
+    keywords: ["reggae", "dub", "dancehall"],
+    exclude: [],
+    color: "#FFDAC1"
+  },
+  
+  // Folk/Country
+  "folk": {
+    name: "Folk",
+    keywords: ["folk"],
+    exclude: ["indie folk"],
+    color: "#B5EAD7"
+  },
+  "country": {
+    name: "Country",
+    keywords: ["country"],
+    exclude: [],
+    color: "#C7CEEA"
+  }
+};
+
+function detectGenreFamily(spotifyGenre) {
+  const lowerGenre = spotifyGenre.toLowerCase().trim();
+  
+  for (const [familyId, family] of Object.entries(genreFamilies)) {
+    // Check if it should be excluded
+    const isExcluded = family.exclude.some(exc => lowerGenre.includes(exc.toLowerCase()));
+    if (isExcluded) continue;
+    
+    // Check if it matches keywords
+    const matches = family.keywords.some(kw => lowerGenre.includes(kw.toLowerCase()));
+    if (matches) {
+      return {
+        id: familyId,
+        name: family.name,
+        color: family.color
+      };
+    }
+  }
+  
+  return {
+    id: "other",
+    name: "Other",
+    color: "#E8E8E8"
+  };
+}
+
+function buildGenreFamilyMap(genreSongMap) {
+  const familyMap = {};
+  
+  Object.entries(genreSongMap).forEach(([genre, tracks]) => {
+    const family = detectGenreFamily(genre);
+    
+    if (!familyMap[family.id]) {
+      familyMap[family.id] = {
+        name: family.name,
+        color: family.color,
+        genres: {},
+        totalTracks: 0
+      };
+    }
+    
+    familyMap[family.id].genres[genre] = tracks;
+    familyMap[family.id].totalTracks += tracks.length;
+  });
+  
+  return familyMap;
+}
 
 // ===== CACHE MANAGEMENT =====
 
@@ -74,6 +289,13 @@ function generateRandomString(length) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+}
+
+// Create Music-Map URL from artist name
+function getMusicMapUrl(artistName) {
+  // Replace spaces with + and encode
+  const formattedName = artistName.trim().replace(/\s+/g, '+').toLowerCase();
+  return `https://www.music-map.com/${encodeURIComponent(formattedName)}`;
 }
 
 // Retry mechanism for network requests
@@ -624,10 +846,118 @@ function displayGenreSelection(totalTracks) {
   // Display stats
   displayGenreStats(sortedGenres, totalTracks);
   
-  // Display genre grid
+  // Initial render with current view mode
+  renderGenreView();
+  
+  // Add view mode change listener
+  document.getElementById('genre-view-mode').addEventListener('change', (e) => {
+    genreViewMode = e.target.value;
+    renderGenreView();
+  });
+}
+
+function renderGenreView() {
   const grid = document.getElementById('genre-grid');
+  
+  if (genreViewMode === 'families') {
+    renderFamiliesView(grid);
+  } else if (genreViewMode === 'detailed') {
+    renderDetailedView(grid);
+  } else {
+    renderAllGenresView(grid);
+  }
+}
+
+// View 1: Genre Families (Grouped)
+function renderFamiliesView(grid) {
+  const familyMap = buildGenreFamilyMap(genreSongMap);
+  
+  // Sort families by total tracks
+  const sortedFamilies = Object.entries(familyMap)
+    .sort((a, b) => b[1].totalTracks - a[1].totalTracks);
+  
+  grid.innerHTML = sortedFamilies.map(([familyId, family]) => `
+    <div class="genre-family-item" data-family-id="${familyId}" 
+         style="border-color: ${family.color}40">
+      <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: ${family.color};"></div>
+      <div class="genre-family-header">
+        <div class="genre-family-name">${family.name}</div>
+      </div>
+      <div class="genre-family-count">${family.totalTracks} tracks across ${Object.keys(family.genres).length} genres</div>
+    </div>
+  `).join('');
+  
+  // Add click handlers
+  grid.querySelectorAll('.genre-family-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const familyId = item.getAttribute('data-family-id');
+      toggleFamilySelection(familyId, familyMap[familyId], item);
+    });
+  });
+}
+
+// View 2: Detailed (Expandable)
+function renderDetailedView(grid) {
+  const familyMap = buildGenreFamilyMap(genreSongMap);
+  
+  const sortedFamilies = Object.entries(familyMap)
+    .sort((a, b) => b[1].totalTracks - a[1].totalTracks);
+  
+  grid.innerHTML = sortedFamilies.map(([familyId, family]) => {
+    const subgenresHTML = Object.entries(family.genres)
+      .sort((a, b) => b[1].length - a[1].length)
+      .map(([genre, tracks]) => `
+        <div class="subgenre-item ${selectedGenres.has(genre) ? 'selected' : ''}" 
+             data-genre="${genre}">
+          <span class="subgenre-name">${genre}</span>
+          <span class="subgenre-count">${tracks.length}</span>
+        </div>
+      `).join('');
+    
+    return `
+      <div class="genre-family-item" data-family-id="${familyId}"
+           style="border-color: ${family.color}40">
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: ${family.color};"></div>
+        <div class="genre-family-header">
+          <div class="genre-family-name">${family.name}</div>
+          <button class="genre-family-expand" onclick="toggleFamilyExpand('${familyId}', event)">
+            Expand ▼
+          </button>
+        </div>
+        <div class="genre-family-count">${family.totalTracks} tracks</div>
+        <div class="genre-family-subgenres" id="family-${familyId}-subgenres">
+          ${subgenresHTML}
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  // Add click handlers for subgenres
+  grid.querySelectorAll('.subgenre-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const genre = item.getAttribute('data-genre');
+      toggleGenreSelection(genre, item);
+    });
+  });
+  
+  // Add click handlers for family items (select all in family)
+  grid.querySelectorAll('.genre-family-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      if (e.target.classList.contains('genre-family-expand')) return;
+      const familyId = item.getAttribute('data-family-id');
+      toggleFamilySelection(familyId, familyMap[familyId], item);
+    });
+  });
+}
+
+// View 3: All Genres (Flat)
+function renderAllGenresView(grid) {
+  const sortedGenres = Object.entries(genreSongMap)
+    .sort((a, b) => b[1].length - a[1].length);
+  
   grid.innerHTML = sortedGenres.map(([genre, tracks]) => `
-    <div class="genre-item" data-genre="${genre}">
+    <div class="genre-item ${selectedGenres.has(genre) ? 'selected' : ''}" data-genre="${genre}">
       <div class="genre-name">${genre}</div>
       <div class="genre-count">${tracks.length} song${tracks.length !== 1 ? 's' : ''}</div>
     </div>
@@ -640,6 +970,49 @@ function displayGenreSelection(totalTracks) {
       toggleGenreSelection(genre, item);
     });
   });
+}
+
+function toggleFamilyExpand(familyId, event) {
+  event.stopPropagation();
+  const subgenresDiv = document.getElementById(`family-${familyId}-subgenres`);
+  const button = event.target;
+  
+  if (subgenresDiv.classList.contains('expanded')) {
+    subgenresDiv.classList.remove('expanded');
+    button.textContent = 'Expand ▼';
+  } else {
+    subgenresDiv.classList.add('expanded');
+    button.textContent = 'Collapse ▲';
+  }
+}
+
+function toggleFamilySelection(familyId, family, element) {
+  const allGenresInFamily = Object.keys(family.genres);
+  const allSelected = allGenresInFamily.every(g => selectedGenres.has(g));
+  
+  if (allSelected) {
+    // Deselect all
+    allGenresInFamily.forEach(g => selectedGenres.delete(g));
+    element.classList.remove('selected');
+  } else {
+    // Select all
+    allGenresInFamily.forEach(g => selectedGenres.add(g));
+    element.classList.add('selected');
+  }
+  
+  updateSelectedCount();
+  
+  // Update subgenre visuals if in detailed view
+  if (genreViewMode === 'detailed') {
+    element.querySelectorAll('.subgenre-item').forEach(subItem => {
+      const genre = subItem.getAttribute('data-genre');
+      if (selectedGenres.has(genre)) {
+        subItem.classList.add('selected');
+      } else {
+        subItem.classList.remove('selected');
+      }
+    });
+  }
 }
 
 function displayGenreStats(sortedGenres, totalTracks) {
@@ -690,37 +1063,86 @@ function updateSelectedCount() {
 
 document.getElementById('genre-filter').addEventListener('input', (e) => {
   const filter = e.target.value.toLowerCase();
-  const items = document.querySelectorAll('.genre-item');
   
-  items.forEach(item => {
-    const genre = item.getAttribute('data-genre').toLowerCase();
-    if (genre.includes(filter)) {
-      item.style.display = '';
-    } else {
-      item.style.display = 'none';
-    }
-  });
+  if (genreViewMode === 'all') {
+    const items = document.querySelectorAll('.genre-item');
+    items.forEach(item => {
+      const genre = item.getAttribute('data-genre').toLowerCase();
+      if (genre.includes(filter)) {
+        item.style.display = '';
+      } else {
+        item.style.display = 'none';
+      }
+    });
+  } else {
+    // Filter families and subgenres
+    const items = document.querySelectorAll('.genre-family-item');
+    items.forEach(item => {
+      const familyName = item.querySelector('.genre-family-name').textContent.toLowerCase();
+      const subgenres = Array.from(item.querySelectorAll('.subgenre-name'))
+        .map(el => el.textContent.toLowerCase());
+      
+      const matches = familyName.includes(filter) || 
+                      subgenres.some(sg => sg.includes(filter));
+      
+      if (matches || filter === '') {
+        item.style.display = '';
+      } else {
+        item.style.display = 'none';
+      }
+    });
+  }
 });
 
 // ===== SELECT ALL / CLEAR ALL =====
 
 document.getElementById('select-all-genres').addEventListener('click', () => {
-  const items = document.querySelectorAll('.genre-item');
-  items.forEach(item => {
-    const genre = item.getAttribute('data-genre');
-    if (item.style.display !== 'none') { // Only visible items
-      selectedGenres.add(genre);
-      item.classList.add('selected');
-    }
-  });
+  if (genreViewMode === 'all') {
+    const items = document.querySelectorAll('.genre-item');
+    items.forEach(item => {
+      const genre = item.getAttribute('data-genre');
+      if (item.style.display !== 'none') {
+        selectedGenres.add(genre);
+        item.classList.add('selected');
+      }
+    });
+  } else {
+    // Select all visible families
+    const items = document.querySelectorAll('.genre-family-item');
+    items.forEach(item => {
+      if (item.style.display !== 'none') {
+        const familyId = item.getAttribute('data-family-id');
+        const familyMap = buildGenreFamilyMap(genreSongMap);
+        const family = familyMap[familyId];
+        
+        Object.keys(family.genres).forEach(g => selectedGenres.add(g));
+        item.classList.add('selected');
+        
+        // Update subgenres if in detailed view
+        item.querySelectorAll('.subgenre-item').forEach(sub => {
+          sub.classList.add('selected');
+        });
+      }
+    });
+  }
   updateSelectedCount();
 });
 
 document.getElementById('clear-genres').addEventListener('click', () => {
   selectedGenres.clear();
+  
   document.querySelectorAll('.genre-item').forEach(item => {
     item.classList.remove('selected');
   });
+  
+  document.querySelectorAll('.genre-family-item').forEach(item => {
+    item.classList.remove('selected');
+  });
+  
+  document.querySelectorAll('.subgenre-item').forEach(item => {
+    item.classList.remove('selected');
+  });
+  
   updateSelectedCount();
 });
 
@@ -927,6 +1349,7 @@ function displaySearchResults(artists) {
   container.innerHTML = artists.map(artist => {
     const imageUrl = artist.images && artist.images[0] ? artist.images[0].url : 'https://via.placeholder.com/50';
     const genres = artist.genres && artist.genres.length > 0 ? artist.genres.slice(0, 2).join(', ') : 'No genres listed';
+    const musicMapUrl = getMusicMapUrl(artist.name);
     
     return `
       <div class="search-result-item" data-artist-id="${artist.id}">
@@ -935,6 +1358,9 @@ function displaySearchResults(artists) {
           <h4>${artist.name}</h4>
           <p>${genres}</p>
         </div>
+        <a href="${musicMapUrl}" target="_blank" class="music-map-link" onclick="event.stopPropagation()" title="Find similar artists">
+          similar
+        </a>
       </div>
     `;
   }).join('');
@@ -958,12 +1384,18 @@ function selectArtist(artist) {
   const genreTags = artist.genres && artist.genres.length > 0 
     ? artist.genres.slice(0, 3).map(g => `<span class="genre-tag">${g}</span>`).join('')
     : '<span class="genre-tag">No genres</span>';
+  const musicMapUrl = getMusicMapUrl(artist.name);
   
   document.getElementById('selected-artist').classList.remove('hidden');
   document.getElementById('artist-card').innerHTML = `
     <img src="${imageUrl}" alt="${artist.name}">
     <div class="artist-info">
-      <h3>${artist.name}</h3>
+      <h3>
+        ${artist.name}
+        <a href="${musicMapUrl}" target="_blank" class="music-map-link" title="Find similar artists">
+          similar
+        </a>
+      </h3>
       <div class="genre-tags">
         ${genreTags}
       </div>
@@ -1002,11 +1434,18 @@ function displayRelatedArtists(artists) {
   
   container.innerHTML = artists.slice(0, 12).map(artist => {
     const imageUrl = artist.images && artist.images[0] ? artist.images[0].url : 'https://via.placeholder.com/200';
+    const musicMapUrl = getMusicMapUrl(artist.name);
     
     return `
       <div class="artist-item" data-artist-id="${artist.id}">
         <img src="${imageUrl}" alt="${artist.name}">
         <h4>${artist.name}</h4>
+        <div class="artist-item-footer">
+          <a href="${musicMapUrl}" target="_blank" class="music-map-link" 
+             onclick="event.stopPropagation()" title="Find similar artists">
+            similar
+          </a>
+        </div>
       </div>
     `;
   }).join('');
@@ -1107,6 +1546,7 @@ window.closeTour = closeTour;
 window.nextTourStep = nextTourStep;
 window.prevTourStep = prevTourStep;
 window.exportPlaylist = exportPlaylist;
+window.toggleFamilyExpand = toggleFamilyExpand;
 
 window.onload = () => {
   const params = new URLSearchParams(window.location.search);
