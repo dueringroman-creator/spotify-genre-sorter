@@ -76,7 +76,7 @@
           <div class="tour-content">
             <h3>Bonus Features</h3>
             <p><strong>Export Playlists:</strong> Download your playlists as CSV or TXT files - perfect for DJing software, Bandcamp purchases, or organizing local files.</p>
-            <p><strong>Discover Similar Artists:</strong> Every artist has a "Similar Artists" link that opens Music-Map.com to explore artists with similar sounds!</p>
+            <p><strong>Artist Discovery:</strong> Search any artist, then find similar artists from your own library based on matching genres. See exactly how many genres overlap!</p>
             <p><strong>Music Stats:</strong> Check out your personal music insights in the stats tab!</p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(3)">← Back</button>
@@ -254,6 +254,9 @@
       <!-- Tab Content: Artist Discovery -->
       <div id="artist-tab" class="tab-content">
         <h2>Discover Music from Any Artist</h2>
+        <p style="color: #b3b3b3; font-size: 14px; margin: -10px 0 20px 0;">
+          Search for any artist, then find similar artists <strong>from your own library</strong> based on matching genres. Perfect for building playlists around a specific sound!
+        </p>
         
         <!-- Artist Search -->
         <div class="search-container">
@@ -270,12 +273,12 @@
         <div id="selected-artist" class="selected-artist hidden">
           <h3>Selected Artist</h3>
           <div id="artist-card" class="artist-card"></div>
-          <button id="find-related" class="btn-secondary">Find Related Artists</button>
+          <button id="find-related" class="btn-secondary">Find Similar Artists (from your library)</button>
         </div>
 
         <!-- Related Artists Grid -->
         <div id="related-artists-section" class="hidden">
-          <h3>Related Artists <span class="hint">(click to select)</span></h3>
+          <h3>Similar Artists from Your Library <span class="hint">(ranked by matching genres - click to select)</span></h3>
           <div id="related-artists-grid" class="artists-grid"></div>
           
           <div class="playlist-controls">
