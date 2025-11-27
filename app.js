@@ -122,11 +122,12 @@ function savePlaylistHistory() {
   localStorage.setItem('playlist_history', JSON.stringify(playlistHistory));
 }
 
-function addToHistory(playlist) {
+function addToHistory(playlist, tracks) {
   playlistHistory.unshift({
     name: playlist.name,
     url: playlist.external_urls.spotify,
-    trackCount: playlist.tracks?.total || 0,
+    trackCount: tracks.length,
+    tracks: tracks, // Store tracks for export
     createdAt: new Date().toISOString()
   });
   
@@ -147,17 +148,22 @@ function displayPlaylistHistory() {
     return;
   }
   
-  container.innerHTML = playlistHistory.map(item => {
+  container.innerHTML = playlistHistory.map((item, index) => {
     const date = new Date(item.createdAt);
     const timeAgo = getTimeAgo(date);
     
     return `
       <div class="history-item">
         <div class="history-item-info">
-          <div class="history-item-name">${item.name}</div>
+          <div class="history-item-name">
+            <a href="${item.url}" target="_blank">${item.name}</a>
+          </div>
           <div class="history-item-meta">${item.trackCount} tracks • ${timeAgo}</div>
         </div>
-        <a href="${item.url}" target="_blank" class="history-item-link">Open in Spotify</a>
+        <div class="history-item-actions">
+          <button class="history-item-link" onclick="exportPlaylist(${index}, 'csv')">CSV</button>
+          <button class="history-item-link" onclick="exportPlaylist(${index}, 'txt')">TXT</button>
+        </div>
       </div>
     `;
   }).join('');
@@ -172,6 +178,81 @@ function getTimeAgo(date) {
   if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
   
   return date.toLocaleDateString();
+}
+
+// ===== EXPORT FUNCTIONALITY =====
+
+function exportPlaylist(historyIndex, format) {
+  const playlist = playlistHistory[historyIndex];
+  
+  if (!playlist.tracks || playlist.tracks.length === 0) {
+    alert('No track data available for export. This playlist was created before export feature was added.');
+    return;
+  }
+  
+  if (format === 'csv') {
+    exportAsCSV(playlist);
+  } else if (format === 'txt') {
+    exportAsTXT(playlist);
+  }
+}
+
+function exportAsCSV(playlist) {
+  const headers = ['Track Name', 'Artist', 'Album', 'Genres', 'Duration (ms)', 'Spotify URL'];
+  const rows = [headers];
+  
+  playlist.tracks.forEach(track => {
+    const trackName = track.name || '';
+    const artist = track.artists ? track.artists.map(a => a.name).join('; ') : '';
+    const album = track.album ? track.album.name : '';
+    const genres = ''; // Genres are per-artist, would need additional API calls
+    const duration = track.duration_ms || '';
+    const url = track.external_urls ? track.external_urls.spotify : '';
+    
+    rows.push([
+      escapeCSV(trackName),
+      escapeCSV(artist),
+      escapeCSV(album),
+      escapeCSV(genres),
+      duration,
+      url
+    ]);
+  });
+  
+  const csvContent = rows.map(row => row.join(',')).join('\n');
+  downloadFile(csvContent, `${playlist.name}.csv`, 'text/csv');
+}
+
+function exportAsTXT(playlist) {
+  const lines = playlist.tracks.map(track => {
+    const artist = track.artists ? track.artists.map(a => a.name).join(', ') : 'Unknown Artist';
+    const trackName = track.name || 'Unknown Track';
+    return `${artist} - ${trackName}`;
+  });
+  
+  const txtContent = lines.join('\n');
+  downloadFile(txtContent, `${playlist.name}.txt`, 'text/plain');
+}
+
+function escapeCSV(str) {
+  if (!str) return '';
+  str = str.toString();
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 // ===== LOGIN FLOW =====
@@ -241,19 +322,57 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 // ===== ONBOARDING =====
 
-document.getElementById('close-onboarding')?.addEventListener('click', () => {
-  const onboarding = document.getElementById('onboarding');
-  if (onboarding) {
-    onboarding.style.display = 'none';
-    localStorage.setItem('onboarding_seen', 'true');
-  }
+// Help button - reopen tour
+document.getElementById('help-button')?.addEventListener('click', () => {
+  showTour();
 });
 
-// Check if user has seen onboarding before
+// About section toggle
+function toggleAbout() {
+  const content = document.getElementById('about-content');
+  const icon = document.getElementById('about-icon');
+  
+  if (content.classList.contains('hidden')) {
+    content.classList.remove('hidden');
+    icon.classList.add('open');
+  } else {
+    content.classList.add('hidden');
+    icon.classList.remove('open');
+  }
+}
+
+// Tour functionality
+function showTour() {
+  document.getElementById('tour-overlay').classList.remove('hidden');
+  document.getElementById('tour-step-1').classList.remove('hidden');
+}
+
+function closeTour() {
+  document.getElementById('tour-overlay').classList.add('hidden');
+  document.querySelectorAll('.tour-step').forEach(step => step.classList.add('hidden'));
+  localStorage.setItem('tour_completed', 'true');
+}
+
+function nextTourStep(stepNum) {
+  document.querySelectorAll('.tour-step').forEach(step => step.classList.add('hidden'));
+  document.getElementById(`tour-step-${stepNum}`).classList.remove('hidden');
+}
+
+function prevTourStep(stepNum) {
+  document.querySelectorAll('.tour-step').forEach(step => step.classList.add('hidden'));
+  document.getElementById(`tour-step-${stepNum}`).classList.remove('hidden');
+}
+
+// Check if user has completed tour
 window.addEventListener('load', () => {
-  if (localStorage.getItem('onboarding_seen') === 'true') {
-    const onboarding = document.getElementById('onboarding');
-    if (onboarding) onboarding.style.display = 'none';
+  if (!localStorage.getItem('tour_completed')) {
+    // Show tour on first visit after login
+    const checkLogin = setInterval(() => {
+      if (!document.getElementById('app-section').classList.contains('hidden')) {
+        showTour();
+        clearInterval(checkLogin);
+      }
+    }, 500);
   }
 });
 
@@ -671,14 +790,23 @@ async function createMergedPlaylist() {
       });
     }
     
-    // Add to history
+    // Add to history with tracks for export
+    const tracksForExport = Array.from(trackSet).map(uri => {
+      // Find the track object from genreSongMap
+      let foundTrack = null;
+      selectedGenres.forEach(genre => {
+        const track = genreSongMap[genre].find(t => t.uri === uri);
+        if (track && !foundTrack) foundTrack = track;
+      });
+      return foundTrack;
+    }).filter(t => t);
+    
     addToHistory({
       name: playlistName,
-      external_urls: { spotify: playlist.external_urls.spotify },
-      tracks: { total: trackUris.length }
-    });
+      external_urls: { spotify: playlist.external_urls.spotify }
+    }, tracksForExport);
     
-    updateStatus(`✅ Created "${playlistName}" with ${trackUris.length} tracks!\n\nOpen in Spotify: ${playlist.external_urls.spotify}`);
+    updateStatus(`✅ Created "${playlistName}" with ${trackUris.length} tracks!\n\n[CSV Export] [TXT Export] available in Playlist History tab`);
     
     // Clear playlist name input
     document.getElementById('playlist-name').value = '';
@@ -734,9 +862,8 @@ async function createSeparatePlaylists() {
       // Add to history
       addToHistory({
         name: genre,
-        external_urls: { spotify: playlist.external_urls.spotify },
-        tracks: { total: trackUris.length }
-      });
+        external_urls: { spotify: playlist.external_urls.spotify }
+      }, tracks);
       
       createdCount++;
       updateStatus(`Created ${createdCount}/${genreArray.length} playlists...`);
@@ -954,11 +1081,10 @@ document.getElementById('generate-discovery-playlist').addEventListener('click',
     // Add to history
     addToHistory({
       name: playlistName,
-      external_urls: { spotify: playlist.external_urls.spotify },
-      tracks: { total: allTracks.length }
-    });
+      external_urls: { spotify: playlist.external_urls.spotify }
+    }, allTracks);
     
-    updateStatus(`✅ Created "${playlistName}" with ${allTracks.length} tracks!\n\nOpen in Spotify: ${playlist.external_urls.spotify}`);
+    updateStatus(`✅ Created "${playlistName}" with ${allTracks.length} tracks!\n\n[CSV Export] [TXT Export] available in Playlist History tab`);
     document.getElementById('generate-discovery-playlist').disabled = false;
     document.getElementById('discovery-playlist-name').value = '';
   } catch (e) {
@@ -968,6 +1094,13 @@ document.getElementById('generate-discovery-playlist').addEventListener('click',
 });
 
 // ===== PAGE LOAD: Handle OAuth Redirect =====
+
+// Make functions globally accessible for onclick handlers
+window.toggleAbout = toggleAbout;
+window.closeTour = closeTour;
+window.nextTourStep = nextTourStep;
+window.prevTourStep = prevTourStep;
+window.exportPlaylist = exportPlaylist;
 
 window.onload = () => {
   const params = new URLSearchParams(window.location.search);
