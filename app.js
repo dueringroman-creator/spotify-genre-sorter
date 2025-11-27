@@ -13,6 +13,8 @@ let genreSongMap = {};
 let playlistHistory = [];
 let cachedLibraryData = null;
 let genreViewMode = 'families';
+let excludedArtists = new Map(); // Map of genre -> Set of excluded artist IDs
+let excludedTracks = new Map(); // Map of "genre:artistId" -> Set of excluded track IDs
 
 // ===== GENRE FAMILY MAPPING =====
 
@@ -658,7 +660,7 @@ document.getElementById('login').addEventListener('click', async () => {
     response_type: 'code',
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
-    scope: 'user-library-read playlist-modify-public playlist-modify-private user-top-read',
+    scope: 'user-library-read playlist-read-private playlist-modify-public playlist-modify-private user-top-read',
     state: generateRandomString(16),
     code_challenge_method: 'S256',
     code_challenge: challenge
@@ -996,6 +998,47 @@ function buildGenreSongMap(tracks, artistGenreMap) {
   return map;
 }
 
+// Helper function to count unique artists per genre
+function getArtistCountForGenre(genre) {
+  const tracks = genreSongMap[genre];
+  if (!tracks) return 0;
+  
+  const artistIds = new Set();
+  tracks.forEach(track => {
+    if (track.artists && track.artists[0]) {
+      artistIds.add(track.artists[0].id);
+    }
+  });
+  
+  return artistIds.size;
+}
+
+// Helper function to get artists grouped by genre
+function getArtistsForGenre(genre) {
+  const tracks = genreSongMap[genre];
+  if (!tracks) return [];
+  
+  const artistMap = new Map();
+  
+  tracks.forEach(track => {
+    if (track.artists && track.artists[0]) {
+      const artist = track.artists[0];
+      if (!artistMap.has(artist.id)) {
+        artistMap.set(artist.id, {
+          id: artist.id,
+          name: artist.name,
+          tracks: []
+        });
+      }
+      artistMap.get(artist.id).tracks.push(track);
+    }
+  });
+  
+  // Sort by track count descending
+  return Array.from(artistMap.values())
+    .sort((a, b) => b.tracks.length - a.tracks.length);
+}
+
 // ===== DISPLAY GENRE SELECTION UI =====
 
 function displayGenreSelection(totalTracks) {
@@ -1107,15 +1150,24 @@ function renderAllGenresView(grid) {
   const sortedGenres = Object.entries(genreSongMap)
     .sort((a, b) => b[1].length - a[1].length);
   
-  grid.innerHTML = sortedGenres.map(([genre, tracks]) => `
-    <div class="genre-item ${selectedGenres.has(genre) ? 'selected' : ''}" data-genre="${genre}">
-      <div class="genre-name">${genre}</div>
-      <div class="genre-count">${tracks.length} song${tracks.length !== 1 ? 's' : ''}</div>
-    </div>
-  `).join('');
+  grid.innerHTML = sortedGenres.map(([genre, tracks]) => {
+    const artistCount = getArtistCountForGenre(genre);
+    const safeGenreId = genre.replace(/[^a-z0-9]/gi, '_');
+    return `
+      <div class="genre-item ${selectedGenres.has(genre) ? 'selected' : ''}" data-genre="${genre}">
+        <div class="genre-name">${genre}</div>
+        <div class="genre-count">${tracks.length} song${tracks.length !== 1 ? 's' : ''} • ${artistCount} artist${artistCount !== 1 ? 's' : ''}</div>
+        <button class="genre-expand-btn" onclick="toggleGenreArtists('${genre}', event)">Show Artists ▼</button>
+        <div class="genre-artists-list" id="genre-artists-${safeGenreId}"></div>
+      </div>
+    `;
+  }).join('');
   
   grid.querySelectorAll('.genre-item').forEach(item => {
-    item.addEventListener('click', () => {
+    item.addEventListener('click', (e) => {
+      // Don't toggle selection if clicking the expand button
+      if (e.target.classList.contains('genre-expand-btn')) return;
+      
       const genre = item.getAttribute('data-genre');
       toggleGenreSelection(genre, item);
     });
@@ -1134,6 +1186,222 @@ function toggleFamilyExpand(familyId, event) {
     subgenresDiv.classList.add('expanded');
     button.textContent = 'Collapse ▲';
   }
+}
+
+function toggleGenreArtists(genre, event) {
+  event.stopPropagation();
+  
+  const safeGenreId = genre.replace(/[^a-z0-9]/gi, '_');
+  const artistsList = document.getElementById(`genre-artists-${safeGenreId}`);
+  const button = event.target;
+  
+  if (artistsList.classList.contains('expanded')) {
+    artistsList.classList.remove('expanded');
+    artistsList.innerHTML = '';
+    button.textContent = 'Show Artists ▼';
+  } else {
+    // Load and display artists
+    const artists = getArtistsForGenre(genre);
+    
+    // Initialize excludedArtists set for this genre if it doesn't exist
+    if (!excludedArtists.has(genre)) {
+      excludedArtists.set(genre, new Set());
+    }
+    const excluded = excludedArtists.get(genre);
+    
+    artistsList.innerHTML = artists.map(artist => {
+      const isExcluded = excluded.has(artist.id);
+      const safeArtistId = artist.id.replace(/[^a-z0-9]/gi, '_');
+      const safeGenreId = genre.replace(/[^a-z0-9]/gi, '_');
+      return `
+        <div class="artist-in-genre">
+          <label class="artist-checkbox-label">
+            <input type="checkbox" 
+                   class="artist-checkbox" 
+                   data-genre="${genre}" 
+                   data-artist-id="${artist.id}"
+                   ${isExcluded ? '' : 'checked'}>
+            <span class="artist-name">${artist.name}</span>
+            <span class="artist-track-count">${artist.tracks.length} track${artist.tracks.length !== 1 ? 's' : ''}</span>
+          </label>
+          <button class="track-expand-btn" onclick="toggleArtistTracks('${genre}', '${artist.id}', event)">Show Tracks ▼</button>
+          <div class="artist-tracks-list" id="artist-tracks-${safeGenreId}-${safeArtistId}"></div>
+        </div>
+      `;
+    }).join('');
+    
+    // Add event listeners for checkboxes
+    artistsList.querySelectorAll('.artist-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        e.stopPropagation();
+        handleArtistToggle(genre, checkbox.dataset.artistId, checkbox.checked);
+      });
+    });
+    
+    artistsList.classList.add('expanded');
+    button.textContent = 'Hide Artists ▲';
+  }
+}
+
+function handleArtistToggle(genre, artistId, isChecked) {
+  if (!excludedArtists.has(genre)) {
+    excludedArtists.set(genre, new Set());
+  }
+  
+  const excluded = excludedArtists.get(genre);
+  
+  if (isChecked) {
+    // Artist is included - remove from excluded set
+    excluded.delete(artistId);
+  } else {
+    // Artist is excluded - add to excluded set
+    excluded.add(artistId);
+  }
+  
+  // Update the track count display
+  updateGenreTrackCounts();
+}
+
+function toggleArtistTracks(genre, artistId, event) {
+  event.stopPropagation();
+  
+  const safeGenreId = genre.replace(/[^a-z0-9]/gi, '_');
+  const safeArtistId = artistId.replace(/[^a-z0-9]/gi, '_');
+  const tracksList = document.getElementById(`artist-tracks-${safeGenreId}-${safeArtistId}`);
+  const button = event.target;
+  
+  if (tracksList.classList.contains('expanded')) {
+    tracksList.classList.remove('expanded');
+    tracksList.innerHTML = '';
+    button.textContent = 'Show Tracks ▼';
+  } else {
+    // Get tracks for this artist in this genre
+    const artists = getArtistsForGenre(genre);
+    const artist = artists.find(a => a.id === artistId);
+    
+    if (!artist) return;
+    
+    // Initialize excluded tracks for this genre:artist combo
+    const trackKey = `${genre}:${artistId}`;
+    if (!excludedTracks.has(trackKey)) {
+      excludedTracks.set(trackKey, new Set());
+    }
+    const excludedTrackIds = excludedTracks.get(trackKey);
+    
+    tracksList.innerHTML = artist.tracks.map(track => {
+      const isExcluded = excludedTrackIds.has(track.id);
+      return `
+        <div class="track-in-artist">
+          <label class="track-checkbox-label">
+            <input type="checkbox" 
+                   class="track-checkbox" 
+                   data-genre="${genre}" 
+                   data-artist-id="${artistId}"
+                   data-track-id="${track.id}"
+                   ${isExcluded ? '' : 'checked'}>
+            <span class="track-name">${track.name}</span>
+            <span class="track-duration">${formatDuration(track.duration_ms)}</span>
+          </label>
+        </div>
+      `;
+    }).join('');
+    
+    // Add event listeners for track checkboxes
+    tracksList.querySelectorAll('.track-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        e.stopPropagation();
+        handleTrackToggle(genre, artistId, checkbox.dataset.trackId, checkbox.checked);
+      });
+    });
+    
+    tracksList.classList.add('expanded');
+    button.textContent = 'Hide Tracks ▲';
+  }
+}
+
+function handleTrackToggle(genre, artistId, trackId, isChecked) {
+  const trackKey = `${genre}:${artistId}`;
+  
+  if (!excludedTracks.has(trackKey)) {
+    excludedTracks.set(trackKey, new Set());
+  }
+  
+  const excluded = excludedTracks.get(trackKey);
+  
+  if (isChecked) {
+    // Track is included - remove from excluded set
+    excluded.delete(trackId);
+  } else {
+    // Track is excluded - add to excluded set
+    excluded.add(trackId);
+  }
+  
+  // Update track counts
+  updateGenreTrackCounts();
+}
+
+function formatDuration(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function updateGenreTrackCounts() {
+  // Update track counts in the UI to reflect excluded artists
+  Object.keys(genreSongMap).forEach(genre => {
+    const filteredTracks = getFilteredTracksForGenre(genre);
+    const genreElements = document.querySelectorAll(`[data-genre="${genre}"] .genre-count`);
+    
+    genreElements.forEach(el => {
+      const artistCount = getActiveArtistCountForGenre(genre);
+      el.textContent = `${filteredTracks.length} song${filteredTracks.length !== 1 ? 's' : ''} • ${artistCount} artist${artistCount !== 1 ? 's' : ''}`;
+    });
+  });
+}
+
+function getFilteredTracksForGenre(genre) {
+  const tracks = genreSongMap[genre] || [];
+  
+  // Filter out excluded artists
+  let filteredTracks = tracks;
+  
+  if (excludedArtists.has(genre) && excludedArtists.get(genre).size > 0) {
+    const excludedArtistIds = excludedArtists.get(genre);
+    filteredTracks = filteredTracks.filter(track => {
+      const artistId = track.artists && track.artists[0] ? track.artists[0].id : null;
+      return artistId && !excludedArtistIds.has(artistId);
+    });
+  }
+  
+  // Filter out excluded tracks
+  filteredTracks = filteredTracks.filter(track => {
+    const artistId = track.artists && track.artists[0] ? track.artists[0].id : null;
+    if (!artistId) return true;
+    
+    const trackKey = `${genre}:${artistId}`;
+    if (excludedTracks.has(trackKey)) {
+      const excludedTrackIds = excludedTracks.get(trackKey);
+      return !excludedTrackIds.has(track.id);
+    }
+    
+    return true;
+  });
+  
+  return filteredTracks;
+}
+
+function getActiveArtistCountForGenre(genre) {
+  const filteredTracks = getFilteredTracksForGenre(genre);
+  const artistIds = new Set();
+  
+  filteredTracks.forEach(track => {
+    if (track.artists && track.artists[0]) {
+      artistIds.add(track.artists[0].id);
+    }
+  });
+  
+  return artistIds.size;
 }
 
 function toggleFamilySelection(familyId, family, element) {
@@ -1321,7 +1589,9 @@ async function createMergedPlaylist() {
   try {
     const trackSet = new Set();
     selectedGenres.forEach(genre => {
-      genreSongMap[genre].forEach(track => {
+      // Use filtered tracks that respect artist exclusions
+      const filteredTracks = getFilteredTracksForGenre(genre);
+      filteredTracks.forEach(track => {
         trackSet.add(track.uri);
       });
     });
@@ -1423,7 +1693,8 @@ async function createSeparatePlaylists() {
     const genreArray = Array.from(selectedGenres);
     
     for (const genre of genreArray) {
-      const tracks = genreSongMap[genre];
+      // Use filtered tracks that respect artist exclusions
+      const tracks = getFilteredTracksForGenre(genre);
       const trackUris = tracks.map(t => t.uri);
       
       const createResp = await fetch(`https://api.spotify.com/v1/users/${userData.id}/playlists`, {
