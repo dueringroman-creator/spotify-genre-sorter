@@ -216,6 +216,9 @@
                 <option value="all">All Genres (Flat)</option>
               </select>
               <input type="text" id="genre-filter" placeholder="Filter genres..." />
+              <input type="text" id="unmapped-filter" class="hidden" placeholder="Filter unmapped..." />
+              <button id="show-unmapped-btn" class="btn-small hidden">Show Unmapped (<span id="unmapped-count">0</span>)</button>
+              <button id="show-all-btn" class="btn-small hidden">Show All</button>
               <button id="select-all-genres" class="btn-small">Select All</button>
               <button id="clear-genres" class="btn-small">Clear All</button>
             </div>
@@ -232,6 +235,15 @@
           </div>
           
           <div id="genre-grid" class="genre-grid"></div>
+          
+          <!-- Floating Create Playlist Button -->
+          <div id="floating-create-btn" class="floating-create-btn hidden">
+            <button class="fab-button" onclick="scrollToPlaylistControls()">
+              <span class="fab-icon">🎵</span>
+              <span class="fab-text">Create Playlist</span>
+              <span class="fab-count" id="fab-count">0 selected</span>
+            </button>
+          </div>
           
           <!-- Playlist Mode Options -->
           <div class="playlist-options">
