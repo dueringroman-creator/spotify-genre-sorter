@@ -581,6 +581,22 @@ function generateMusicStats() {
             Total listening time: <strong>${Math.floor(totalTracks * avgDuration / 3600)} hours</strong> of music${totalTracks > 5000 ? ". Extensive collection." : ""}
           </div>
           ` : ''}
+          
+          ${sortedFamilies.length > 2 ? `
+          <div class="fun-fact">
+            Your top 3: <strong>${sortedFamilies.slice(0, 3).map(([_, data]) => data.name).join(', ')}</strong>
+          </div>
+          ` : ''}
+          
+          ${avgDuration < 180 ? `
+          <div class="fun-fact">
+            Short track preference: Avg ${avgMinutes}:${avgSeconds.toString().padStart(2, '0')} — You like concise bangers
+          </div>
+          ` : avgDuration > 300 ? `
+          <div class="fun-fact">
+            Long track preference: Avg ${avgMinutes}:${avgSeconds.toString().padStart(2, '0')} — You appreciate extended journeys
+          </div>
+          ` : ''}
         </div>
       </div>
     </div>
@@ -1556,25 +1572,24 @@ function renderAllGenresView(grid) {
     return family.id === 'other';
   });
   
-  // Add filter controls at top if there are unmapped genres
-  let filterHTML = '';
+  // Show/hide unmapped filter controls
+  const unmappedFilter = document.getElementById('unmapped-filter');
+  const showUnmappedBtn = document.getElementById('show-unmapped-btn');
+  const showAllBtn = document.getElementById('show-all-btn');
+  const unmappedCount = document.getElementById('unmapped-count');
+  
   if (unmappedGenres.length > 0) {
-    filterHTML = `
-      <div class="other-bucket-controls">
-        <div class="other-bucket-info">
-          <span class="other-count">${unmappedGenres.length} unmapped genres</span>
-          <input type="text" 
-                 id="other-filter" 
-                 placeholder="Filter unmapped genres..." 
-                 class="other-filter-input">
-        </div>
-        <button class="btn-small" onclick="showOnlyUnmapped()">Show Only Unmapped</button>
-        <button class="btn-small" onclick="showAllGenres()">Show All</button>
-      </div>
-    `;
+    unmappedFilter.classList.remove('hidden');
+    showUnmappedBtn.classList.remove('hidden');
+    showAllBtn.classList.remove('hidden');
+    unmappedCount.textContent = unmappedGenres.length;
+  } else {
+    unmappedFilter.classList.add('hidden');
+    showUnmappedBtn.classList.add('hidden');
+    showAllBtn.classList.add('hidden');
   }
   
-  grid.innerHTML = filterHTML + sortedGenres.map(([genre, tracks]) => {
+  grid.innerHTML = sortedGenres.map(([genre, tracks]) => {
     const artistCount = getArtistCountForGenre(genre);
     const safeGenreId = genre.replace(/[^a-z0-9]/gi, '_');
     const family = detectGenreFamily(genre);
@@ -1592,21 +1607,6 @@ function renderAllGenresView(grid) {
       </div>
     `;
   }).join('');
-  
-  // Add filter functionality
-  const filterInput = document.getElementById('other-filter');
-  if (filterInput) {
-    filterInput.addEventListener('input', (e) => {
-      const query = e.target.value.toLowerCase();
-      const genreItems = grid.querySelectorAll('.genre-item');
-      
-      genreItems.forEach(item => {
-        const genre = item.getAttribute('data-genre').toLowerCase();
-        const shouldShow = genre.includes(query) || query === '';
-        item.style.display = shouldShow ? 'block' : 'none';
-      });
-    });
-  }
   
   grid.querySelectorAll('.genre-item').forEach(item => {
     item.addEventListener('click', (e) => {
@@ -1633,9 +1633,9 @@ function showAllGenres() {
     item.style.display = 'block';
   });
   
-  // Clear filter input
-  const filterInput = document.getElementById('other-filter');
-  if (filterInput) filterInput.value = '';
+  // Clear unmapped filter input
+  const unmappedFilter = document.getElementById('unmapped-filter');
+  if (unmappedFilter) unmappedFilter.value = '';
 }
 
 function toggleFamilyExpand(familyId, event) {
@@ -1704,6 +1704,25 @@ function toggleGenreArtists(genre, event) {
     
     artistsList.classList.add('expanded');
     button.textContent = 'Hide Artists ▲';
+  }
+}
+
+function scrollToPlaylistControls() {
+  const playlistControls = document.querySelector('.playlist-controls');
+  if (playlistControls) {
+    playlistControls.scrollIntoView({ 
+      behavior: 'smooth', 
+      block: 'center' 
+    });
+    
+    // Flash the create button to draw attention
+    const createBtn = document.getElementById('create-library-playlist');
+    if (createBtn) {
+      createBtn.style.animation = 'pulse 0.5s ease';
+      setTimeout(() => {
+        createBtn.style.animation = '';
+      }, 500);
+    }
   }
 }
 
@@ -1984,6 +2003,24 @@ function updateSelectedCount() {
     countElement.textContent = selectedGenres.size;
   }
   
+  // Update FAB count and visibility
+  const fabCount = document.getElementById('fab-count');
+  const fabButton = document.getElementById('floating-create-btn');
+  
+  if (fabCount) {
+    fabCount.textContent = selectedGenres.size === 1 
+      ? '1 genre' 
+      : `${selectedGenres.size} genres`;
+  }
+  
+  if (fabButton) {
+    if (selectedGenres.size > 0) {
+      fabButton.classList.remove('hidden');
+    } else {
+      fabButton.classList.add('hidden');
+    }
+  }
+  
   const createBtn = document.getElementById('create-library-playlist');
   createBtn.disabled = selectedGenres.size === 0;
   
@@ -2078,6 +2115,27 @@ document.getElementById('clear-genres').addEventListener('click', () => {
   });
   
   updateSelectedCount();
+});
+
+// Unmapped filter button
+document.getElementById('show-unmapped-btn').addEventListener('click', () => {
+  showOnlyUnmapped();
+});
+
+document.getElementById('show-all-btn').addEventListener('click', () => {
+  showAllGenres();
+});
+
+// Unmapped filter input
+document.getElementById('unmapped-filter').addEventListener('input', (e) => {
+  const query = e.target.value.toLowerCase();
+  const genreItems = document.querySelectorAll('.genre-item[data-unmapped="true"]');
+  
+  genreItems.forEach(item => {
+    const genre = item.getAttribute('data-genre').toLowerCase();
+    const shouldShow = genre.includes(query) || query === '';
+    item.style.display = shouldShow ? 'block' : 'none';
+  });
 });
 
 // ===== CREATE PLAYLIST FROM LIBRARY =====
