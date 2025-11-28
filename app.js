@@ -17,6 +17,10 @@ let excludedArtists = new Map(); // Map of genre -> Set of excluded artist IDs
 let excludedTracks = new Map(); // Map of "genre:artistId" -> Set of excluded track IDs
 let manualGenreMappings = {}; // User-defined genre mappings: { "tekno": "techno" }
 
+// Double-click tracking
+let lastClickTime = 0;
+let lastClickedFamily = null;
+
 // ===== GENRE FAMILY MAPPING =====
 
 const genreFamilies = {
@@ -210,6 +214,16 @@ function detectGenreFamily(spotifyGenre) {
   
   // Second pass: fuzzy matching for common misspellings/variations
   const fuzzyMappings = {
+    // Disco variations
+    'nu disco': 'disco',
+    'new disco': 'disco',
+    'nudisco': 'disco',
+    'nu-disco': 'disco',
+    'disco house': 'house',
+    'french disco': 'disco',
+    'space disco': 'disco',
+    'italo disco': 'disco',
+    
     // Techno variations
     'tekno': 'techno',
     'technо': 'techno', // Cyrillic 'o'
@@ -218,36 +232,126 @@ function detectGenreFamily(spotifyGenre) {
     'schranz': 'techno',
     'hardtechno': 'techno',
     'hard techno': 'techno',
+    'minimal techno': 'techno',
+    'dub techno': 'techno',
+    'acid techno': 'techno',
+    'detroit techno': 'techno',
+    'berlin techno': 'techno',
+    'industrial techno': 'techno',
     
     // House variations
     'houze': 'house',
     'housе': 'house', // Cyrillic 'e'
+    'deep house': 'house',
+    'progressive house': 'house',
+    'tech house': 'house',
+    'bass house': 'house',
+    'future house': 'house',
+    'electro house': 'house',
+    'tropical house': 'house',
+    'afro house': 'house',
+    'jackin house': 'house',
+    'chicago house': 'house',
+    'soulful house': 'house',
+    'vocal house': 'house',
+    'funky house': 'house',
     
     // Hip hop variations
     'hiphop': 'hip hop',
     'hip-hop': 'hip hop',
     'rap': 'hip hop',
     'trap': 'hip hop',
+    'hip hop': 'hip hop',
+    'boom bap': 'hip hop',
+    'conscious hip hop': 'hip hop',
+    'gangsta rap': 'hip hop',
+    'east coast hip hop': 'hip hop',
+    'west coast hip hop': 'hip hop',
+    'southern hip hop': 'hip hop',
+    'cloud rap': 'hip hop',
+    'mumble rap': 'hip hop',
     
     // Electronic variations
     'electronica': 'electronic',
     'electro': 'electronic',
     'idm': 'electronic',
     'glitch': 'electronic',
+    'edm': 'electronic',
+    'electronic dance music': 'electronic',
+    'synthwave': 'electronic',
+    'chillwave': 'electronic',
+    'vaporwave': 'electronic',
+    'future bass': 'electronic',
+    'complextro': 'electronic',
     
     // Industrial/experimental
-    'industrial': 'techno', // Often classified under techno family
+    'industrial': 'techno',
     'ebm': 'techno',
     'noise': 'experimental',
+    'power electronics': 'experimental',
+    'dark ambient': 'ambient',
     
     // Drum & bass
     'dnb': 'drum and bass',
     'd&b': 'drum and bass',
     'jungle': 'drum and bass',
+    'liquid dnb': 'drum and bass',
+    'neurofunk': 'drum and bass',
+    'jump up': 'drum and bass',
     
     // Dubstep/bass
     'brostep': 'dubstep',
-    'riddim': 'dubstep'
+    'riddim': 'dubstep',
+    'future garage': 'dubstep',
+    'uk garage': 'garage',
+    'grime': 'grime',
+    'bassline': 'bass',
+    
+    // Trance variations
+    'progressive trance': 'trance',
+    'uplifting trance': 'trance',
+    'psytrance': 'trance',
+    'goa trance': 'trance',
+    'vocal trance': 'trance',
+    'tech trance': 'trance',
+    
+    // Ambient variations
+    'dark ambient': 'ambient',
+    'drone': 'ambient',
+    'space ambient': 'ambient',
+    
+    // Breakbeat variations
+    'big beat': 'breakbeat',
+    'nu skool breaks': 'breakbeat',
+    
+    // Rock variations
+    'indie rock': 'rock',
+    'alternative rock': 'rock',
+    'alt rock': 'rock',
+    'post-rock': 'rock',
+    'post rock': 'rock',
+    'prog rock': 'rock',
+    'progressive rock': 'rock',
+    
+    // Pop variations
+    'synthpop': 'pop',
+    'synth pop': 'pop',
+    'electropop': 'pop',
+    'indie pop': 'pop',
+    'dream pop': 'pop',
+    'art pop': 'pop',
+    
+    // Jazz variations
+    'nu jazz': 'jazz',
+    'acid jazz': 'jazz',
+    'smooth jazz': 'jazz',
+    'bebop': 'jazz',
+    
+    // Reggae variations
+    'dub': 'reggae',
+    'roots reggae': 'reggae',
+    'dancehall': 'reggae',
+    'ragga': 'reggae'
   };
   
   // Try fuzzy mappings
@@ -524,6 +628,11 @@ function loadFromCache(dataSource) {
 function clearCache(dataSource) {
   localStorage.removeItem(getCacheKey(dataSource));
   localStorage.removeItem(getCacheTimestampKey(dataSource));
+}
+
+function clearSpecificCache(dataSource) {
+  clearCache(dataSource);
+  updateStatus(`Cleared cache for ${dataSource}`);
 }
 
 function updateCacheInfo(timestamp) {
@@ -893,6 +1002,51 @@ document.getElementById('fetch-tracks').addEventListener('click', async () => {
   const dataSource = document.querySelector('input[name="data-source"]:checked').value;
   document.getElementById('fetch-tracks').disabled = true;
   
+  // Check for cache conflicts (different data source)
+  const allCacheSources = ['liked', 'playlists', 'top-artists'];
+  let conflictingCache = null;
+  
+  for (const source of allCacheSources) {
+    if (source !== dataSource) {
+      const cache = loadFromCache(source);
+      if (cache) {
+        conflictingCache = { source, cache };
+        break;
+      }
+    }
+  }
+  
+  if (conflictingCache) {
+    const sourceName = {
+      'liked': 'Liked Songs',
+      'playlists': 'Playlists',
+      'top-artists': 'Top Artists'
+    }[conflictingCache.source];
+    
+    const targetName = {
+      'liked': 'Liked Songs',
+      'playlists': 'Playlists',
+      'top-artists': 'Top Artists'
+    }[dataSource];
+    
+    const shouldClear = confirm(
+      `You have cached data from "${sourceName}" (${getTimeAgo(new Date(conflictingCache.cache.timestamp))}).\n\n` +
+      `Do you want to clear it and load fresh data from "${targetName}"?\n\n` +
+      `Click OK to clear cache and load ${targetName}\n` +
+      `Click Cancel to keep using ${sourceName} cache`
+    );
+    
+    if (shouldClear) {
+      // Clear the conflicting cache
+      clearSpecificCache(conflictingCache.source);
+    } else {
+      // Switch to the cached source
+      document.querySelector(`input[value="${conflictingCache.source}"]`).checked = true;
+      document.getElementById('fetch-tracks').disabled = false;
+      return;
+    }
+  }
+  
   const cached = loadFromCache(dataSource);
   if (cached) {
     const useCache = confirm(`Found cached data from ${getTimeAgo(new Date(cached.timestamp))}. Use cached data? (Cancel to fetch fresh data)`);
@@ -1083,6 +1237,8 @@ function showPlaylistSelectionUI(playlists) {
         <div class="playlist-selection-actions" style="margin-bottom: 16px;">
           <button class="btn-small" onclick="document.querySelectorAll('.playlist-selection-checkbox').forEach(cb => cb.checked = true)">Select All</button>
           <button class="btn-small" onclick="document.querySelectorAll('.playlist-selection-checkbox').forEach(cb => cb.checked = false)">Deselect All</button>
+          <button class="btn-small" onclick="toggleShortPlaylists()">Toggle <10 Tracks</button>
+          <button class="btn-small" onclick="toggleLargePlaylists()">Toggle 100+ Tracks</button>
         </div>
         <div class="playlist-selection-list">
           ${playlists.map((playlist, index) => `
@@ -1119,6 +1275,32 @@ function showPlaylistSelectionUI(playlists) {
       document.body.removeChild(modal);
       resolve(true);
     });
+  });
+}
+
+function toggleShortPlaylists() {
+  const checkboxes = document.querySelectorAll('.playlist-selection-checkbox');
+  checkboxes.forEach((checkbox, index) => {
+    const playlistItem = checkbox.closest('.playlist-selection-item');
+    const tracksText = playlistItem.querySelector('.playlist-tracks-count').textContent;
+    const trackCount = parseInt(tracksText);
+    
+    if (trackCount < 10) {
+      checkbox.checked = !checkbox.checked;
+    }
+  });
+}
+
+function toggleLargePlaylists() {
+  const checkboxes = document.querySelectorAll('.playlist-selection-checkbox');
+  checkboxes.forEach((checkbox, index) => {
+    const playlistItem = checkbox.closest('.playlist-selection-item');
+    const tracksText = playlistItem.querySelector('.playlist-tracks-count').textContent;
+    const trackCount = parseInt(tracksText);
+    
+    if (trackCount >= 100) {
+      checkbox.checked = !checkbox.checked;
+    }
   });
 }
 
@@ -1272,13 +1454,34 @@ function renderFamiliesView(grid) {
         <div class="genre-family-name">${family.name}</div>
       </div>
       <div class="genre-family-count">${family.totalTracks} tracks across ${Object.keys(family.genres).length} genres</div>
+      <div class="family-hint">Single-click to select • Double-click to view genres</div>
     </div>
   `).join('');
   
   grid.querySelectorAll('.genre-family-item').forEach(item => {
     item.addEventListener('click', () => {
       const familyId = item.getAttribute('data-family-id');
-      toggleFamilySelection(familyId, familyMap[familyId], item);
+      const now = Date.now();
+      const timeSinceLastClick = now - lastClickTime;
+      
+      if (timeSinceLastClick < 400 && lastClickedFamily === familyId) {
+        // Double click - switch to detailed view and expand this family
+        genreViewMode = 'detailed';
+        document.getElementById('genre-view-mode').value = 'detailed';
+        renderGenreView();
+        
+        // Expand the family after a brief delay
+        setTimeout(() => {
+          const expandBtn = document.querySelector(`[data-family-id="${familyId}"] .genre-family-expand`);
+          if (expandBtn) expandBtn.click();
+        }, 100);
+      } else {
+        // Single click - select/deselect family
+        toggleFamilySelection(familyId, familyMap[familyId], item);
+      }
+      
+      lastClickTime = now;
+      lastClickedFamily = familyId;
     });
   });
 }
@@ -1292,13 +1495,18 @@ function renderDetailedView(grid) {
   grid.innerHTML = sortedFamilies.map(([familyId, family]) => {
     const subgenresHTML = Object.entries(family.genres)
       .sort((a, b) => b[1].length - a[1].length)
-      .map(([genre, tracks]) => `
-        <div class="subgenre-item ${selectedGenres.has(genre) ? 'selected' : ''}" 
-             data-genre="${genre}">
-          <span class="subgenre-name">${genre}</span>
-          <span class="subgenre-count">${tracks.length}</span>
-        </div>
-      `).join('');
+      .map(([genre, tracks]) => {
+        const genreFamily = detectGenreFamily(genre);
+        const isOther = genreFamily.id === 'other';
+        return `
+          <div class="subgenre-item ${selectedGenres.has(genre) ? 'selected' : ''}" 
+               data-genre="${genre}">
+            <span class="subgenre-name">${genre}</span>
+            <span class="subgenre-count">${tracks.length}</span>
+            ${isOther ? `<button class="genre-map-btn-inline" onclick="showGenreMappingDialog('${genre}', event)" title="Map to family">Map</button>` : ''}
+          </div>
+        `;
+      }).join('');
     
     return `
       <div class="genre-family-item" data-family-id="${familyId}"
@@ -1320,6 +1528,9 @@ function renderDetailedView(grid) {
   
   grid.querySelectorAll('.subgenre-item').forEach(item => {
     item.addEventListener('click', (e) => {
+      // Don't toggle if clicking map button
+      if (e.target.classList.contains('genre-map-btn-inline')) return;
+      
       e.stopPropagation();
       const genre = item.getAttribute('data-genre');
       toggleGenreSelection(genre, item);
@@ -1339,14 +1550,40 @@ function renderAllGenresView(grid) {
   const sortedGenres = Object.entries(genreSongMap)
     .sort((a, b) => b[1].length - a[1].length);
   
-  grid.innerHTML = sortedGenres.map(([genre, tracks]) => {
+  // Count unmapped genres
+  const unmappedGenres = sortedGenres.filter(([genre]) => {
+    const family = detectGenreFamily(genre);
+    return family.id === 'other';
+  });
+  
+  // Add filter controls at top if there are unmapped genres
+  let filterHTML = '';
+  if (unmappedGenres.length > 0) {
+    filterHTML = `
+      <div class="other-bucket-controls">
+        <div class="other-bucket-info">
+          <span class="other-count">${unmappedGenres.length} unmapped genres</span>
+          <input type="text" 
+                 id="other-filter" 
+                 placeholder="Filter unmapped genres..." 
+                 class="other-filter-input">
+        </div>
+        <button class="btn-small" onclick="showOnlyUnmapped()">Show Only Unmapped</button>
+        <button class="btn-small" onclick="showAllGenres()">Show All</button>
+      </div>
+    `;
+  }
+  
+  grid.innerHTML = filterHTML + sortedGenres.map(([genre, tracks]) => {
     const artistCount = getArtistCountForGenre(genre);
     const safeGenreId = genre.replace(/[^a-z0-9]/gi, '_');
     const family = detectGenreFamily(genre);
     const isOther = family.id === 'other';
     
     return `
-      <div class="genre-item ${selectedGenres.has(genre) ? 'selected' : ''}" data-genre="${genre}">
+      <div class="genre-item ${selectedGenres.has(genre) ? 'selected' : ''} ${isOther ? 'unmapped-genre' : ''}" 
+           data-genre="${genre}"
+           data-unmapped="${isOther}">
         <div class="genre-name">${genre}</div>
         <div class="genre-count">${tracks.length} song${tracks.length !== 1 ? 's' : ''} • ${artistCount} artist${artistCount !== 1 ? 's' : ''}</div>
         ${isOther ? `<button class="genre-map-btn" onclick="showGenreMappingDialog('${genre}', event)" title="Map to genre family">Map to Family</button>` : ''}
@@ -1355,6 +1592,21 @@ function renderAllGenresView(grid) {
       </div>
     `;
   }).join('');
+  
+  // Add filter functionality
+  const filterInput = document.getElementById('other-filter');
+  if (filterInput) {
+    filterInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      const genreItems = grid.querySelectorAll('.genre-item');
+      
+      genreItems.forEach(item => {
+        const genre = item.getAttribute('data-genre').toLowerCase();
+        const shouldShow = genre.includes(query) || query === '';
+        item.style.display = shouldShow ? 'block' : 'none';
+      });
+    });
+  }
   
   grid.querySelectorAll('.genre-item').forEach(item => {
     item.addEventListener('click', (e) => {
@@ -1365,6 +1617,25 @@ function renderAllGenresView(grid) {
       toggleGenreSelection(genre, item);
     });
   });
+}
+
+function showOnlyUnmapped() {
+  const genreItems = document.querySelectorAll('.genre-item');
+  genreItems.forEach(item => {
+    const isUnmapped = item.getAttribute('data-unmapped') === 'true';
+    item.style.display = isUnmapped ? 'block' : 'none';
+  });
+}
+
+function showAllGenres() {
+  const genreItems = document.querySelectorAll('.genre-item');
+  genreItems.forEach(item => {
+    item.style.display = 'block';
+  });
+  
+  // Clear filter input
+  const filterInput = document.getElementById('other-filter');
+  if (filterInput) filterInput.value = '';
 }
 
 function toggleFamilyExpand(familyId, event) {
