@@ -23,22 +23,283 @@ let smartPlaylistSettings = {
   targetDuration: 7200, // 2 hours in seconds
   maxTracksPerArtist: 3,
   avoidConsecutiveSameArtist: true,
-  shuffleMode: 'smart' // 'random', 'smart', 'energy', 'bpm'
+  shuffleMode: 'smart', // 'random', 'smart', 'energy', 'bpm'
+  bpmRange: { min: 0, max: 200, enabled: false },
+  energyRange: { min: 0, max: 100, enabled: false },
+  moodRange: { min: 0, max: 100, enabled: false }
 };
 
-// Broman helper state
-let bromanState = {
-  enabled: true,
-  currentTip: null,
-  shownTips: new Set(),
-  dismissed: false,
-  userInteractions: 0,
-  settings: {
-    contextualTips: true,
-    showOnFirstVisit: true,
-    animationsEnabled: true
+// Playlist templates
+const playlistTemplates = {
+  custom: {
+    name: "Custom",
+    targetDuration: 7200,
+    maxTracksPerArtist: 3,
+    avoidConsecutiveSameArtist: true
+  },
+  workout: {
+    name: "Workout Mix",
+    targetDuration: 3600, // 1 hour
+    maxTracksPerArtist: 2,
+    avoidConsecutiveSameArtist: true,
+    description: "High energy tracks for your workout"
+  },
+  focus: {
+    name: "Deep Focus",
+    targetDuration: 7200, // 2 hours
+    maxTracksPerArtist: 5,
+    avoidConsecutiveSameArtist: false,
+    description: "Low energy, minimal variation for concentration"
+  },
+  party: {
+    name: "Party Playlist",
+    targetDuration: 10800, // 3 hours
+    maxTracksPerArtist: 2,
+    avoidConsecutiveSameArtist: true,
+    description: "Upbeat tracks to keep the energy high"
+  },
+  discovery: {
+    name: "Discovery Mode",
+    targetDuration: 3600, // 1 hour
+    maxTracksPerArtist: 1,
+    avoidConsecutiveSameArtist: true,
+    description: "Maximum variety - explore your library"
+  },
+  commute: {
+    name: "Commute Mix",
+    targetDuration: 2700, // 45 minutes
+    maxTracksPerArtist: 3,
+    avoidConsecutiveSameArtist: true,
+    description: "Balanced mix for your drive or transit"
+  },
+  background: {
+    name: "Background Music",
+    targetDuration: 14400, // 4 hours
+    maxTracksPerArtist: 5,
+    avoidConsecutiveSameArtist: false,
+    description: "Long, chill playlist for background listening"
   }
 };
+
+// Broman - The Berghain Bouncer of Playlists
+let bromanState = {
+  score: 0,
+  collapsed: false,
+  comments: [
+    "You just discovered Spotify?",
+    "Did someone show you this link?",
+    "Everyone starts somewhere.",
+    "No judgment. Yet.",
+    "I've seen worse."
+  ],
+  currentComment: 0
+};
+
+// Load Broman state from localStorage
+function loadBromanState() {
+  const saved = localStorage.getItem('broman_state');
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    bromanState.score = parsed.score || 0;
+    bromanState.collapsed = parsed.collapsed || false;
+  }
+  
+  // Load playlist history
+  const history = localStorage.getItem('playlist_history');
+  if (history) {
+    playlistHistory = JSON.parse(history);
+  }
+}
+
+// Save Broman state
+function saveBromanState() {
+  localStorage.setItem('broman_state', JSON.stringify({
+    score: bromanState.score,
+    collapsed: bromanState.collapsed
+  }));
+}
+
+// Update Broman score
+function updateBromanScore(points, reason) {
+  bromanState.score += points;
+  if (bromanState.score < 0) bromanState.score = 0;
+  
+  saveBromanState();
+  updateBromanUI();
+  
+  // Update comment based on action
+  if (points > 0) {
+    showBromanReaction(reason, true);
+  } else if (points < 0) {
+    showBromanReaction(reason, false);
+  }
+}
+
+// Broman reactions
+const bromanReactions = {
+  positive: [
+    "Not bad.",
+    "You're learning.",
+    "Finally.",
+    "Respectable.",
+    "I'll allow it.",
+    "Smart move.",
+    "You might know what you're doing.",
+    "Solid choice."
+  ],
+  negative: [
+    "Really?",
+    "That's cute.",
+    "Bold strategy.",
+    "Interesting choice.",
+    "I've seen worse.",
+    "You'll figure it out.",
+    "Amateur hour."
+  ],
+  specific: {
+    useAdvanced: "Advanced settings. You're not a complete amateur.",
+    useBPM: "BPM filtering. Finally, someone who gets it.",
+    useTemplate: "Templates are for beginners. But fine.",
+    diversityLow: "Max 3 tracks per artist. Smart. You might know what you're doing.",
+    diversityHigh: "10 tracks per artist? That's just Shuffle with extra steps.",
+    discovery: "Discovery mode. 1 track per artist. Finally.",
+    longPlaylist: "2+ hour playlist. You're committed. I respect that.",
+    mapGenre: "Manual mapping. You're doing my job for me.",
+    createPlaylist: "Playlist created. Let's see if it's actually good.",
+    multipleGenres: "{{count}} genres. Bold. Most people stick to one.",
+    firstPlaylist: "Your first playlist. Everyone starts somewhere.",
+    tenthPlaylist: "10 playlists. You're a regular now."
+  }
+};
+
+function showBromanReaction(key, isPositive) {
+  const commentEl = document.getElementById('broman-comment');
+  if (!commentEl) return;
+  
+  const pTag = commentEl.querySelector('p');
+  if (!pTag) return;
+  
+  let text;
+  if (bromanReactions.specific[key]) {
+    text = bromanReactions.specific[key];
+  } else {
+    const pool = isPositive ? bromanReactions.positive : bromanReactions.negative;
+    text = pool[Math.floor(Math.random() * pool.length)];
+  }
+  
+  pTag.textContent = `"${text}"`;
+  commentEl.classList.add('flash');
+  setTimeout(() => commentEl.classList.remove('flash'), 500);
+}
+
+// Update Broman UI
+function updateBromanUI() {
+  const scoreEl = document.getElementById('broman-score');
+  const labelEl = document.getElementById('broman-label');
+  const progressEl = document.getElementById('broman-progress');
+  
+  if (!scoreEl) return;
+  
+  const score = bromanState.score;
+  scoreEl.textContent = score;
+  
+  // Determine tier
+  let label, progressPercent;
+  if (score < 20) {
+    label = "Spotify Shuffle User";
+    progressPercent = (score / 20) * 100;
+  } else if (score < 40) {
+    label = "Amateur Hour";
+    progressPercent = ((score - 20) / 20) * 100;
+  } else if (score < 60) {
+    label = "Getting There";
+    progressPercent = ((score - 40) / 20) * 100;
+  } else if (score < 80) {
+    label = "Respectable";
+    progressPercent = ((score - 60) / 20) * 100;
+  } else if (score < 100) {
+    label = "Playlist Architect";
+    progressPercent = ((score - 80) / 20) * 100;
+  } else {
+    label = "Berghain Material";
+    progressPercent = 100;
+  }
+  
+  labelEl.textContent = label;
+  progressEl.style.width = `${progressPercent}%`;
+  
+  // Update history
+  updateBromanHistory();
+}
+
+// Update playlist history in Broman
+function updateBromanHistory() {
+  const historyEl = document.getElementById('broman-history');
+  if (!historyEl) return;
+  
+  if (playlistHistory.length === 0) {
+    historyEl.innerHTML = '<div class="history-empty">No playlists yet.<br>Get to work.</div>';
+    return;
+  }
+  
+  const last15 = playlistHistory.slice(-15).reverse();
+  historyEl.innerHTML = last15.map(p => {
+    const date = new Date(p.createdAt);
+    const timeAgo = getTimeAgo(date);
+    return `
+      <div class="history-item">
+        <a href="${p.url}" target="_blank" class="history-name">${p.name}</a>
+        <div class="history-meta">${p.trackCount} tracks • ${timeAgo}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Helper function for time ago
+function getTimeAgo(date) {
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
+// Toggle Broman sidebar
+function toggleBromanSidebar() {
+  const sidebar = document.getElementById('broman-sidebar');
+  const tab = document.getElementById('broman-tab');
+  
+  bromanState.collapsed = !bromanState.collapsed;
+  saveBromanState();
+  
+  if (bromanState.collapsed) {
+    sidebar.classList.add('collapsed');
+    tab.classList.remove('hidden');
+  } else {
+    sidebar.classList.remove('collapsed');
+    tab.classList.add('hidden');
+  }
+}
+
+// Toggle Learn More
+function toggleLearnMore() {
+  const content = document.getElementById('learn-more-content');
+  const icon = document.getElementById('learn-more-icon');
+  
+  if (content.classList.contains('hidden')) {
+    content.classList.remove('hidden');
+    icon.textContent = '▲';
+  } else {
+    content.classList.add('hidden');
+    icon.textContent = '▼';
+  }
+}
 
 // Quick search state
 let searchPanelOpen = false;
@@ -964,6 +1225,81 @@ async function fetchWithRetry(url, options = {}, maxRetries = 3) {
   }
 }
 
+// Fetch audio features (tempo, energy, valence) for tracks
+async function fetchAudioFeatures(trackIds) {
+  const token = localStorage.getItem('spotify_access_token');
+  if (!token || trackIds.length === 0) return {};
+  
+  const audioFeaturesMap = {};
+  
+  // Spotify allows max 100 tracks per request
+  const batchSize = 100;
+  for (let i = 0; i < trackIds.length; i += batchSize) {
+    const batch = trackIds.slice(i, i + batchSize);
+    const ids = batch.join(',');
+    
+    try {
+      const response = await fetchWithRetry(
+        `https://api.spotify.com/v1/audio-features?ids=${ids}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      const data = await response.json();
+      
+      if (data.audio_features) {
+        data.audio_features.forEach((features, index) => {
+          if (features) {
+            audioFeaturesMap[batch[index]] = {
+              tempo: Math.round(features.tempo), // BPM
+              energy: Math.round(features.energy * 100), // 0-100
+              valence: Math.round(features.valence * 100), // 0-100 (mood)
+              danceability: Math.round(features.danceability * 100),
+              acousticness: Math.round(features.acousticness * 100)
+            };
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching audio features:', error);
+    }
+  }
+  
+  return audioFeaturesMap;
+}
+
+// Attach audio features to tracks
+async function enrichTracksWithAudioFeatures(tracks) {
+  // Check if we have cached features
+  const cachedFeatures = localStorage.getItem('audio_features_cache');
+  let featuresCache = cachedFeatures ? JSON.parse(cachedFeatures) : {};
+  
+  // Find tracks that don't have features yet
+  const tracksNeedingFeatures = tracks.filter(t => !featuresCache[t.id]);
+  
+  if (tracksNeedingFeatures.length > 0) {
+    updateStatus(`Analyzing ${tracksNeedingFeatures.length} tracks for BPM, energy, and mood...`);
+    
+    const trackIds = tracksNeedingFeatures.map(t => t.id);
+    const newFeatures = await fetchAudioFeatures(trackIds);
+    
+    // Merge with cache
+    featuresCache = { ...featuresCache, ...newFeatures };
+    
+    // Save to localStorage
+    localStorage.setItem('audio_features_cache', JSON.stringify(featuresCache));
+  }
+  
+  // Attach features to tracks
+  return tracks.map(track => ({
+    ...track,
+    audioFeatures: featuresCache[track.id] || null
+  }));
+}
+
 async function generateCodeChallenge(verifier) {
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);
@@ -1396,12 +1732,41 @@ async function fetchLikedSongs() {
   const limit = 50;
   let offset = 0;
   
+  // Get timeframe filter first
+  const timeframe = document.getElementById('liked-timeframe')?.value || 'all';
+  const now = Date.now();
+  const cutoffs = {
+    week: 7 * 24 * 60 * 60 * 1000,
+    month: 30 * 24 * 60 * 60 * 1000,
+    '3months': 90 * 24 * 60 * 60 * 1000,
+    '6months': 180 * 24 * 60 * 60 * 1000,
+    year: 365 * 24 * 60 * 60 * 1000
+  };
+  const cutoffTime = timeframe !== 'all' ? now - cutoffs[timeframe] : null;
+  
   while (true) {
     const resp = await fetchWithRetry(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
       headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
     });
     const data = await resp.json();
-    all.push(...data.items);
+    
+    // If using timeframe filter, check if we've gone past the cutoff
+    if (cutoffTime) {
+      for (const item of data.items) {
+        const addedAt = new Date(item.added_at).getTime();
+        if (addedAt >= cutoffTime) {
+          all.push(item);
+        } else {
+          // Spotify returns tracks in reverse chronological order (newest first)
+          // Once we hit a track older than cutoff, we can stop
+          cachedLibraryData = { type: 'tracks', items: all };
+          updateStatus(`Loaded ${all.length} tracks from ${getTimeframeLabel(timeframe)}`);
+          return;
+        }
+      }
+    } else {
+      all.push(...data.items);
+    }
     
     if (all.length > 5000) {
       updateStatus(`${all.length} songs found. This may take a moment...`);
@@ -1415,16 +1780,8 @@ async function fetchLikedSongs() {
     offset += limit;
   }
   
-  // Apply timeframe filter
-  const timeframe = document.getElementById('liked-timeframe')?.value || 'all';
-  if (timeframe !== 'all') {
-    const filtered = filterByTimeframe(all, timeframe);
-    cachedLibraryData = { type: 'tracks', items: filtered };
-    updateStatus(`Loaded ${filtered.length} tracks from ${getTimeframeLabel(timeframe)}`);
-  } else {
-    cachedLibraryData = { type: 'tracks', items: all };
-    updateStatus(`Loaded ${all.length} tracks successfully`);
-  }
+  cachedLibraryData = { type: 'tracks', items: all };
+  updateStatus(`Loaded ${all.length} tracks successfully`);
 }
 
 function filterByTimeframe(tracks, timeframe) {
@@ -1942,13 +2299,19 @@ function toggleFamilyExpand(familyId, event) {
   event.stopPropagation();
   const subgenresDiv = document.getElementById(`family-${familyId}-subgenres`);
   const button = event.target;
+  const familyItem = button.closest('.genre-family-item');
   
-  if (subgenresDiv.classList.contains('expanded')) {
-    subgenresDiv.classList.remove('expanded');
-    button.textContent = 'Expand ▼';
-  } else {
+  if (subgenresDiv.classList.contains('collapsed')) {
+    subgenresDiv.classList.remove('collapsed');
     subgenresDiv.classList.add('expanded');
-    button.textContent = 'Collapse ▲';
+    familyItem.classList.add('expanded');
+    button.textContent = button.textContent.replace('▼', '▲').replace(/\d+ genres/, 'Collapse');
+  } else {
+    subgenresDiv.classList.remove('expanded');
+    subgenresDiv.classList.add('collapsed');
+    familyItem.classList.remove('expanded');
+    const count = subgenresDiv.querySelectorAll('.subgenre-item').length;
+    button.textContent = `${count} genres ▼`;
   }
 }
 
@@ -2291,16 +2654,6 @@ function toggleGenreSelection(genre, element) {
   } else {
     selectedGenres.add(genre);
     element.classList.add('selected');
-    
-    // Broman tip on first genre select
-    if (selectedGenres.size === 1) {
-      broman.show('first_genre_select', 1000);
-    }
-    
-    // Broman tip when 2+ genres selected
-    if (selectedGenres.size === 2) {
-      broman.show('preview_tip', 2000);
-    }
   }
   
   updateSelectedCount();
@@ -2453,11 +2806,21 @@ document.getElementById('unmapped-filter').addEventListener('change', (e) => {
 // ===== PLAYLIST BUILDER EVENT LISTENERS =====
 
 // Duration slider
+// Template selector
+document.getElementById('template-selector').addEventListener('change', (e) => {
+  const templateId = e.target.value;
+  applyPlaylistTemplate(templateId);
+});
+
+// Duration slider
 document.getElementById('duration-slider').addEventListener('input', (e) => {
   const seconds = parseInt(e.target.value);
   smartPlaylistSettings.targetDuration = seconds;
   updateDurationDisplay(seconds);
   refreshPreview();
+  
+  // Reset template selector to "custom" when manually adjusting
+  document.getElementById('template-selector').value = 'custom';
 });
 
 // Diversity slider
@@ -2466,13 +2829,168 @@ document.getElementById('diversity-slider').addEventListener('input', (e) => {
   smartPlaylistSettings.maxTracksPerArtist = value;
   updateDiversityDisplay(value);
   refreshPreview();
+  
+  // Reset template selector to "custom" when manually adjusting
+  document.getElementById('template-selector').value = 'custom';
 });
 
 // Avoid consecutive checkbox
 document.getElementById('avoid-consecutive').addEventListener('change', (e) => {
   smartPlaylistSettings.avoidConsecutiveSameArtist = e.target.checked;
   refreshPreview();
+  
+  // Reset template selector to "custom" when manually adjusting
+  document.getElementById('template-selector').value = 'custom';
 });
+
+// ===== AUDIO FEATURE FILTERS =====
+
+// BPM Filter
+document.getElementById('bpm-filter-enabled').addEventListener('change', (e) => {
+  smartPlaylistSettings.bpmRange.enabled = e.target.checked;
+  document.getElementById('bpm-filter-controls').classList.toggle('hidden', !e.target.checked);
+  if (e.target.checked) enrichAndRefresh();
+  else refreshPreview();
+  document.getElementById('template-selector').value = 'custom';
+});
+
+document.getElementById('bpm-min-slider').addEventListener('input', (e) => {
+  const min = parseInt(e.target.value);
+  const max = parseInt(document.getElementById('bpm-max-slider').value);
+  if (min > max) {
+    document.getElementById('bpm-max-slider').value = min;
+    smartPlaylistSettings.bpmRange.max = min;
+  }
+  smartPlaylistSettings.bpmRange.min = min;
+  document.getElementById('bpm-display').textContent = `${min} - ${smartPlaylistSettings.bpmRange.max}`;
+  refreshPreview();
+});
+
+document.getElementById('bpm-max-slider').addEventListener('input', (e) => {
+  const max = parseInt(e.target.value);
+  const min = parseInt(document.getElementById('bpm-min-slider').value);
+  if (max < min) {
+    document.getElementById('bpm-min-slider').value = max;
+    smartPlaylistSettings.bpmRange.min = max;
+  }
+  smartPlaylistSettings.bpmRange.max = max;
+  document.getElementById('bpm-display').textContent = `${smartPlaylistSettings.bpmRange.min} - ${max}`;
+  refreshPreview();
+});
+
+// Energy Filter
+document.getElementById('energy-filter-enabled').addEventListener('change', (e) => {
+  smartPlaylistSettings.energyRange.enabled = e.target.checked;
+  document.getElementById('energy-filter-controls').classList.toggle('hidden', !e.target.checked);
+  if (e.target.checked) enrichAndRefresh();
+  else refreshPreview();
+  document.getElementById('template-selector').value = 'custom';
+});
+
+document.getElementById('energy-min-slider').addEventListener('input', (e) => {
+  const min = parseInt(e.target.value);
+  const max = parseInt(document.getElementById('energy-max-slider').value);
+  if (min > max) {
+    document.getElementById('energy-max-slider').value = min;
+    smartPlaylistSettings.energyRange.max = min;
+  }
+  smartPlaylistSettings.energyRange.min = min;
+  updateEnergyDisplay(min, smartPlaylistSettings.energyRange.max);
+  refreshPreview();
+});
+
+document.getElementById('energy-max-slider').addEventListener('input', (e) => {
+  const max = parseInt(e.target.value);
+  const min = parseInt(document.getElementById('energy-min-slider').value);
+  if (max < min) {
+    document.getElementById('energy-min-slider').value = max;
+    smartPlaylistSettings.energyRange.min = max;
+  }
+  smartPlaylistSettings.energyRange.max = max;
+  updateEnergyDisplay(smartPlaylistSettings.energyRange.min, max);
+  refreshPreview();
+});
+
+// Mood Filter
+document.getElementById('mood-filter-enabled').addEventListener('change', (e) => {
+  smartPlaylistSettings.moodRange.enabled = e.target.checked;
+  document.getElementById('mood-filter-controls').classList.toggle('hidden', !e.target.checked);
+  if (e.target.checked) enrichAndRefresh();
+  else refreshPreview();
+  document.getElementById('template-selector').value = 'custom';
+});
+
+document.getElementById('mood-min-slider').addEventListener('input', (e) => {
+  const min = parseInt(e.target.value);
+  const max = parseInt(document.getElementById('mood-max-slider').value);
+  if (min > max) {
+    document.getElementById('mood-max-slider').value = min;
+    smartPlaylistSettings.moodRange.max = min;
+  }
+  smartPlaylistSettings.moodRange.min = min;
+  updateMoodDisplay(min, smartPlaylistSettings.moodRange.max);
+  refreshPreview();
+});
+
+document.getElementById('mood-max-slider').addEventListener('input', (e) => {
+  const max = parseInt(e.target.value);
+  const min = parseInt(document.getElementById('mood-min-slider').value);
+  if (max < min) {
+    document.getElementById('mood-min-slider').value = max;
+    smartPlaylistSettings.moodRange.min = max;
+  }
+  smartPlaylistSettings.moodRange.max = max;
+  updateMoodDisplay(smartPlaylistSettings.moodRange.min, max);
+  refreshPreview();
+});
+
+// Helper function to enrich tracks and refresh
+async function enrichAndRefresh() {
+  const allTracks = getAllSelectedTracks();
+  if (allTracks.length > 0 && !allTracks[0].audioFeatures) {
+    const enriched = await enrichTracksWithAudioFeatures(allTracks);
+    // Update tracks in genreSongMap
+    Object.keys(genreSongMap).forEach(genre => {
+      genreSongMap[genre] = genreSongMap[genre].map(track => {
+        const enrichedTrack = enriched.find(t => t.id === track.id);
+        return enrichedTrack || track;
+      });
+    });
+  }
+  refreshPreview();
+}
+
+function updateEnergyDisplay(min, max) {
+  let display = '';
+  if (min === 0 && max === 100) {
+    display = 'Low → High';
+  } else if (min === 0) {
+    display = `Low → ${max}`;
+  } else if (max === 100) {
+    display = `${min} → High`;
+  } else {
+    display = `${min} - ${max}`;
+  }
+  document.getElementById('energy-display').textContent = display;
+}
+
+function updateMoodDisplay(min, max) {
+  let display = '';
+  if (min === 0 && max === 100) {
+    display = 'All moods';
+  } else if (min === 0 && max < 50) {
+    display = 'Sad/Melancholic';
+  } else if (min > 50 && max === 100) {
+    display = 'Happy/Upbeat';
+  } else if (min < 30 && max < 50) {
+    display = 'Very sad';
+  } else if (min > 70 && max > 90) {
+    display = 'Very happy';
+  } else {
+    display = `${min} - ${max}`;
+  }
+  document.getElementById('mood-display').textContent = display;
+}
 
 // ===== CREATE PLAYLIST FROM LIBRARY =====
 
@@ -2688,29 +3206,30 @@ const bromanTips = {
 
 // Initialize Broman from localStorage
 function initBroman() {
-  const saved = localStorage.getItem('bromanState');
-  if (saved) {
-    try {
-      const savedState = JSON.parse(saved);
-      bromanState.shownTips = new Set(savedState.shownTips || []);
-      bromanState.enabled = savedState.enabled !== false;
-      bromanState.dismissed = savedState.dismissed || false;
-      bromanState.userInteractions = savedState.userInteractions || 0;
-    } catch (e) {
-      console.error('Failed to load Broman state:', e);
+  // Load state
+  loadBromanState();
+  
+  // Initialize UI
+  updateBromanUI();
+  
+  // Set initial comment
+  const comments = bromanState.comments;
+  const commentEl = document.getElementById('broman-comment');
+  if (commentEl) {
+    const pTag = commentEl.querySelector('p');
+    if (pTag) {
+      pTag.textContent = `"${comments[bromanState.currentComment]}"`;
     }
+  }
+  
+  // Apply collapsed state
+  if (bromanState.collapsed) {
+    document.getElementById('broman-sidebar')?.classList.add('collapsed');
+    document.getElementById('broman-tab')?.classList.remove('hidden');
   }
 }
 
-// Save Broman state
-function saveBromanState() {
-  localStorage.setItem('bromanState', JSON.stringify({
-    shownTips: Array.from(bromanState.shownTips),
-    enabled: bromanState.enabled,
-    dismissed: bromanState.dismissed,
-    userInteractions: bromanState.userInteractions
-  }));
-}
+// Old save function removed - using new one from above
 
 // Show Broman tip
 function showBromanTip(tipId, context = {}) {
@@ -3272,6 +3791,36 @@ function setDuration(seconds) {
   event.target.classList.add('active');
 }
 
+function applyPlaylistTemplate(templateId) {
+  const template = playlistTemplates[templateId];
+  if (!template) return;
+  
+  // Apply template settings
+  smartPlaylistSettings.targetDuration = template.targetDuration;
+  smartPlaylistSettings.maxTracksPerArtist = template.maxTracksPerArtist;
+  smartPlaylistSettings.avoidConsecutiveSameArtist = template.avoidConsecutiveSameArtist;
+  
+  // Update UI elements
+  document.getElementById('duration-slider').value = template.targetDuration;
+  updateDurationDisplay(template.targetDuration);
+  
+  document.getElementById('diversity-slider').value = template.maxTracksPerArtist;
+  updateDiversityDisplay(template.maxTracksPerArtist);
+  
+  document.getElementById('avoid-consecutive').checked = template.avoidConsecutiveSameArtist;
+  
+  // Update preset buttons (remove all active states)
+  document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+  
+  // Refresh preview with new settings
+  refreshPreview();
+  
+  // Show a subtle notification if not custom
+  if (templateId !== 'custom') {
+    showStatus(`Applied template: ${template.name}`, 'success');
+  }
+}
+
 function updateDurationDisplay(seconds) {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -3387,12 +3936,49 @@ function selectSmartTracks(allTracks, settings) {
   const {
     targetDuration = 7200, // 2 hours default
     maxTracksPerArtist = 3,
-    avoidConsecutiveSameArtist = true
+    avoidConsecutiveSameArtist = true,
+    bpmRange = { min: 0, max: 200, enabled: false },
+    energyRange = { min: 0, max: 100, enabled: false },
+    moodRange = { min: 0, max: 100, enabled: false }
   } = settings;
   
+  // Apply audio feature filters if enabled
+  let filteredTracks = allTracks;
+  
+  if (bpmRange.enabled && filteredTracks.some(t => t.audioFeatures)) {
+    filteredTracks = filteredTracks.filter(track => {
+      if (!track.audioFeatures || !track.audioFeatures.tempo) return false;
+      return track.audioFeatures.tempo >= bpmRange.min && track.audioFeatures.tempo <= bpmRange.max;
+    });
+  }
+  
+  if (energyRange.enabled && filteredTracks.some(t => t.audioFeatures)) {
+    filteredTracks = filteredTracks.filter(track => {
+      if (!track.audioFeatures || track.audioFeatures.energy === undefined) return false;
+      return track.audioFeatures.energy >= energyRange.min && track.audioFeatures.energy <= energyRange.max;
+    });
+  }
+  
+  if (moodRange.enabled && filteredTracks.some(t => t.audioFeatures)) {
+    filteredTracks = filteredTracks.filter(track => {
+      if (!track.audioFeatures || track.audioFeatures.valence === undefined) return false;
+      return track.audioFeatures.valence >= moodRange.min && track.audioFeatures.valence <= moodRange.max;
+    });
+  }
+  
+  // If filtering removed too many tracks, show warning
+  if (filteredTracks.length < allTracks.length * 0.1) {
+    console.warn('Audio filters too restrictive - very few tracks match');
+  }
+  
+  // If no tracks match filters, use original set
+  if (filteredTracks.length === 0) {
+    filteredTracks = allTracks;
+  }
+  
   // Calculate average track duration from sample
-  const sampleSize = Math.min(100, allTracks.length);
-  const avgDuration = allTracks
+  const sampleSize = Math.min(100, filteredTracks.length);
+  const avgDuration = filteredTracks
     .slice(0, sampleSize)
     .reduce((sum, t) => sum + (t.duration_ms || 0), 0) / sampleSize;
   
@@ -3401,7 +3987,7 @@ function selectSmartTracks(allTracks, settings) {
   
   // Group tracks by artist
   const tracksByArtist = {};
-  allTracks.forEach(track => {
+  filteredTracks.forEach(track => {
     const artistId = track.artists && track.artists[0] ? track.artists[0].id : 'unknown';
     if (!tracksByArtist[artistId]) {
       tracksByArtist[artistId] = [];
@@ -3630,6 +4216,9 @@ async function createMergedPlaylist() {
       external_urls: { spotify: playlist.external_urls.spotify }
     }, selectedTracks);
     
+    // Update Broman history display
+    updateBromanHistory();
+    
     // Create clickable Spotify link
     const spotifyLink = playlist.external_urls.spotify;
     
@@ -3700,6 +4289,8 @@ async function createSeparatePlaylists() {
         name: `PA: ${genre}`,
         external_urls: { spotify: playlist.external_urls.spotify }
       }, tracks);
+      
+      updateBromanHistory();
       
       createdCount++;
       updateStatus(`Created ${createdCount}/${genreArray.length} playlists...`);
@@ -4045,6 +4636,9 @@ document.getElementById('generate-discovery-playlist').addEventListener('click',
       external_urls: { spotify: playlist.external_urls.spotify }
     }, smartTracks);
     
+    // Update Broman history display
+    updateBromanHistory();
+    
     // Create clickable Spotify link with stats
     const spotifyLink = playlist.external_urls.spotify;
     const statusEl = document.getElementById('status');
@@ -4061,6 +4655,8 @@ document.getElementById('generate-discovery-playlist').addEventListener('click',
 // ===== PAGE LOAD: Handle OAuth Redirect =====
 
 window.toggleAboutSection = toggleAboutSection;
+window.toggleBromanSidebar = toggleBromanSidebar;
+window.toggleLearnMore = toggleLearnMore;
 window.closeTour = closeTour;
 window.nextTourStep = nextTourStep;
 window.prevTourStep = prevTourStep;
