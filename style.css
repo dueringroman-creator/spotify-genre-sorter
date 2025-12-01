@@ -2554,17 +2554,6 @@ button:disabled {
   max-width: 600px;
 }
 
-.hero-icon {
-  font-size: 80px;
-  margin-bottom: 20px;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
 .hero-title {
   font-size: 48px;
   font-weight: 700;
@@ -2629,10 +2618,6 @@ button:disabled {
   gap: 8px;
   color: #b3b3b3;
   font-size: 14px;
-}
-
-.feature-icon {
-  font-size: 18px;
 }
 
 .landing-note {
