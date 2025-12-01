@@ -10,48 +10,92 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Broman Sidebar - The Berghain Bouncer of Playlists -->
-  <div id="broman-sidebar" class="broman-sidebar collapsed">
-    <div class="broman-header">
-      <div class="broman-icon">🎵</div>
-      <div class="broman-title">BROMAN</div>
-      <button class="broman-collapse" onclick="toggleBromanSidebar()" title="Collapse">←</button>
-    </div>
-    
-    <div class="broman-comment" id="broman-comment">
-      <p>"You just discovered Spotify?"</p>
-    </div>
-    
-    <div class="broman-section">
-      <div class="broman-section-title">CREDIBILITY</div>
-      <div class="broman-score">
-        <div class="score-number" id="broman-score">0</div>
-        <div class="score-label" id="broman-label">Spotify Shuffle User</div>
+  <!-- Broman FAB - The Berghain Bouncer (Merged with Action Button) -->
+  <div id="broman-fab" class="broman-fab">
+    <!-- Collapsed Button (Always Visible) -->
+    <button class="broman-fab-button" onclick="toggleBromanFab()" id="broman-fab-btn">
+      <div class="fab-bouncer">🎧</div>
+      <div class="fab-score-badge" id="fab-score-badge">0</div>
+      <div class="fab-selection" id="fab-selection">
+        <span id="fab-genre-count">0</span> genres
       </div>
-      <div class="score-progress">
-        <div class="score-bar" id="broman-progress" style="width: 0%"></div>
-      </div>
-    </div>
+    </button>
     
-    <div class="broman-section">
-      <div class="broman-section-title">PLAYLIST HISTORY</div>
-      <div class="broman-history" id="broman-history">
-        <div class="history-empty">No playlists yet.<br>Get to work.</div>
+    <!-- Expanded Panel (Slides Out) -->
+    <div class="broman-panel hidden" id="broman-panel">
+      <div class="broman-panel-header">
+        <div class="broman-panel-title">
+          <span class="bouncer-icon">🎧</span>
+          <span>BROMAN</span>
+          <span class="bouncer-subtitle">Your Playlist Bouncer</span>
+        </div>
+        <button class="broman-panel-close" onclick="toggleBromanFab()">✕</button>
+      </div>
+      
+      <div class="broman-panel-content">
+        <!-- Commentary -->
+        <div class="broman-comment-box" id="broman-comment">
+          <p>"You just discovered Spotify?"</p>
+        </div>
+        
+        <!-- Credibility Score -->
+        <div class="broman-section">
+          <div class="broman-section-title">CREDIBILITY SCORE</div>
+          <div class="broman-score">
+            <div class="score-number" id="broman-score">0</div>
+            <div class="score-label" id="broman-label">Spotify Shuffle User</div>
+          </div>
+          <div class="score-progress">
+            <div class="score-bar" id="broman-progress" style="width: 0%"></div>
+          </div>
+        </div>
+        
+        <!-- Current Selection -->
+        <div class="broman-section">
+          <div class="broman-section-title">CURRENT SELECTION</div>
+          <div class="selection-stats">
+            <div class="stat-row">
+              <span class="stat-label">Genres:</span>
+              <span class="stat-value" id="broman-genres">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Tracks:</span>
+              <span class="stat-value" id="broman-tracks">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Duration:</span>
+              <span class="stat-value" id="broman-duration">0m</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="broman-actions">
+          <button class="broman-btn broman-btn-secondary" onclick="scrollToPreview()">
+            View Preview
+          </button>
+          <button class="broman-btn broman-btn-primary" onclick="scrollToBuilder()">
+            Build Playlist →
+          </button>
+        </div>
+        
+        <!-- Library Insights -->
+        <div class="broman-section">
+          <div class="broman-section-title">LIBRARY INSIGHTS</div>
+          <div class="broman-insights" id="broman-insights">
+            <div class="insight-loading">Analyzing your library...</div>
+          </div>
+        </div>
+        
+        <!-- Playlist History -->
+        <div class="broman-section">
+          <div class="broman-section-title">RECENT PLAYLISTS</div>
+          <div class="broman-history" id="broman-history">
+            <div class="history-empty">No playlists yet.<br>Get to work.</div>
+          </div>
+        </div>
       </div>
     </div>
-    
-    <div class="broman-section broman-tip">
-      <div class="broman-section-title">TIP OF THE MOMENT</div>
-      <div class="broman-tip-content" id="broman-tip">
-        Connect your library and select some genres.
-      </div>
-    </div>
-  </div>
-  
-  <!-- Broman Collapsed Tab -->
-  <div id="broman-tab" class="broman-tab" onclick="toggleBromanSidebar()">
-    <div class="tab-icon">🎵</div>
-    <div class="tab-text">B<br>R<br>O<br>M<br>A<br>N</div>
   </div>
 
   <!-- Quick Search Panel (Ctrl/Cmd+K) -->
@@ -495,15 +539,6 @@
             </div>
           </div>
           
-          <!-- Floating Create Playlist Button -->
-          <div id="floating-create-btn" class="floating-create-btn hidden">
-            <button class="fab-button" onclick="scrollToPlaylistControls()">
-              <span class="fab-icon">🎵</span>
-              <span class="fab-text">Build Playlist</span>
-              <span class="fab-count" id="fab-count">0 selected</span>
-            </button>
-          </div>
-          
           <!-- Playlist Builder Interface -->
           <div class="playlist-builder" id="playlist-builder">
             <div class="playlist-builder-header">
@@ -638,6 +673,12 @@
                 <label class="builder-checkbox">
                   <input type="checkbox" id="mood-filter-enabled" />
                   <span>Filter by Mood (Valence)</span>
+                  <span class="info-tooltip">
+                    <span class="info-icon">i</span>
+                    <span class="tooltip-content">
+                      <strong>Valence</strong> measures musical positivity from Spotify's audio analysis. High = happy/cheerful/euphoric tracks. Low = sad/melancholic/dark vibes. Great for matching playlist mood to your current state.
+                    </span>
+                  </span>
                 </label>
                 <div id="mood-filter-controls" class="filter-controls hidden">
                   <label class="builder-label">
@@ -651,6 +692,31 @@
                     <span>😔 Sad</span>
                     <span>😊 Happy</span>
                   </div>
+                </div>
+              </div>
+              
+              <!-- Vocal/Instrumental Filter -->
+              <div class="builder-section">
+                <label class="builder-checkbox">
+                  <input type="checkbox" id="vocal-filter-enabled" />
+                  <span>Filter by Vocals</span>
+                  <span class="info-tooltip">
+                    <span class="info-icon">i</span>
+                    <span class="tooltip-content">
+                      <strong>Vocal Detection</strong> uses Spotify's <code>speechiness</code> and <code>instrumentalness</code> data. Filter for purely instrumental tracks, vocal-heavy songs, or spoken word/rap content.
+                    </span>
+                  </span>
+                </label>
+                <div id="vocal-filter-controls" class="filter-controls hidden">
+                  <label class="builder-label">
+                    Vocal Type: <span id="vocal-display">Any</span>
+                  </label>
+                  <select id="vocal-preference" class="builder-select">
+                    <option value="any">Any (No filter)</option>
+                    <option value="instrumental">Instrumental Only (No vocals)</option>
+                    <option value="vocal">Vocal Tracks (With singing)</option>
+                    <option value="spoken">Spoken Word / Rap Heavy</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -746,6 +812,26 @@
         <!-- Related Artists Grid -->
         <div id="related-artists-section" class="hidden">
           <h3>Similar Artists from Your Library <span class="hint">(ranked by matching genres - click to select)</span></h3>
+          
+          <!-- Discovery Explanation -->
+          <div class="info-section" id="discovery-info-section">
+            <div class="info-section-header" onclick="toggleInfoSection('discovery-info-section')">
+              <div class="info-section-title">
+                <span class="info-section-icon">ℹ️</span>
+                <span>How artist discovery works</span>
+              </div>
+              <span class="info-section-toggle">▼</span>
+            </div>
+            <div class="info-section-content">
+              <div class="info-section-body">
+                <p><strong>Discovery is a chain:</strong> You have Artist A → We find similar Artist B → Click B to find artists similar to B (C, D, E).</p>
+                <p><strong>Why this matters:</strong> This helps you discover "chains" of related artists. Start with one you know, then explore artists similar to those discoveries.</p>
+                <p><strong>Ranking:</strong> Artists are ranked by how many genres they share with the one you clicked. More shared genres = more similar sound.</p>
+                <p><strong>Example:</strong> Arctic Monkeys → The Strokes → The Killers → Franz Ferdinand. Each step finds new artists in your library with similar styles.</p>
+              </div>
+            </div>
+          </div>
+          
           <div id="related-artists-grid" class="artists-grid"></div>
           
           <div class="playlist-controls">
