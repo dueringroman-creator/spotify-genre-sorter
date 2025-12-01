@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -78,7 +79,6 @@
     <!-- Login Section -->
     <div id="login-section" class="landing-page">
       <div class="landing-hero">
-        <div class="hero-icon">🎵</div>
         <h1 class="hero-title">Playlist Alchemist</h1>
         <p class="hero-tagline">
           Turn your chaotic Spotify library<br>
@@ -90,15 +90,12 @@
         
         <div class="landing-features">
           <div class="feature-pill">
-            <span class="feature-icon">🎯</span>
             <span class="feature-text">Smart genre detection</span>
           </div>
           <div class="feature-pill">
-            <span class="feature-icon">🎨</span>
             <span class="feature-text">DJ-quality mixing</span>
           </div>
           <div class="feature-pill">
-            <span class="feature-icon">🔒</span>
             <span class="feature-text">Privacy-first</span>
           </div>
         </div>
@@ -121,10 +118,10 @@
           </div>
           <div class="sticky-actions">
             <button class="btn-secondary btn-small" onclick="scrollToPreview()">
-              📊 Preview
+              Preview
             </button>
             <button class="btn-primary btn-small" onclick="scrollToBuilder()">
-              ✨ Create Playlist
+              Create Playlist
             </button>
           </div>
         </div>
@@ -449,7 +446,7 @@
               </div>
               <div class="sticky-bar-actions">
                 <button class="btn-secondary btn-small" onclick="document.getElementById('playlist-builder').scrollIntoView({ behavior: 'smooth' })">
-                  ⚙️ Settings
+                  Settings
                 </button>
                 <button class="btn-primary btn-small" onclick="document.getElementById('playlist-builder').scrollIntoView({ behavior: 'smooth' })">
                   Create Playlist
@@ -470,9 +467,9 @@
           <!-- Playlist Builder Interface -->
           <div class="playlist-builder" id="playlist-builder">
             <div class="playlist-builder-header">
-              <h3>🎵 Smart Playlist Builder</h3>
+              <h3>Smart Playlist Builder</h3>
               <button class="toggle-advanced" onclick="toggleAdvancedSettings()">
-                ⚙️ Advanced Settings
+                Advanced Settings
               </button>
             </div>
             
@@ -524,7 +521,7 @@
             <!-- Preview Section -->
             <div class="builder-section preview-section" id="preview-section">
               <div class="preview-header">
-                <h4>📋 Preview</h4>
+                <h4>Preview</h4>
                 <button class="btn-small" onclick="refreshPreview()">↻ Refresh</button>
               </div>
               <div class="preview-stats" id="preview-stats">
@@ -560,14 +557,14 @@
                 <label class="mode-option">
                   <input type="radio" name="playlist-mode" value="merged" checked />
                   <div class="mode-card">
-                    <div class="mode-title">🎵 Merged Playlist</div>
+                    <div class="mode-title">Merged Playlist</div>
                     <div class="mode-desc">One smart playlist with all genres mixed</div>
                   </div>
                 </label>
                 <label class="mode-option">
                   <input type="radio" name="playlist-mode" value="separate" />
                   <div class="mode-card">
-                    <div class="mode-title">📚 Separate Playlists</div>
+                    <div class="mode-title">Separate Playlists</div>
                     <div class="mode-desc">Individual playlist per genre (no smart mixing)</div>
                   </div>
                 </label>
@@ -577,7 +574,7 @@
             <!-- Create Button -->
             <div class="builder-actions">
               <button id="create-library-playlist" class="btn-primary btn-large" disabled>
-                ✨ Create Smart Playlist
+                Create Smart Playlist
               </button>
             </div>
           </div>
