@@ -137,7 +137,12 @@ let bromanState = {
     "No judgment. Yet.",
     "I've seen worse."
   ],
-  currentComment: 0
+  currentComment: 0,
+  settings: {
+    contextualTips: true,
+    showOnFirstVisit: true,
+    animationsEnabled: true
+  }
 };
 
 // Load Broman state from localStorage
@@ -2562,34 +2567,56 @@ function toggleGenreArtists(genre, event) {
   const artistsList = document.getElementById(`genre-artists-${safeGenreId}`);
   const button = event.target;
   
+  // Find the genre element (either genre-item or subgenre-item)
+  const element = button.closest('.genre-item, .subgenre-item');
+  
   if (artistsList.classList.contains('expanded')) {
     artistsList.classList.remove('expanded');
     artistsList.innerHTML = '';
     button.textContent = 'Show Artists ▼';
     
     // Remove focus mode
-    element.classList.remove('focused');
-    element.closest('.genre-grid')?.classList.remove('has-focus');
+    if (element) {
+      element.classList.remove('focused');
+      element.closest('.genre-grid')?.classList.remove('has-focus');
+      // Remove close button
+      element.querySelector('.focus-close-btn')?.remove();
+    }
   } else {
     // Apply focus mode - this genre becomes center stage
-    const genreGrid = element.closest('.genre-grid');
-    if (genreGrid) {
-      // Remove focus from all other items
-      genreGrid.querySelectorAll('.genre-item, .genre-family-item, .subgenre-item')
-        .forEach(item => item.classList.remove('focused'));
-      genreGrid.classList.add('has-focus');
+    if (element) {
+      const genreGrid = element.closest('.genre-grid');
+      if (genreGrid) {
+        // Remove focus from all other items
+        genreGrid.querySelectorAll('.genre-item, .genre-family-item, .subgenre-item')
+          .forEach(item => {
+            item.classList.remove('focused');
+            item.querySelector('.focus-close-btn')?.remove();
+          });
+        genreGrid.classList.add('has-focus');
+      }
+      
+      // Focus this element
+      element.classList.add('focused');
+      
+      // Add close button to genre header
+      const genreHeader = element.querySelector('.subgenre-header, .genre-item > div:first-child');
+      if (genreHeader && !genreHeader.querySelector('.focus-close-btn')) {
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'focus-close-btn';
+        closeBtn.innerHTML = '✕ Close';
+        closeBtn.onclick = (e) => {
+          e.stopPropagation();
+          toggleGenreArtists(genre, e);
+        };
+        genreHeader.appendChild(closeBtn);
+      }
+      
+      // Scroll into view smoothly
+      setTimeout(() => {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     }
-    
-    // Focus this element
-    element.classList.add('focused');
-    
-    // Scroll into view smoothly
-    setTimeout(() => {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
-    
-    // Load and display artists
-    const artists = getArtistsForGenre(genre);
     
     // Initialize excludedArtists set for this genre if it doesn't exist
     if (!excludedArtists.has(genre)) {
