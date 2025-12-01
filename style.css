@@ -14,6 +14,11 @@ body {
   min-height: 100vh;
   padding: 20px;
   color: #e3e3e3;
+  transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.broman-visible {
+  margin-right: 300px;
 }
 
 .container {
@@ -3600,10 +3605,15 @@ button:disabled {
   flex-direction: column;
   overflow-y: auto;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateX(100%); /* Start hidden */
 }
 
 .broman-sidebar.collapsed {
   transform: translateX(100%);
+}
+
+.broman-sidebar:not(.collapsed) {
+  transform: translateX(0);
 }
 
 .broman-header {
@@ -3957,15 +3967,24 @@ button:disabled {
     width: 280px;
   }
   
-  .container {
-    margin-right: 0;
+  body.broman-visible {
+    margin-right: 280px;
   }
 }
 
 @media (max-width: 768px) {
+  body.broman-visible {
+    margin-right: 0;
+    margin-bottom: 0;
+  }
+  
   .broman-sidebar {
     width: 100%;
     transform: translateY(100%);
+    top: auto;
+    bottom: 0;
+    height: 80vh;
+    max-height: 600px;
   }
   
   .broman-sidebar.collapsed {
