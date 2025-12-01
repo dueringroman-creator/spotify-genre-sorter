@@ -101,7 +101,10 @@ function loadBromanState() {
   if (saved) {
     const parsed = JSON.parse(saved);
     bromanState.score = parsed.score || 0;
-    bromanState.collapsed = parsed.collapsed || false;
+    bromanState.collapsed = parsed.collapsed !== undefined ? parsed.collapsed : true;
+  } else {
+    // First time user - start collapsed
+    bromanState.collapsed = true;
   }
   
   // Load playlist history
@@ -281,9 +284,11 @@ function toggleBromanSidebar() {
   if (bromanState.collapsed) {
     sidebar.classList.add('collapsed');
     tab.classList.remove('hidden');
+    document.body.classList.remove('broman-visible');
   } else {
     sidebar.classList.remove('collapsed');
     tab.classList.add('hidden');
+    document.body.classList.add('broman-visible');
   }
 }
 
@@ -3222,11 +3227,14 @@ function initBroman() {
     }
   }
   
-  // Apply collapsed state
-  if (bromanState.collapsed) {
-    document.getElementById('broman-sidebar')?.classList.add('collapsed');
-    document.getElementById('broman-tab')?.classList.remove('hidden');
+  // Apply collapsed state (sidebar already has collapsed class in HTML)
+  // Just need to handle body margin for expanded state
+  if (!bromanState.collapsed) {
+    document.getElementById('broman-sidebar')?.classList.remove('collapsed');
+    document.getElementById('broman-tab')?.classList.add('hidden');
+    document.body.classList.add('broman-visible');
   }
+  // If collapsed (default), tab is already visible and body has no margin
 }
 
 // Old save function removed - using new one from above
