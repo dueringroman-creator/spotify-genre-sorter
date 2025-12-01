@@ -85,6 +85,7 @@ const playlistTemplates = {
 let bromanState = {
   score: 0,
   collapsed: false,
+  shownTips: new Set(), // Track which tips have been shown
   comments: [
     "You just discovered Spotify?",
     "Did someone show you this link?",
@@ -304,6 +305,14 @@ function toggleLearnMore() {
     content.classList.add('hidden');
     icon.textContent = '▼';
   }
+}
+
+// Toggle info sections
+function toggleInfoSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  if (!section) return;
+  
+  section.classList.toggle('expanded');
 }
 
 // Quick search state
@@ -2176,8 +2185,10 @@ function renderGroupedView(grid) {
         
         return `
           <div class="subgenre-item ${selectedGenres.has(genre) ? 'selected' : ''}" 
-               data-genre="${genre}">
+               data-genre="${genre}"
+               style="border-left-color: ${family.color};">
             <div class="subgenre-header">
+              <span class="subgenre-color-dot" style="background: ${family.color};"></span>
               <span class="subgenre-name">${genre}</span>
               <span class="subgenre-count">${tracks.length} tracks • ${artistCount} artists</span>
               ${isOther ? `<button class="genre-map-btn-inline" onclick="showGenreMappingDialog('${genre}', event)" title="Map to family">Map</button>` : ''}
@@ -4665,6 +4676,7 @@ document.getElementById('generate-discovery-playlist').addEventListener('click',
 window.toggleAboutSection = toggleAboutSection;
 window.toggleBromanSidebar = toggleBromanSidebar;
 window.toggleLearnMore = toggleLearnMore;
+window.toggleInfoSection = toggleInfoSection;
 window.closeTour = closeTour;
 window.nextTourStep = nextTourStep;
 window.prevTourStep = prevTourStep;
