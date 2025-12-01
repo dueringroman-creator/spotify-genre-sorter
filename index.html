@@ -10,18 +10,125 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Broman Helper Assistant -->
+  <div id="broman-helper" class="broman-helper hidden">
+    <div class="broman-avatar" id="broman-avatar">
+      <div class="broman-face">🎵</div>
+      <div class="broman-pulse"></div>
+    </div>
+    <div class="broman-bubble" id="broman-bubble">
+      <button class="broman-close" onclick="dismissBroman()" title="Dismiss">×</button>
+      <div class="broman-content" id="broman-content">
+        <p class="broman-text">Welcome to Playlist Alchemist!</p>
+      </div>
+      <div class="broman-actions" id="broman-actions">
+        <!-- Action buttons will be inserted here -->
+      </div>
+      <label class="broman-dont-show">
+        <input type="checkbox" id="broman-dont-show" />
+        <span>Don't show this again</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Quick Search Panel (Ctrl/Cmd+K) -->
+  <div id="quick-search-panel" class="quick-search-panel hidden">
+    <div class="quick-search-overlay" onclick="closeQuickSearch()"></div>
+    <div class="quick-search-content">
+      <div class="quick-search-header">
+        <div class="search-icon">🔍</div>
+        <input 
+          type="text" 
+          id="quick-search-input" 
+          placeholder="Search your library..." 
+          autocomplete="off"
+        />
+        <button class="search-close" onclick="closeQuickSearch()">×</button>
+      </div>
+      
+      <div class="quick-search-filters">
+        <button class="filter-chip active" data-filter="all">All</button>
+        <button class="filter-chip" data-filter="tracks">Tracks</button>
+        <button class="filter-chip" data-filter="artists">Artists</button>
+        <button class="filter-chip" data-filter="genres">Genres</button>
+      </div>
+      
+      <div class="quick-search-results" id="quick-search-results">
+        <div class="search-placeholder">
+          <div class="placeholder-icon">🎵</div>
+          <div class="placeholder-text">Start typing to search your library</div>
+          <div class="placeholder-hint">Press <kbd>Esc</kbd> to close</div>
+        </div>
+      </div>
+      
+      <div class="quick-search-footer">
+        <div class="search-hints">
+          <span class="hint-item"><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
+          <span class="hint-item"><kbd>Enter</kbd> Select</span>
+          <span class="hint-item"><kbd>Esc</kbd> Close</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="container">
     <h1>Playlist Alchemist</h1>
     <button id="help-button" class="help-button" title="Show help tour">?</button>
     
     <!-- Login Section -->
-    <div id="login-section" class="section">
-      <button id="login" class="btn-primary">Let's see your music taste</button>
-      <p class="subtitle">Discover and create personalized playlists</p>
+    <div id="login-section" class="landing-page">
+      <div class="landing-hero">
+        <div class="hero-icon">🎵</div>
+        <h1 class="hero-title">Playlist Alchemist</h1>
+        <p class="hero-tagline">
+          Turn your chaotic Spotify library<br>
+          into organized playlists<br>
+          <span class="tagline-accent">(without the effort)</span>
+        </p>
+        
+        <button id="login" class="btn-hero">Connect Spotify</button>
+        
+        <div class="landing-features">
+          <div class="feature-pill">
+            <span class="feature-icon">🎯</span>
+            <span class="feature-text">Smart genre detection</span>
+          </div>
+          <div class="feature-pill">
+            <span class="feature-icon">🎨</span>
+            <span class="feature-text">DJ-quality mixing</span>
+          </div>
+          <div class="feature-pill">
+            <span class="feature-icon">🔒</span>
+            <span class="feature-text">Privacy-first</span>
+          </div>
+        </div>
+        
+        <p class="landing-note">
+          No servers • No tracking • Works offline
+        </p>
+      </div>
     </div>
 
     <!-- Main App (hidden until logged in) -->
     <div id="app-section" class="section hidden">
+      
+      <!-- Sticky Control Bar -->
+      <div class="sticky-control-bar hidden" id="sticky-control-bar">
+        <div class="sticky-bar-content">
+          <div class="selection-summary">
+            <span class="selected-count" id="sticky-selected-count">0</span> genres •
+            <span class="track-count" id="sticky-track-count">0 tracks</span>
+          </div>
+          <div class="sticky-actions">
+            <button class="btn-secondary btn-small" onclick="scrollToPreview()">
+              📊 Preview
+            </button>
+            <button class="btn-primary btn-small" onclick="scrollToBuilder()">
+              ✨ Create Playlist
+            </button>
+          </div>
+        </div>
+      </div>
       
       <!-- Welcome Tour Overlay -->
       <div id="tour-overlay" class="tour-overlay hidden">
@@ -46,8 +153,8 @@
               <li><strong>Top Artists</strong> - Your most-listened artists</li>
               <li><strong>Playlists</strong> - Scan all your existing playlists</li>
             </ul>
-            <p><strong>Step 2:</strong> We ask Spotify: "What genres are these artists?"</p>
-            <p><strong>Step 3:</strong> Choose your view mode and select genres!</p>
+            <p><strong>Step 2:</strong> We fetch artist genres from Spotify and intelligently map 200+ micro-genres into organized families.</p>
+            <p><strong>Step 3:</strong> You select genres, we create professional-quality playlists.</p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(1)">← Back</button>
               <button class="btn-primary" onclick="nextTourStep(3)">Next →</button>
@@ -57,15 +164,13 @@
         
         <div class="tour-step hidden" id="tour-step-3">
           <div class="tour-content">
-            <h3>Three Ways to View Genres</h3>
-            <p>Spotify has 200+ messy micro-genres. We clean them up for you:</p>
+            <h3>Two Ways to View Genres</h3>
+            <p>Spotify has 200+ messy micro-genres like "deep deep house" and "bubblegrunge." We clean them up:</p>
             <ul>
-              <li><strong>Genre Families</strong> - Grouped (House, Techno, Rock). One click = all sub-genres!</li>
-              <li><strong>Detailed</strong> - Expandable families. Pick specific sub-genres if you want.</li>
-              <li><strong>All Genres</strong> - Flat list of everything. For power users.</li>
+              <li><strong>Grouped</strong> - Organized by family (House, Techno, UK Bass, etc.). Click a family to select all sub-genres, or expand to cherry-pick.</li>
+              <li><strong>Flat List</strong> - Every genre individually. For when you want complete control.</li>
             </ul>
-            <p><strong>Tip:</strong> Start with "Genre Families" - it's the easiest!</p>
-            <p><strong>Advanced:</strong> Click "Show Artists" on any genre to see which artists are included. You can even expand individual artists to see their tracks and uncheck specific songs!</p>
+            <p><strong>Pro tip:</strong> Start with Grouped. It's cleaner.</p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(2)">← Back</button>
               <button class="btn-primary" onclick="nextTourStep(4)">Next →</button>
@@ -75,11 +180,15 @@
         
         <div class="tour-step hidden" id="tour-step-4">
           <div class="tour-content">
-            <h3>Bonus Features</h3>
-            <p><strong>3-Level Control:</strong> Click "Show Artists" to see who's in each genre. Click "Show Tracks" to drill down to individual songs. Uncheck anything you don't want!</p>
-            <p><strong>Manual Genre Mapping:</strong> See a genre in "Other" that should be elsewhere? Click the orange "Map to Family" button to assign it yourself. Your mappings are saved forever!</p>
-            <p><strong>Export & Discovery:</strong> Download playlists as CSV/TXT for DJ software. Find similar artists from your library in the Artist Discovery tab.</p>
-            <p><strong>Music Stats:</strong> See your top genres, diversity score, and fun insights about your taste!</p>
+            <h3>Smart Playlist Creation</h3>
+            <p>This is where things get interesting. After selecting genres, you get:</p>
+            <ul>
+              <li><strong>Live Preview</strong> - See track count, duration, and artist stats before creating</li>
+              <li><strong>Duration Control</strong> - Set your target length (30min to 5 hours)</li>
+              <li><strong>Artist Diversity</strong> - Max 3 tracks per artist by default. No more "50 tracks, 3 artists" playlists.</li>
+              <li><strong>Smart Shuffle</strong> - Never puts the same artist back-to-back. Sounds like a DJ mixed it.</li>
+            </ul>
+            <p>Translation: You get professional playlists, not random track dumps.</p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(3)">← Back</button>
               <button class="btn-primary" onclick="nextTourStep(5)">Next →</button>
@@ -89,73 +198,148 @@
         
         <div class="tour-step hidden" id="tour-step-5">
           <div class="tour-content">
-            <h3>Your Privacy Matters</h3>
-            <p><strong>No servers. No data storage.</strong></p>
-            <p>Everything runs in <em>your browser</em>. We cache data locally for speed, but it never leaves your device.</p>
-            <p style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #282828; font-size: 13px; color: #7f7f7f;">
-              Open source • No ads • No tracking
-            </p>
+            <h3>The Power User Stuff</h3>
+            <p><strong>3-Level Control:</strong> Don't like a specific artist in a genre? Click "Show Artists" and uncheck them. Want to exclude one bad track? Click "Show Tracks."</p>
+            <p><strong>Manual Mapping:</strong> See unmapped genres in "Other"? Click the orange "Map" button to categorize them yourself. Your mappings are saved forever.</p>
+            <p><strong>Timeframe Filters:</strong> Only want tracks you liked in the past 3 months? There's a filter for that.</p>
+            <p><strong>Sticky Controls:</strong> When you select genres, controls appear at the top. No more scrolling.</p>
             <div class="tour-actions">
               <button class="btn-small" onclick="prevTourStep(4)">← Back</button>
-              <button class="btn-primary" onclick="closeTour()">Start Using It</button>
+              <button class="btn-primary" onclick="nextTourStep(6)">Next →</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="tour-step hidden" id="tour-step-6">
+          <div class="tour-content">
+            <h3>Other Cool Stuff</h3>
+            <p><strong>Artist Discovery:</strong> Search any artist, find similar ones from YOUR library, create discovery playlists.</p>
+            <p><strong>Music Stats:</strong> See your top genres, diversity score, fun insights.</p>
+            <p><strong>Export Options:</strong> Download playlists as CSV/TXT for DJ software or backup.</p>
+            <p><strong>Playlist History:</strong> Everything you've created is tracked with one-click access.</p>
+            <div class="tour-actions">
+              <button class="btn-small" onclick="prevTourStep(5)">← Back</button>
+              <button class="btn-primary" onclick="nextTourStep(7)">Next →</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="tour-step hidden" id="tour-step-7">
+          <div class="tour-content">
+            <h3>Your Privacy Matters</h3>
+            <p><strong>No servers. No data storage. No tracking.</strong></p>
+            <p>Everything runs in your browser. We cache data locally for speed, but it never leaves your device.</p>
+            <p><strong>What we cache:</strong> Your library, genre mappings, manual categorizations.</p>
+            <p><strong>What we don't collect:</strong> Literally anything. No personal info, no listening habits, no analytics.</p>
+            <p style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #282828; font-size: 13px; color: #7f7f7f;">
+              Open source • No ads • No backend • Privacy-first by design
+            </p>
+            <div class="tour-actions">
+              <button class="btn-small" onclick="prevTourStep(6)">← Back</button>
+              <button class="btn-primary" onclick="closeTour()">Start Creating</button>
             </div>
           </div>
         </div>
       </div>
       
       <!-- About Section (Expandable) -->
-      <div class="about-section">
-        <button class="about-toggle" onclick="toggleAbout()">
-          <span id="about-icon">▶</span> Learn More: Behind the Scenes
-        </button>
-        <div id="about-content" class="about-content hidden">
-          <div class="about-grid">
-            <div class="about-card">
-              <h4>The Problem</h4>
-              <p>You love music. You save everything. But organizing 1,000+ songs into playlists? Ain't nobody got time for that.</p>
-            </div>
-            
-            <div class="about-card">
-              <h4>The Solution</h4>
-              <p>Spotify knows each artist's genre. We fetch that data, <strong>intelligently group similar genres</strong> (because "deep house" and "house" should live together), and create playlists automatically. Magic? Nope, just smart API usage + pattern matching.</p>
-            </div>
-            
-            <div class="about-card">
-              <h4>Smart Genre Grouping</h4>
-              <p>Spotify has 200+ micro-genres like "bubblegrunge" and "escape room." We auto-detect families (House, Techno, Hip-Hop) so you're not drowning in options. Choose your view: <strong>Grouped</strong> (simple), <strong>Detailed</strong> (expandable), or <strong>All</strong> (power user).</p>
-            </div>
-            
-            <div class="about-card">
-              <h4>3-Level Control</h4>
-              <p>Ultimate playlist curation: <strong>Genre level</strong> (select styles), <strong>Artist level</strong> (exclude specific artists with "Show Artists"), <strong>Track level</strong> (cherry-pick individual songs with "Show Tracks"). See artist/track counts update in real-time as you curate.</p>
-            </div>
-            
-            <div class="about-card">
-              <h4>Why Caching?</h4>
-              <p>Fetching 13,000 songs takes time. So we save it locally. Next visit? Instant load. Update when you add new music with the "Refresh Cache" button.</p>
-            </div>
-            
-            <div class="about-card">
-              <h4>Tech Stack</h4>
-              <p><strong>Vanilla JavaScript</strong> + Spotify Web API + LocalStorage. No frameworks, no backend, no BS.</p>
-            </div>
-            
-            <div class="about-card">
-              <h4>Privacy First</h4>
-              <p>Zero data leaves your browser. No analytics, no tracking, no servers. Your Spotify token expires after an hour.</p>
-            </div>
-            
-            <div class="about-card">
-              <h4>Pro Tips</h4>
-              <p>• Start with "Genre Families" view - cleanest<br>
-              • Use "Detailed" to cherry-pick sub-genres<br>
-              • Click "Show Artists" to see & exclude specific artists<br>
-              • Click "Show Tracks" for song-level control<br>
-              • Orange "Map to Family" button on unmapped genres<br>
-              • Use "Merged" mode for large genre mixes<br>
-              • Export playlists for DJ software<br>
-              • Top Artists mode = instant discovery</p>
-            </div>
+      <div class="about-sections">
+        <h3 style="color: #e3e3e3; margin-bottom: 16px;">Learn More</h3>
+        
+        <!-- Section 1: How It Works -->
+        <div class="about-section-item">
+          <button class="about-section-toggle" onclick="toggleAboutSection('how-it-works')">
+            <span class="toggle-icon" id="icon-how-it-works">▶</span>
+            <span class="toggle-title">How It Works</span>
+          </button>
+          <div id="about-how-it-works" class="about-section-content hidden">
+            <p><strong>Step 1:</strong> Choose your data source (Liked Songs, Top Artists, or Playlists)</p>
+            <p><strong>Step 2:</strong> We fetch artist genres from Spotify's API</p>
+            <p><strong>Step 3:</strong> Intelligent mapping of 200+ micro-genres into ~25 families</p>
+            <p><strong>Step 4:</strong> Select genres, adjust smart settings, create playlists!</p>
+            <p style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #282828; color: #7f7f7f; font-size: 13px;">
+              We cache everything locally for speed. Your 13,000-song library? Instant load on return visits.
+            </p>
+          </div>
+        </div>
+        
+        <!-- Section 2: Genre Mapping -->
+        <div class="about-section-item">
+          <button class="about-section-toggle" onclick="toggleAboutSection('genre-mapping')">
+            <span class="toggle-icon" id="icon-genre-mapping">▶</span>
+            <span class="toggle-title">Genre Mapping Logic</span>
+          </button>
+          <div id="about-genre-mapping" class="about-section-content hidden">
+            <p>Spotify has 200+ genres like "deep deep house," "bubblegrunge," and "escape room." Seriously.</p>
+            <p><strong>Our solution:</strong> 3-pass intelligent detection:</p>
+            <ol style="margin-left: 20px; color: #b3b3b3;">
+              <li><strong>Manual mappings:</strong> User-defined categories (you're the expert!)</li>
+              <li><strong>Exact matches:</strong> Direct keyword matching to families</li>
+              <li><strong>Fuzzy matching:</strong> 200+ aliases (e.g., "nu disco" → "disco")</li>
+              <li><strong>Word-based:</strong> Compound genre splitting</li>
+              <li><strong>Fallback:</strong> "Other" category (you can manually map these!)</li>
+            </ol>
+            <p style="margin-top: 12px; color: #1db954;">Result: 80% reduction in "Other" bucket vs naive approaches.</p>
+          </div>
+        </div>
+        
+        <!-- Section 3: Smart Algorithms -->
+        <div class="about-section-item">
+          <button class="about-section-toggle" onclick="toggleAboutSection('smart-mixing')">
+            <span class="toggle-icon" id="icon-smart-mixing">▶</span>
+            <span class="toggle-title">Smart Mixing Explained</span>
+          </button>
+          <div id="about-smart-mixing" class="about-section-content hidden">
+            <p><strong>Artist Diversity:</strong> Prevents "artist dumps." Max 3 tracks per artist by default (adjustable 1-10). No more playlists with 50 tracks from the same 3 artists.</p>
+            <p><strong>Smart Shuffle:</strong> Avoids consecutive tracks from the same artist. Creates natural flow like a DJ set.</p>
+            <p><strong>Duration Control:</strong> Target precise playlist lengths (30min - 5hrs). We calculate average track length and select accordingly.</p>
+            <p><strong>Live Preview:</strong> See stats before creating. Adjust settings and watch the preview update in real-time.</p>
+            <p style="margin-top: 12px; color: #1db954;">Result: Professional DJ-quality playlists, not random track dumps.</p>
+          </div>
+        </div>
+        
+        <!-- Section 4: Privacy & Caching -->
+        <div class="about-section-item">
+          <button class="about-section-toggle" onclick="toggleAboutSection('privacy')">
+            <span class="toggle-icon" id="icon-privacy">▶</span>
+            <span class="toggle-title">Privacy & Data</span>
+          </button>
+          <div id="about-privacy" class="about-section-content hidden">
+            <p><strong>Zero servers. Zero tracking. Zero data storage.</strong></p>
+            <p>Everything runs in <em>your browser</em>. We cache data locally using LocalStorage for speed, but it never leaves your device.</p>
+            <p><strong>What we cache:</strong></p>
+            <ul style="margin-left: 20px; color: #b3b3b3;">
+              <li>Your library tracks (for instant reload)</li>
+              <li>Genre mappings (for consistency)</li>
+              <li>Manual genre categorizations (your customizations)</li>
+            </ul>
+            <p><strong>What we don't collect:</strong></p>
+            <ul style="margin-left: 20px; color: #b3b3b3;">
+              <li>Personal information</li>
+              <li>Listening habits</li>
+              <li>Analytics or tracking data</li>
+              <li>Anything, really</li>
+            </ul>
+            <p style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #282828; color: #7f7f7f; font-size: 13px;">
+              Open source • No ads • No backend • Privacy-first by design
+            </p>
+          </div>
+        </div>
+        
+        <!-- Section 5: Pro Tips -->
+        <div class="about-section-item">
+          <button class="about-section-toggle" onclick="toggleAboutSection('pro-tips')">
+            <span class="toggle-icon" id="icon-pro-tips">▶</span>
+            <span class="toggle-title">Pro Tips & Tricks</span>
+          </button>
+          <div id="about-pro-tips" class="about-section-content hidden">
+            <p><strong>View Modes:</strong> Start with "Grouped" view for easiest navigation. Switch to "Flat List" for granular control.</p>
+            <p><strong>Manual Mapping:</strong> See orange "Map to Family" buttons on unmapped genres? Click to categorize them yourself!</p>
+            <p><strong>Advanced Settings:</strong> Adjust artist diversity (1-10 tracks per artist) and enable/disable consecutive artist avoidance.</p>
+            <p><strong>Preview Everything:</strong> Always check the preview before creating. Adjust sliders and watch stats update instantly.</p>
+            <p><strong>Artist/Track Exclusions:</strong> Click "Show Artists" to exclude specific artists. Click "Show Tracks" for song-level control.</p>
+            <p><strong>Export Options:</strong> Download playlists as CSV/TXT for DJ software or backup.</p>
+            <p><strong>Timeframe Filters:</strong> When using Liked Songs, filter by "Past month," "Past 6 months," etc.</p>
           </div>
         </div>
       </div>
@@ -186,6 +370,19 @@
           </label>
           <div class="option-description">Your entire liked songs collection - perfect for big libraries!</div>
           
+          <!-- Timeframe Filter for Liked Songs -->
+          <div class="timeframe-selector" id="liked-timeframe-selector">
+            <label class="timeframe-label">Timeframe:</label>
+            <select id="liked-timeframe" class="timeframe-select">
+              <option value="all">All time</option>
+              <option value="year">Past year</option>
+              <option value="6months">Past 6 months</option>
+              <option value="3months">Past 3 months</option>
+              <option value="month">Past month</option>
+              <option value="week">Past week</option>
+            </select>
+          </div>
+          
           <label>
             <input type="radio" name="data-source" value="top-artists">
             <span>Artists I listen to most</span>
@@ -210,15 +407,15 @@
           <div class="genre-header">
             <h3>Select Genres for Your Playlist</h3>
             <div class="genre-actions">
-              <select id="genre-view-mode" class="view-mode-select">
-                <option value="families">Genre Families (Grouped)</option>
-                <option value="detailed">Detailed (Expandable)</option>
-                <option value="all">All Genres (Flat)</option>
-              </select>
+              <div class="view-toggle">
+                <button class="view-btn active" data-view="grouped">Grouped</button>
+                <button class="view-btn" data-view="flat">Flat List</button>
+              </div>
               <input type="text" id="genre-filter" placeholder="Filter genres..." />
-              <input type="text" id="unmapped-filter" class="hidden" placeholder="Filter unmapped..." />
-              <button id="show-unmapped-btn" class="btn-small hidden">Show Unmapped (<span id="unmapped-count">0</span>)</button>
-              <button id="show-all-btn" class="btn-small hidden">Show All</button>
+              <label class="filter-checkbox hidden" id="unmapped-filter-wrapper">
+                <input type="checkbox" id="unmapped-filter">
+                <span>Unmapped only (<span id="unmapped-count">0</span>)</span>
+              </label>
               <button id="select-all-genres" class="btn-small">Select All</button>
               <button id="clear-genres" class="btn-small">Clear All</button>
             </div>
@@ -236,6 +433,31 @@
           
           <div id="genre-grid" class="genre-grid"></div>
           
+          <!-- Sticky Playlist Controls Bar -->
+          <div id="sticky-playlist-bar" class="sticky-playlist-bar hidden">
+            <div class="sticky-bar-content">
+              <div class="sticky-bar-info">
+                <div class="sticky-bar-title">
+                  <span class="sticky-icon">🎵</span>
+                  <span id="sticky-genre-count">0 genres selected</span>
+                </div>
+                <div class="sticky-bar-stats" id="sticky-bar-stats">
+                  <span class="stat-item">0 tracks</span>
+                  <span class="stat-separator">•</span>
+                  <span class="stat-item">0m</span>
+                </div>
+              </div>
+              <div class="sticky-bar-actions">
+                <button class="btn-secondary btn-small" onclick="document.getElementById('playlist-builder').scrollIntoView({ behavior: 'smooth' })">
+                  ⚙️ Settings
+                </button>
+                <button class="btn-primary btn-small" onclick="document.getElementById('playlist-builder').scrollIntoView({ behavior: 'smooth' })">
+                  Create Playlist
+                </button>
+              </div>
+            </div>
+          </div>
+          
           <!-- Floating Create Playlist Button -->
           <div id="floating-create-btn" class="floating-create-btn hidden">
             <button class="fab-button" onclick="scrollToPlaylistControls()">
@@ -245,30 +467,119 @@
             </button>
           </div>
           
-          <!-- Playlist Mode Options -->
-          <div class="playlist-options">
-            <h4 style="color: #e3e3e3; margin-bottom: 12px;">
-              How should we organize this?
-              <span class="tooltip">i
-                <span class="tooltiptext">Merged = one big playlist. Separate = individual playlists per genre.</span>
-              </span>
-            </h4>
-            <label>
-              <input type="radio" name="playlist-mode" value="merged" checked>
-              <span>Merge into one playlist</span>
-            </label>
-            <div class="option-description">Combine all selected genres into one epic playlist</div>
+          <!-- Playlist Builder Interface -->
+          <div class="playlist-builder" id="playlist-builder">
+            <div class="playlist-builder-header">
+              <h3>🎵 Smart Playlist Builder</h3>
+              <button class="toggle-advanced" onclick="toggleAdvancedSettings()">
+                ⚙️ Advanced Settings
+              </button>
+            </div>
             
-            <label>
-              <input type="radio" name="playlist-mode" value="separate">
-              <span>Create separate playlists</span>
-            </label>
-            <div class="option-description">Make individual playlists for each genre (power user mode!)</div>
-          </div>
-          
-          <div class="playlist-controls">
-            <input type="text" id="playlist-name" placeholder="Name your playlist (or we'll name it for you!)" />
-            <button id="create-library-playlist" class="btn-primary" disabled>Create Playlist</button>
+            <!-- Basic Settings -->
+            <div class="builder-section">
+              <label class="builder-label">Playlist Name</label>
+              <input type="text" id="playlist-name" placeholder="Leave blank for auto-generated name..." class="builder-input" />
+            </div>
+            
+            <!-- Duration Control -->
+            <div class="builder-section">
+              <label class="builder-label">
+                Target Duration: <span id="duration-display">2h 0m</span>
+              </label>
+              <div class="duration-presets">
+                <button class="preset-btn" onclick="setDuration(3600)">1 hour</button>
+                <button class="preset-btn active" onclick="setDuration(7200)">2 hours</button>
+                <button class="preset-btn" onclick="setDuration(10800)">3 hours</button>
+                <button class="preset-btn" onclick="setDuration(14400)">4 hours</button>
+              </div>
+              <input type="range" id="duration-slider" min="1800" max="18000" step="300" value="7200" class="duration-slider" />
+              <div class="range-labels">
+                <span>30m</span>
+                <span>5h</span>
+              </div>
+            </div>
+            
+            <!-- Advanced Settings (collapsible) -->
+            <div class="advanced-settings hidden" id="advanced-settings">
+              <div class="builder-section">
+                <label class="builder-label">
+                  Artist Diversity: <span id="diversity-display">Max 3 tracks per artist</span>
+                </label>
+                <input type="range" id="diversity-slider" min="1" max="10" value="3" class="diversity-slider" />
+                <div class="range-labels">
+                  <span>Max variety</span>
+                  <span>Allow repeats</span>
+                </div>
+              </div>
+              
+              <div class="builder-section">
+                <label class="builder-checkbox">
+                  <input type="checkbox" id="avoid-consecutive" checked />
+                  <span>Avoid same artist back-to-back</span>
+                </label>
+              </div>
+            </div>
+            
+            <!-- Preview Section -->
+            <div class="builder-section preview-section" id="preview-section">
+              <div class="preview-header">
+                <h4>📋 Preview</h4>
+                <button class="btn-small" onclick="refreshPreview()">↻ Refresh</button>
+              </div>
+              <div class="preview-stats" id="preview-stats">
+                <div class="stat-pill">
+                  <span class="stat-label">Tracks</span>
+                  <span class="stat-value" id="preview-tracks">—</span>
+                </div>
+                <div class="stat-pill">
+                  <span class="stat-label">Duration</span>
+                  <span class="stat-value" id="preview-duration">—</span>
+                </div>
+                <div class="stat-pill">
+                  <span class="stat-label">Artists</span>
+                  <span class="stat-value" id="preview-artists">—</span>
+                </div>
+                <div class="stat-pill">
+                  <span class="stat-label">Avg/Artist</span>
+                  <span class="stat-value" id="preview-avg">—</span>
+                </div>
+              </div>
+              <div class="preview-tracks-list hidden" id="preview-tracks-list">
+                <!-- Will be populated dynamically -->
+              </div>
+              <button class="btn-small" onclick="togglePreviewList()">
+                <span id="preview-toggle-text">Show Track List ▼</span>
+              </button>
+            </div>
+            
+            <!-- Mode Selection -->
+            <div class="builder-section">
+              <label class="builder-label">Organization Mode</label>
+              <div class="mode-selection">
+                <label class="mode-option">
+                  <input type="radio" name="playlist-mode" value="merged" checked />
+                  <div class="mode-card">
+                    <div class="mode-title">🎵 Merged Playlist</div>
+                    <div class="mode-desc">One smart playlist with all genres mixed</div>
+                  </div>
+                </label>
+                <label class="mode-option">
+                  <input type="radio" name="playlist-mode" value="separate" />
+                  <div class="mode-card">
+                    <div class="mode-title">📚 Separate Playlists</div>
+                    <div class="mode-desc">Individual playlist per genre (no smart mixing)</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+            
+            <!-- Create Button -->
+            <div class="builder-actions">
+              <button id="create-library-playlist" class="btn-primary btn-large" disabled>
+                ✨ Create Smart Playlist
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -339,35 +650,3 @@
   <script src="app.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
