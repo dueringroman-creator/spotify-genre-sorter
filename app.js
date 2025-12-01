@@ -26,58 +26,102 @@ let smartPlaylistSettings = {
   shuffleMode: 'smart', // 'random', 'smart', 'energy', 'bpm'
   bpmRange: { min: 0, max: 200, enabled: false },
   energyRange: { min: 0, max: 100, enabled: false },
-  moodRange: { min: 0, max: 100, enabled: false }
+  moodRange: { min: 0, max: 100, enabled: false },
+  vocalFilter: { enabled: false, type: 'any' } // 'any', 'instrumental', 'vocal', 'spoken'
 };
 
-// Playlist templates
+// Playlist templates with smart analysis
 const playlistTemplates = {
   custom: {
     name: "Custom",
     targetDuration: 7200,
     maxTracksPerArtist: 3,
-    avoidConsecutiveSameArtist: true
+    avoidConsecutiveSameArtist: true,
+    description: "Adjust settings below to your preference"
   },
   workout: {
     name: "Workout Mix",
     targetDuration: 3600, // 1 hour
     maxTracksPerArtist: 2,
     avoidConsecutiveSameArtist: true,
-    description: "High energy tracks for your workout"
+    description: "High energy tracks for your workout",
+    // Smart analysis criteria
+    autoSelect: true,
+    energyMin: 70,
+    bpmMin: 120,
+    maxGenres: 3,
+    preferGenres: ['electronic', 'hip-hop', 'rock', 'pop', 'dance'],
+    filters: {
+      bpm: { min: 140, max: 180, enabled: true },
+      energy: { min: 70, max: 100, enabled: true }
+    }
   },
   focus: {
     name: "Deep Focus",
     targetDuration: 7200, // 2 hours
     maxTracksPerArtist: 5,
     avoidConsecutiveSameArtist: false,
-    description: "Low energy, minimal variation for concentration"
+    description: "Low energy, minimal variation for concentration",
+    autoSelect: true,
+    energyMax: 40,
+    bpmMax: 100,
+    maxGenres: 2,
+    preferGenres: ['ambient', 'classical', 'jazz', 'electronic', 'instrumental'],
+    filters: {
+      bpm: { min: 60, max: 100, enabled: true },
+      energy: { min: 0, max: 40, enabled: true },
+      vocal: { type: 'instrumental', enabled: true }
+    }
   },
   party: {
     name: "Party Playlist",
     targetDuration: 10800, // 3 hours
     maxTracksPerArtist: 2,
     avoidConsecutiveSameArtist: true,
-    description: "Upbeat tracks to keep the energy high"
+    description: "Upbeat tracks to keep the energy high",
+    autoSelect: true,
+    energyMin: 60,
+    bpmMin: 110,
+    maxGenres: 4,
+    preferGenres: ['pop', 'dance', 'hip-hop', 'electronic', 'funk', 'disco'],
+    filters: {
+      energy: { min: 60, max: 100, enabled: true },
+      mood: { min: 50, max: 100, enabled: true }
+    }
   },
   discovery: {
     name: "Discovery Mode",
     targetDuration: 3600, // 1 hour
     maxTracksPerArtist: 1,
     avoidConsecutiveSameArtist: true,
-    description: "Maximum variety - explore your library"
+    description: "Maximum variety - explore your library",
+    autoSelect: true,
+    maxGenres: 8,
+    preferGenres: null // Use all genres with most tracks
   },
   commute: {
     name: "Commute Mix",
     targetDuration: 2700, // 45 minutes
     maxTracksPerArtist: 3,
     avoidConsecutiveSameArtist: true,
-    description: "Balanced mix for your drive or transit"
+    description: "Balanced mix for your drive or transit",
+    autoSelect: true,
+    maxGenres: 3,
+    preferGenres: null // Use user's top genres
   },
   background: {
     name: "Background Music",
     targetDuration: 14400, // 4 hours
     maxTracksPerArtist: 5,
     avoidConsecutiveSameArtist: false,
-    description: "Long, chill playlist for background listening"
+    description: "Long, chill playlist for background listening",
+    autoSelect: true,
+    energyMax: 60,
+    maxGenres: 4,
+    preferGenres: ['ambient', 'jazz', 'classical', 'electronic', 'indie', 'folk'],
+    filters: {
+      energy: { min: 0, max: 60, enabled: true }
+    }
   }
 };
 
@@ -236,6 +280,136 @@ function updateBromanUI() {
   updateBromanHistory();
 }
 
+// Generate funny/interesting library insights
+function generateLibraryInsights() {
+  const insights = [];
+  
+  if (Object.keys(genreSongMap).length === 0) {
+    return ['Connect your library to see insights...'];
+  }
+  
+  const totalTracks = Object.values(genreSongMap).flat().length;
+  const allTracks = Object.values(genreSongMap).flat();
+  
+  // Genre dominance
+  const sortedGenres = Object.entries(genreSongMap)
+    .sort((a, b) => b[1].length - a[1].length);
+  
+  if (sortedGenres.length > 0) {
+    const topGenre = sortedGenres[0];
+    const topPct = Math.round((topGenre[1].length / totalTracks) * 100);
+    
+    if (topPct > 60) {
+      insights.push(`Your library is ${topPct}% ${topGenre[0]}. Someone has a type.`);
+    } else if (topPct > 40) {
+      insights.push(`${topPct}% ${topGenre[0]}. Clearly your favorite.`);
+    }
+    
+    // Berlin reference for electronic music
+    if (topGenre[0].toLowerCase().includes('electronic') || 
+        topGenre[0].toLowerCase().includes('techno') ||
+        topGenre[0].toLowerCase().includes('house')) {
+      if (topGenre[1].length > 300) {
+        insights.push(`${topGenre[1].length} ${topGenre[0]} tracks? Someone went to Berlin once.`);
+      }
+    }
+  }
+  
+  // BPM analysis (if audio features available)
+  const tracksWithFeatures = allTracks.filter(t => t.audioFeatures?.tempo);
+  if (tracksWithFeatures.length > 50) {
+    const avgBPM = Math.round(
+      tracksWithFeatures.reduce((sum, t) => sum + t.audioFeatures.tempo, 0) / tracksWithFeatures.length
+    );
+    
+    if (avgBPM > 140) {
+      insights.push(`Average BPM: ${avgBPM}. Are you running from something?`);
+    } else if (avgBPM < 90) {
+      insights.push(`Average BPM: ${avgBPM}. Spotify for Sleep confirmed.`);
+    } else if (avgBPM >= 127 && avgBPM <= 129) {
+      insights.push(`Average BPM: ${avgBPM}. How predictable.`);
+    }
+  }
+  
+  // Mood analysis (valence)
+  const tracksWithMood = allTracks.filter(t => t.audioFeatures?.valence !== undefined);
+  if (tracksWithMood.length > 50) {
+    const avgValence = tracksWithMood.reduce((sum, t) => sum + t.audioFeatures.valence, 0) / tracksWithMood.length;
+    
+    if (avgValence > 70) {
+      insights.push(`${Math.round(avgValence)}% positive vibes. Confirmed optimist.`);
+    } else if (avgValence < 30) {
+      insights.push(`${Math.round(avgValence)}% positive energy. You okay?`);
+    }
+  }
+  
+  // Track length extremes
+  if (allTracks.length > 0) {
+    const longest = allTracks.reduce((max, track) => 
+      (track.duration_ms || 0) > (max.duration_ms || 0) ? track : max
+    );
+    
+    if (longest.duration_ms > 600000) { // 10+ minutes
+      const mins = Math.floor(longest.duration_ms / 60000);
+      insights.push(`Longest track: ${mins} minutes. "${longest.name}". Epic.`);
+    }
+  }
+  
+  // Name quirks
+  const untitledCount = allTracks.filter(t => 
+    t.name.toLowerCase().includes('untitled') || 
+    t.name.toLowerCase() === 'track' ||
+    t.name.match(/^track \d+$/i)
+  ).length;
+  
+  if (untitledCount > 10) {
+    insights.push(`${untitledCount} tracks called "Untitled" or "Track X". Creative bunch.`);
+  }
+  
+  // Classical quirk
+  const classicalTracks = Object.entries(genreSongMap)
+    .filter(([genre]) => genre.toLowerCase().includes('classical'))
+    .reduce((sum, [_, tracks]) => sum + tracks.length, 0);
+  
+  if (classicalTracks > 0 && classicalTracks < totalTracks * 0.02) {
+    insights.push(`${classicalTracks} classical pieces in ${totalTracks} tracks. I see you.`);
+  }
+  
+  // Total library size comments
+  if (totalTracks > 5000) {
+    insights.push(`${totalTracks} tracks. Either a DJ or have commitment issues.`);
+  } else if (totalTracks < 100) {
+    insights.push(`${totalTracks} tracks. Minimalist or just getting started?`);
+  }
+  
+  // Genre diversity
+  const genreCount = Object.keys(genreSongMap).length;
+  if (genreCount > 30) {
+    insights.push(`${genreCount} genres detected. Musical omnivore.`);
+  } else if (genreCount < 5) {
+    insights.push(`Only ${genreCount} genres. Focused taste or Spotify needs better data?`);
+  }
+  
+  // Return 3 random insights
+  const shuffled = insights.sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 3);
+}
+
+// Update insights display
+function updateBromanInsights() {
+  const insightsEl = document.getElementById('broman-insights');
+  if (!insightsEl) return;
+  
+  const insights = generateLibraryInsights();
+  
+  insightsEl.innerHTML = insights.map(insight => `
+    <div class="insight-item">
+      <span class="insight-icon">💡</span>
+      <span class="insight-text">${insight}</span>
+    </div>
+  `).join('');
+}
+
 // Update playlist history in Broman
 function updateBromanHistory() {
   const historyEl = document.getElementById('broman-history');
@@ -275,22 +449,70 @@ function getTimeAgo(date) {
 }
 
 // Toggle Broman sidebar
-function toggleBromanSidebar() {
-  const sidebar = document.getElementById('broman-sidebar');
-  const tab = document.getElementById('broman-tab');
+function toggleBromanFab() {
+  const panel = document.getElementById('broman-panel');
   
-  bromanState.collapsed = !bromanState.collapsed;
-  saveBromanState();
+  if (!panel) return;
   
-  if (bromanState.collapsed) {
-    sidebar.classList.add('collapsed');
-    tab.classList.remove('hidden');
-    document.body.classList.remove('broman-visible');
-  } else {
-    sidebar.classList.remove('collapsed');
-    tab.classList.add('hidden');
-    document.body.classList.add('broman-visible');
+  panel.classList.toggle('hidden');
+  
+  // Update selection stats and insights when opening
+  if (!panel.classList.contains('hidden')) {
+    updateBromanSelection();
+    updateBromanInsights();
   }
+}
+
+// Update Broman FAB badge and selection stats
+function updateBromanSelection() {
+  const genreCount = selectedGenres.size;
+  const trackCount = getSelectedTrackCount();
+  const duration = formatDuration(calculateTotalDuration());
+  
+  // Update FAB badge
+  document.getElementById('fab-score-badge').textContent = bromanState.score;
+  document.getElementById('fab-genre-count').textContent = genreCount;
+  
+  // Update panel stats
+  document.getElementById('broman-genres').textContent = genreCount;
+  document.getElementById('broman-tracks').textContent = trackCount;
+  document.getElementById('broman-duration').textContent = duration;
+}
+
+// Helper to get selected track count
+function getSelectedTrackCount() {
+  let count = 0;
+  selectedGenres.forEach(genre => {
+    if (genreSongMap[genre]) {
+      count += genreSongMap[genre].length;
+    }
+  });
+  return count;
+}
+
+// Helper to calculate total duration
+function calculateTotalDuration() {
+  let totalMs = 0;
+  selectedGenres.forEach(genre => {
+    if (genreSongMap[genre]) {
+      genreSongMap[genre].forEach(track => {
+        totalMs += track.duration_ms || 0;
+      });
+    }
+  });
+  return totalMs;
+}
+
+// Helper to format duration
+function formatDuration(ms) {
+  const minutes = Math.floor(ms / 60000);
+  const hours = Math.floor(minutes / 60);
+  const remainingMins = minutes % 60;
+  
+  if (hours > 0) {
+    return `${hours}h ${remainingMins}m`;
+  }
+  return `${minutes}m`;
 }
 
 // Toggle Learn More
@@ -1272,7 +1494,9 @@ async function fetchAudioFeatures(trackIds) {
               energy: Math.round(features.energy * 100), // 0-100
               valence: Math.round(features.valence * 100), // 0-100 (mood)
               danceability: Math.round(features.danceability * 100),
-              acousticness: Math.round(features.acousticness * 100)
+              acousticness: Math.round(features.acousticness * 100),
+              speechiness: Math.round(features.speechiness * 100), // 0-100 (vocal detection)
+              instrumentalness: Math.round(features.instrumentalness * 100) // 0-100 (instrumental vs vocal)
             };
           }
         });
@@ -2342,7 +2566,28 @@ function toggleGenreArtists(genre, event) {
     artistsList.classList.remove('expanded');
     artistsList.innerHTML = '';
     button.textContent = 'Show Artists ▼';
+    
+    // Remove focus mode
+    element.classList.remove('focused');
+    element.closest('.genre-grid')?.classList.remove('has-focus');
   } else {
+    // Apply focus mode - this genre becomes center stage
+    const genreGrid = element.closest('.genre-grid');
+    if (genreGrid) {
+      // Remove focus from all other items
+      genreGrid.querySelectorAll('.genre-item, .genre-family-item, .subgenre-item')
+        .forEach(item => item.classList.remove('focused'));
+      genreGrid.classList.add('has-focus');
+    }
+    
+    // Focus this element
+    element.classList.add('focused');
+    
+    // Scroll into view smoothly
+    setTimeout(() => {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    
     // Load and display artists
     const artists = getArtistsForGenre(genre);
     
@@ -2351,13 +2596,14 @@ function toggleGenreArtists(genre, event) {
       excludedArtists.set(genre, new Set());
     }
     const excluded = excludedArtists.get(genre);
+    const excludedCount = excluded.size;
     
     artistsList.innerHTML = artists.map(artist => {
       const isExcluded = excluded.has(artist.id);
       const safeArtistId = artist.id.replace(/[^a-z0-9]/gi, '_');
       const safeGenreId = genre.replace(/[^a-z0-9]/gi, '_');
       return `
-        <div class="artist-in-genre">
+        <div class="artist-in-genre ${isExcluded ? 'excluded' : ''}">
           <label class="artist-checkbox-label">
             <input type="checkbox" 
                    class="artist-checkbox" 
@@ -2372,6 +2618,18 @@ function toggleGenreArtists(genre, event) {
         </div>
       `;
     }).join('');
+    
+    // Show exclusion summary if any excluded
+    if (excludedCount > 0) {
+      const summaryHTML = `
+        <div class="exclusion-summary">
+          <span class="exclusion-icon">🚫</span>
+          <span class="exclusion-text">${excludedCount} artist${excludedCount !== 1 ? 's' : ''} excluded</span>
+          <button class="btn-restore-all" onclick="restoreAllArtists('${genre}', event)">Restore All</button>
+        </div>
+      `;
+      artistsList.insertAdjacentHTML('afterbegin', summaryHTML);
+    }
     
     // Add event listeners for checkboxes
     artistsList.querySelectorAll('.artist-checkbox').forEach(checkbox => {
@@ -2471,9 +2729,45 @@ function handleArtistToggle(genre, artistId, isChecked) {
     excluded.add(artistId);
   }
   
+  // Visual feedback
+  const artistEl = document.querySelector(`[data-artist-id="${artistId}"]`)?.closest('.artist-in-genre');
+  if (artistEl) {
+    if (isChecked) {
+      artistEl.classList.remove('excluded');
+    } else {
+      artistEl.classList.add('excluded');
+    }
+  }
+  
   // Update the track count display
   updateGenreTrackCounts();
+  refreshPreview();
 }
+
+// Restore all excluded artists for a genre
+function restoreAllArtists(genre, event) {
+  event.stopPropagation();
+  
+  if (excludedArtists.has(genre)) {
+    excludedArtists.get(genre).clear();
+  }
+  
+  // Re-render the artist list
+  const genreElement = event.target.closest('.genre-item, .subgenre-item');
+  if (genreElement) {
+    const button = genreElement.querySelector('.genre-expand-btn, .genre-expand-btn-inline');
+    if (button) {
+      // Close and reopen to refresh
+      toggleGenreArtists(genre, event);
+      setTimeout(() => toggleGenreArtists(genre, event), 50);
+    }
+  }
+  
+  updateGenreTrackCounts();
+  refreshPreview();
+}
+
+window.restoreAllArtists = restoreAllArtists;
 
 function toggleArtistTracks(genre, artistId, event) {
   event.stopPropagation();
@@ -2681,21 +2975,19 @@ function updateSelectedCount() {
     countElement.textContent = selectedGenres.size;
   }
   
-  // Update FAB count and visibility
-  const fabCount = document.getElementById('fab-count');
-  const fabButton = document.getElementById('floating-create-btn');
+  // Update Broman FAB
+  updateBromanSelection();
   
-  if (fabCount) {
-    fabCount.textContent = selectedGenres.size === 1 
-      ? '1 genre' 
-      : `${selectedGenres.size} genres`;
-  }
+  // Update sticky bar
+  updateStickyBar();
   
-  if (fabButton) {
+  // Show/hide sticky bar
+  const stickyBar = document.getElementById('sticky-control-bar');
+  if (stickyBar) {
     if (selectedGenres.size > 0) {
-      fabButton.classList.remove('hidden');
+      stickyBar.classList.remove('hidden');
     } else {
-      fabButton.classList.add('hidden');
+      stickyBar.classList.add('hidden');
     }
   }
   
@@ -2712,9 +3004,6 @@ function updateSelectedCount() {
   
   // Refresh playlist preview
   refreshPreview();
-  
-  // Update sticky bar
-  updateStickyBar();
   
   // Broman triggers
   if (selectedGenres.size === 1 && !bromanState.shownTips.has('genreSelection')) {
@@ -2960,6 +3249,21 @@ document.getElementById('mood-max-slider').addEventListener('input', (e) => {
   refreshPreview();
 });
 
+// Vocal Filter
+document.getElementById('vocal-filter-enabled').addEventListener('change', (e) => {
+  smartPlaylistSettings.vocalFilter.enabled = e.target.checked;
+  document.getElementById('vocal-filter-controls').classList.toggle('hidden', !e.target.checked);
+  if (e.target.checked) enrichAndRefresh();
+  else refreshPreview();
+  document.getElementById('template-selector').value = 'custom';
+});
+
+document.getElementById('vocal-preference').addEventListener('change', (e) => {
+  smartPlaylistSettings.vocalFilter.type = e.target.value;
+  updateVocalDisplay(e.target.value);
+  refreshPreview();
+});
+
 // Helper function to enrich tracks and refresh
 async function enrichAndRefresh() {
   const allTracks = getAllSelectedTracks();
@@ -3006,6 +3310,16 @@ function updateMoodDisplay(min, max) {
     display = `${min} - ${max}`;
   }
   document.getElementById('mood-display').textContent = display;
+}
+
+function updateVocalDisplay(type) {
+  const displayMap = {
+    'any': 'Any (No filter)',
+    'instrumental': 'Instrumental Only',
+    'vocal': 'Vocal Tracks',
+    'spoken': 'Spoken Word / Rap'
+  };
+  document.getElementById('vocal-display').textContent = displayMap[type] || 'Any';
 }
 
 // ===== CREATE PLAYLIST FROM LIBRARY =====
@@ -3227,6 +3541,7 @@ function initBroman() {
   
   // Initialize UI
   updateBromanUI();
+  updateBromanSelection();
   
   // Set initial comment
   const comments = bromanState.comments;
@@ -3238,14 +3553,8 @@ function initBroman() {
     }
   }
   
-  // Apply collapsed state (sidebar already has collapsed class in HTML)
-  // Just need to handle body margin for expanded state
-  if (!bromanState.collapsed) {
-    document.getElementById('broman-sidebar')?.classList.remove('collapsed');
-    document.getElementById('broman-tab')?.classList.add('hidden');
-    document.body.classList.add('broman-visible');
-  }
-  // If collapsed (default), tab is already visible and body has no margin
+  // FAB is always visible, panel starts hidden
+  // No need for collapse state management
 }
 
 // Old save function removed - using new one from above
@@ -3810,7 +4119,7 @@ function setDuration(seconds) {
   event.target.classList.add('active');
 }
 
-function applyPlaylistTemplate(templateId) {
+async function applyPlaylistTemplate(templateId) {
   const template = playlistTemplates[templateId];
   if (!template) return;
   
@@ -3831,12 +4140,174 @@ function applyPlaylistTemplate(templateId) {
   // Update preset buttons (remove all active states)
   document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
   
-  // Refresh preview with new settings
-  refreshPreview();
+  // SMART TEMPLATE: Auto-select genres and apply filters
+  if (template.autoSelect && templateId !== 'custom' && Object.keys(genreSongMap).length > 0) {
+    showStatus(`🔍 Analyzing your library for ${template.name}...`, 'info');
+    
+    await analyzeAndApplyTemplate(template);
+    
+    // Apply filters if template specifies them
+    if (template.filters) {
+      applyTemplateFilters(template.filters);
+    }
+    
+    showStatus(`✅ ${template.name} ready! Found ${selectedGenres.size} genres.`, 'success');
+  } else {
+    // Refresh preview with new settings
+    refreshPreview();
+    
+    // Show a subtle notification if not custom
+    if (templateId !== 'custom') {
+      showStatus(`Applied template: ${template.name}`, 'success');
+    }
+  }
+}
+
+// Analyze library and auto-select genres based on template criteria
+async function analyzeAndApplyTemplate(template) {
+  // Clear current selection
+  selectedGenres.clear();
   
-  // Show a subtle notification if not custom
-  if (templateId !== 'custom') {
-    showStatus(`Applied template: ${template.name}`, 'success');
+  // Need audio features for energy/BPM analysis
+  let needsAudioFeatures = template.energyMin || template.energyMax || template.bpmMin || template.bpmMax;
+  
+  if (needsAudioFeatures) {
+    const allTracks = Object.values(genreSongMap).flat();
+    if (allTracks.length > 0 && !allTracks[0].audioFeatures) {
+      showStatus('Fetching audio features...', 'info');
+      await enrichTracksWithAudioFeatures(allTracks);
+    }
+  }
+  
+  // Calculate average energy and BPM for each genre
+  const genreMetrics = {};
+  Object.keys(genreSongMap).forEach(genre => {
+    const tracks = genreSongMap[genre];
+    const withFeatures = tracks.filter(t => t.audioFeatures);
+    
+    if (withFeatures.length > 0) {
+      const avgEnergy = withFeatures.reduce((sum, t) => sum + (t.audioFeatures.energy || 50), 0) / withFeatures.length;
+      const avgBPM = withFeatures.reduce((sum, t) => sum + (t.audioFeatures.tempo || 120), 0) / withFeatures.length;
+      
+      genreMetrics[genre] = {
+        avgEnergy,
+        avgBPM,
+        trackCount: tracks.length,
+        score: 0
+      };
+    } else {
+      genreMetrics[genre] = {
+        avgEnergy: 50,
+        avgBPM: 120,
+        trackCount: tracks.length,
+        score: 0
+      };
+    }
+  });
+  
+  // Score genres based on template criteria
+  Object.keys(genreMetrics).forEach(genre => {
+    const metrics = genreMetrics[genre];
+    let score = 0;
+    
+    // Energy criteria
+    if (template.energyMin && metrics.avgEnergy >= template.energyMin) score += 10;
+    if (template.energyMax && metrics.avgEnergy <= template.energyMax) score += 10;
+    
+    // BPM criteria
+    if (template.bpmMin && metrics.avgBPM >= template.bpmMin) score += 10;
+    if (template.bpmMax && metrics.avgBPM <= template.bpmMax) score += 10;
+    
+    // Prefer specific genres
+    if (template.preferGenres) {
+      const genreLower = genre.toLowerCase();
+      if (template.preferGenres.some(pref => genreLower.includes(pref) || pref.includes(genreLower))) {
+        score += 20;
+      }
+    }
+    
+    // Track count bonus (prefer genres with more tracks)
+    score += Math.min(metrics.trackCount / 10, 10);
+    
+    metrics.score = score;
+  });
+  
+  // Sort by score and select top genres
+  const sortedGenres = Object.entries(genreMetrics)
+    .sort((a, b) => b[1].score - a[1].score);
+  
+  const maxGenres = template.maxGenres || 3;
+  const topGenres = sortedGenres.slice(0, maxGenres).map(([genre]) => genre);
+  
+  // Auto-select these genres
+  topGenres.forEach(genre => selectedGenres.add(genre));
+  
+  // Update UI - mark genres as selected
+  document.querySelectorAll('.genre-item, .subgenre-item').forEach(item => {
+    const genre = item.dataset.genre;
+    if (genre && selectedGenres.has(genre)) {
+      item.classList.add('selected');
+    } else if (genre) {
+      item.classList.remove('selected');
+    }
+  });
+  
+  updateSelectedCount();
+}
+
+// Apply filter settings from template
+function applyTemplateFilters(filters) {
+  // BPM filter
+  if (filters.bpm) {
+    document.getElementById('bpm-filter-enabled').checked = filters.bpm.enabled;
+    smartPlaylistSettings.bpmRange.enabled = filters.bpm.enabled;
+    smartPlaylistSettings.bpmRange.min = filters.bpm.min;
+    smartPlaylistSettings.bpmRange.max = filters.bpm.max;
+    document.getElementById('bpm-min-slider').value = filters.bpm.min;
+    document.getElementById('bpm-max-slider').value = filters.bpm.max;
+    document.getElementById('bpm-filter-controls').classList.toggle('hidden', !filters.bpm.enabled);
+    updateBPMDisplay(filters.bpm.min, filters.bpm.max);
+  }
+  
+  // Energy filter
+  if (filters.energy) {
+    document.getElementById('energy-filter-enabled').checked = filters.energy.enabled;
+    smartPlaylistSettings.energyRange.enabled = filters.energy.enabled;
+    smartPlaylistSettings.energyRange.min = filters.energy.min;
+    smartPlaylistSettings.energyRange.max = filters.energy.max;
+    document.getElementById('energy-min-slider').value = filters.energy.min;
+    document.getElementById('energy-max-slider').value = filters.energy.max;
+    document.getElementById('energy-filter-controls').classList.toggle('hidden', !filters.energy.enabled);
+    updateEnergyDisplay(filters.energy.min, filters.energy.max);
+  }
+  
+  // Mood filter
+  if (filters.mood) {
+    document.getElementById('mood-filter-enabled').checked = filters.mood.enabled;
+    smartPlaylistSettings.moodRange.enabled = filters.mood.enabled;
+    smartPlaylistSettings.moodRange.min = filters.mood.min;
+    smartPlaylistSettings.moodRange.max = filters.mood.max;
+    document.getElementById('mood-min-slider').value = filters.mood.min;
+    document.getElementById('mood-max-slider').value = filters.mood.max;
+    document.getElementById('mood-filter-controls').classList.toggle('hidden', !filters.mood.enabled);
+    updateMoodDisplay(filters.mood.min, filters.mood.max);
+  }
+  
+  // Vocal filter
+  if (filters.vocal) {
+    document.getElementById('vocal-filter-enabled').checked = filters.vocal.enabled;
+    smartPlaylistSettings.vocalFilter.enabled = filters.vocal.enabled;
+    smartPlaylistSettings.vocalFilter.type = filters.vocal.type;
+    document.getElementById('vocal-preference').value = filters.vocal.type;
+    document.getElementById('vocal-filter-controls').classList.toggle('hidden', !filters.vocal.enabled);
+    updateVocalDisplay(filters.vocal.type);
+  }
+  
+  // Refresh preview with all new filters
+  if (filters.bpm?.enabled || filters.energy?.enabled || filters.mood?.enabled || filters.vocal?.enabled) {
+    enrichAndRefresh();
+  } else {
+    refreshPreview();
   }
 }
 
@@ -3982,6 +4453,31 @@ function selectSmartTracks(allTracks, settings) {
     filteredTracks = filteredTracks.filter(track => {
       if (!track.audioFeatures || track.audioFeatures.valence === undefined) return false;
       return track.audioFeatures.valence >= moodRange.min && track.audioFeatures.valence <= moodRange.max;
+    });
+  }
+  
+  // Apply vocal filter
+  const { vocalFilter } = smartPlaylistSettings;
+  if (vocalFilter.enabled && vocalFilter.type !== 'any' && filteredTracks.some(t => t.audioFeatures)) {
+    filteredTracks = filteredTracks.filter(track => {
+      if (!track.audioFeatures) return false;
+      
+      const speechiness = track.audioFeatures.speechiness || 0;
+      const instrumentalness = track.audioFeatures.instrumentalness || 0;
+      
+      switch (vocalFilter.type) {
+        case 'instrumental':
+          // High instrumentalness (>50) or very low speechiness (<10)
+          return instrumentalness > 50 || speechiness < 10;
+        case 'vocal':
+          // Low instrumentalness (<50) and moderate speechiness (10-66)
+          return instrumentalness < 50 && speechiness >= 10 && speechiness < 66;
+        case 'spoken':
+          // High speechiness (>66) - rap, spoken word, podcasts
+          return speechiness > 66;
+        default:
+          return true;
+      }
     });
   }
   
@@ -4674,7 +5170,7 @@ document.getElementById('generate-discovery-playlist').addEventListener('click',
 // ===== PAGE LOAD: Handle OAuth Redirect =====
 
 window.toggleAboutSection = toggleAboutSection;
-window.toggleBromanSidebar = toggleBromanSidebar;
+window.toggleBromanFab = toggleBromanFab;
 window.toggleLearnMore = toggleLearnMore;
 window.toggleInfoSection = toggleInfoSection;
 window.closeTour = closeTour;
