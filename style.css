@@ -4534,7 +4534,7 @@ button:disabled {
 .genre-grid.has-focus {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 /* Non-focused items become compact list items */
@@ -4542,21 +4542,51 @@ button:disabled {
 .genre-grid.has-focus .genre-family-item:not(.focused),
 .genre-grid.has-focus .subgenre-item:not(.focused) {
   /* Compact list view */
-  padding: 12px 16px;
+  padding: 10px 16px;
   display: flex;
   align-items: center;
   gap: 12px;
-  opacity: 0.4;
+  opacity: 0.6;
+  background: #1a1a1a;
+  border: 1px solid #282828;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  border-radius: 6px;
+  
+  /* Remove grid item styling */
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 .genre-grid.has-focus .genre-item:not(.focused):hover,
 .genre-grid.has-focus .genre-family-item:not(.focused):hover,
 .genre-grid.has-focus .subgenre-item:not(.focused):hover {
-  opacity: 0.6;
-  background: #1a1a1a;
+  opacity: 1;
+  background: #202020;
+  border-color: #383838;
+  transform: translateX(4px) !important;
+}
+
+/* Show genre name inline for compact items */
+.genre-grid.has-focus .genre-item:not(.focused) .genre-name,
+.genre-grid.has-focus .subgenre-item:not(.focused) .subgenre-name {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: #e3e3e3 !important;
+}
+
+.genre-grid.has-focus .genre-item:not(.focused) .genre-count,
+.genre-grid.has-focus .subgenre-item:not(.focused) .subgenre-count {
+  font-size: 12px !important;
+  color: #7f7f7f !important;
+  margin-left: auto;
+}
+
+/* Hide buttons in compact mode */
+.genre-grid.has-focus .genre-item:not(.focused) .genre-expand-btn,
+.genre-grid.has-focus .genre-item:not(.focused) .genre-expand-btn-inline,
+.genre-grid.has-focus .subgenre-item:not(.focused) .genre-expand-btn-inline {
+  display: none;
 }
 
 /* Focused item gets MASSIVE space */
@@ -4818,4 +4848,196 @@ button:disabled {
   align-items: center;
   gap: 12px;
   width: 100%;
+}
+
+/* Add "Click to explore" hint for compact items */
+.genre-grid.has-focus .genre-item:not(.focused)::after,
+.genre-grid.has-focus .subgenre-item:not(.focused)::after {
+  content: "→";
+  margin-left: auto;
+  color: #7f7f7f;
+  font-size: 16px;
+  transition: all 0.2s;
+}
+
+.genre-grid.has-focus .genre-item:not(.focused):hover::after,
+.genre-grid.has-focus .subgenre-item:not(.focused):hover::after {
+  color: #1db954;
+  transform: translateX(4px);
+}
+
+/* ===== SMART RECOMMENDATIONS ===== */
+
+.recommendations-section {
+  background: linear-gradient(135deg, #1a1a1a 0%, #121212 100%);
+  border: 2px solid #282828;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.btn-recommendations {
+  width: 100%;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+  border: none;
+  border-radius: 8px;
+  color: #000;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 12px rgba(29, 185, 84, 0.3);
+}
+
+.btn-recommendations:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(29, 185, 84, 0.5);
+}
+
+.btn-recommendations:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.recommendations-container {
+  margin-top: 20px;
+}
+
+.recommendations-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  justify-content: center;
+  color: #7f7f7f;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #282828;
+  border-top-color: #1db954;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.recommendations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.recommendation-card {
+  background: #1a1a1a;
+  border: 2px solid #282828;
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.recommendation-card:hover {
+  border-color: #1db954;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(29, 185, 84, 0.2);
+}
+
+.rec-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.rec-icon {
+  font-size: 24px;
+}
+
+.rec-title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 700;
+  color: #e3e3e3;
+}
+
+.rec-confidence {
+  background: rgba(29, 185, 84, 0.2);
+  color: #1db954;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rec-description {
+  color: #b3b3b3;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.rec-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.rec-genre-tag {
+  background: #282828;
+  color: #e3e3e3;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid #383838;
+}
+
+.rec-stats {
+  display: flex;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid #282828;
+  border-bottom: 1px solid #282828;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #7f7f7f;
+}
+
+.btn-apply-rec {
+  width: 100%;
+  padding: 12px 20px;
+  background: #282828;
+  border: 1px solid #383838;
+  border-radius: 6px;
+  color: #e3e3e3;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-apply-rec:hover {
+  background: #1db954;
+  border-color: #1db954;
+  color: #000;
+}
+
+/* Quick Presets styling update */
+.template-section {
+  background: #1a1a1a;
+  border: 1px solid #282828;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.template-section .builder-label {
+  font-size: 14px;
+  color: #b3b3b3;
 }
