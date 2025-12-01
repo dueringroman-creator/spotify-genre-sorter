@@ -2607,16 +2607,23 @@ function toggleGenreArtists(genre, event) {
         closeBtn.innerHTML = '✕ Close';
         closeBtn.onclick = (e) => {
           e.stopPropagation();
-          toggleGenreArtists(genre, e);
+          // Simulate clicking the Show/Hide Artists button to toggle
+          const toggleButton = element.querySelector('.genre-expand-btn, .genre-expand-btn-inline');
+          if (toggleButton) {
+            toggleButton.click();
+          }
         };
         genreHeader.appendChild(closeBtn);
       }
       
-      // Scroll into view smoothly
+      // Scroll into view after a short delay for smooth animation
       setTimeout(() => {
-        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
+        element.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+      }, 200);
     }
+    
+    // Load and display artists
+    const artists = getArtistsForGenre(genre);
     
     // Initialize excludedArtists set for this genre if it doesn't exist
     if (!excludedArtists.has(genre)) {
@@ -5216,3 +5223,321 @@ window.onload = () => {
     });
   }
 };
+
+// Add click delegation for compact genre items in focus mode
+document.addEventListener('click', (e) => {
+  const compactItem = e.target.closest('.genre-grid.has-focus .genre-item:not(.focused), .genre-grid.has-focus .subgenre-item:not(.focused)');
+  
+  if (compactItem && !e.target.closest('button, input, label, .focus-close-btn')) {
+    // Find the expand button and click it
+    const expandBtn = compactItem.querySelector('.genre-expand-btn, .genre-expand-btn-inline');
+    if (expandBtn) {
+      expandBtn.click();
+    }
+  }
+});
+
+// ===== SMART RECOMMENDATIONS SYSTEM =====
+
+async function generateSmartRecommendations() {
+  const container = document.getElementById('recommendations-container');
+  const list = document.getElementById('recommendations-list');
+  const button = document.getElementById('generate-recommendations-btn');
+  
+  // Show loading
+  container.classList.remove('hidden');
+  list.innerHTML = '';
+  button.disabled = true;
+  button.textContent = '⏳ Analyzing...';
+  
+  // Wait a moment for loading effect
+  await new Promise(resolve => setTimeout(resolve, 800));
+  
+  // Generate recommendations
+  const recommendations = await analyzeLibraryForRecommendations();
+  
+  // Display recommendations
+  list.innerHTML = recommendations.map((rec, index) => `
+    <div class="recommendation-card" data-rec-index="${index}">
+      <div class="rec-header">
+        <span class="rec-icon">${rec.icon}</span>
+        <span class="rec-title">${rec.title}</span>
+        <span class="rec-confidence">${rec.confidence}% match</span>
+      </div>
+      <div class="rec-description">${rec.description}</div>
+      <div class="rec-genres">
+        ${rec.genres.map(g => `<span class="rec-genre-tag">${g}</span>`).join('')}
+      </div>
+      <div class="rec-stats">
+        <span>📊 ${rec.trackCount} tracks</span>
+        <span>🎤 ${rec.artistCount} artists</span>
+        <span>⏱️ ${rec.duration}</span>
+      </div>
+      <button class="btn-apply-rec" onclick="applyRecommendation(${index})">
+        ✨ Use This Mix
+      </button>
+    </div>
+  `).join('');
+  
+  button.disabled = false;
+  button.textContent = '🔄 Refresh Suggestions';
+}
+
+async function analyzeLibraryForRecommendations() {
+  const recommendations = [];
+  
+  // Get all genres with track counts
+  const genreStats = Object.entries(genreSongMap).map(([genre, tracks]) => ({
+    genre,
+    tracks,
+    trackCount: tracks.length,
+    artistCount: getArtistCountForGenre(genre)
+  })).sort((a, b) => b.trackCount - a.trackCount);
+  
+  // Need audio features for analysis
+  const allTracks = Object.values(genreSongMap).flat();
+  if (allTracks.length > 0 && !allTracks[0].audioFeatures) {
+    await enrichTracksWithAudioFeatures(allTracks);
+  }
+  
+  // === RECOMMENDATION 1: Your Top Genres Mix ===
+  if (genreStats.length >= 3) {
+    const topGenres = genreStats.slice(0, 3);
+    const genres = topGenres.map(g => g.genre);
+    const totalTracks = topGenres.reduce((sum, g) => sum + g.trackCount, 0);
+    const totalArtists = topGenres.reduce((sum, g) => sum + g.artistCount, 0);
+    
+    recommendations.push({
+      icon: '🏆',
+      title: 'Your Top 3 Genres',
+      description: `Your most listened-to genres. A safe bet that represents your core taste. ${topGenres[0].genre} dominates with ${topGenres[0].trackCount} tracks.`,
+      genres: genres,
+      trackCount: totalTracks,
+      artistCount: totalArtists,
+      duration: formatDuration(totalTracks * 3.5 * 60 * 1000), // ~3.5min avg
+      confidence: 95,
+      type: 'top',
+      genreList: genres
+    });
+  }
+  
+  // === RECOMMENDATION 2: Genre Family Mix ===
+  const familyMap = buildGenreFamilyMap(genreSongMap);
+  const topFamily = Object.entries(familyMap)
+    .filter(([id]) => id !== 'other')
+    .sort((a, b) => b[1].totalTracks - a[1].totalTracks)[0];
+  
+  if (topFamily) {
+    const [familyId, familyData] = topFamily;
+    const subgenres = Object.keys(familyData.genres).slice(0, 4);
+    const totalTracks = Object.values(familyData.genres).reduce((sum, tracks) => sum + tracks.length, 0);
+    
+    recommendations.push({
+      icon: '🎨',
+      title: `${familyData.name} Deep Dive`,
+      description: `Explore the full spectrum of ${familyData.name.toLowerCase()} in your library. From mainstream to underground subgenres.`,
+      genres: subgenres,
+      trackCount: totalTracks,
+      artistCount: subgenres.reduce((sum, g) => sum + getArtistCountForGenre(g), 0),
+      duration: formatDuration(totalTracks * 3.5 * 60 * 1000),
+      confidence: 88,
+      type: 'family',
+      genreList: subgenres
+    });
+  }
+  
+  // === RECOMMENDATION 3: Energy-Based Mix ===
+  const tracksWithEnergy = allTracks.filter(t => t.audioFeatures?.energy);
+  if (tracksWithEnergy.length > 50) {
+    const highEnergy = genreStats.filter(g => {
+      const tracks = g.tracks.filter(t => t.audioFeatures?.energy);
+      if (tracks.length === 0) return false;
+      const avgEnergy = tracks.reduce((sum, t) => sum + t.audioFeatures.energy, 0) / tracks.length;
+      return avgEnergy > 70;
+    }).slice(0, 3);
+    
+    if (highEnergy.length >= 2) {
+      const genres = highEnergy.map(g => g.genre);
+      const totalTracks = highEnergy.reduce((sum, g) => sum + g.trackCount, 0);
+      
+      recommendations.push({
+        icon: '⚡',
+        title: 'High Energy Power Mix',
+        description: 'Your highest energy genres combined. Perfect for workouts, running, or when you need motivation.',
+        genres: genres,
+        trackCount: totalTracks,
+        artistCount: highEnergy.reduce((sum, g) => sum + g.artistCount, 0),
+        duration: formatDuration(totalTracks * 3.5 * 60 * 1000),
+        confidence: 82,
+        type: 'energy-high',
+        genreList: genres
+      });
+    }
+  }
+  
+  // === RECOMMENDATION 4: Mood-Based Mix ===
+  const tracksWithMood = allTracks.filter(t => t.audioFeatures?.valence);
+  if (tracksWithMood.length > 50) {
+    const avgMood = tracksWithMood.reduce((sum, t) => sum + t.audioFeatures.valence, 0) / tracksWithMood.length;
+    
+    if (avgMood > 60) {
+      // Happy vibes
+      const happyGenres = genreStats.filter(g => {
+        const tracks = g.tracks.filter(t => t.audioFeatures?.valence);
+        if (tracks.length === 0) return false;
+        const avg = tracks.reduce((sum, t) => sum + t.audioFeatures.valence, 0) / tracks.length;
+        return avg > 60;
+      }).slice(0, 3);
+      
+      if (happyGenres.length >= 2) {
+        const genres = happyGenres.map(g => g.genre);
+        const totalTracks = happyGenres.reduce((sum, g) => sum + g.trackCount, 0);
+        
+        recommendations.push({
+          icon: '😊',
+          title: 'Good Vibes Only',
+          description: 'Your happiest, most positive tracks. Uplifting genres that boost your mood.',
+          genres: genres,
+          trackCount: totalTracks,
+          artistCount: happyGenres.reduce((sum, g) => sum + g.artistCount, 0),
+          duration: formatDuration(totalTracks * 3.5 * 60 * 1000),
+          confidence: 79,
+          type: 'mood-happy',
+          genreList: genres
+        });
+      }
+    } else if (avgMood < 40) {
+      // Melancholic vibes
+      const sadGenres = genreStats.filter(g => {
+        const tracks = g.tracks.filter(t => t.audioFeatures?.valence);
+        if (tracks.length === 0) return false;
+        const avg = tracks.reduce((sum, t) => sum + t.audioFeatures.valence, 0) / tracks.length;
+        return avg < 40;
+      }).slice(0, 3);
+      
+      if (sadGenres.length >= 2) {
+        const genres = sadGenres.map(g => g.genre);
+        const totalTracks = sadGenres.reduce((sum, g) => sum + g.trackCount, 0);
+        
+        recommendations.push({
+          icon: '🌧️',
+          title: 'Melancholic Moods',
+          description: 'Your most introspective, emotional tracks. Perfect for rainy days and reflection.',
+          genres: genres,
+          trackCount: totalTracks,
+          artistCount: sadGenres.reduce((sum, g) => sum + g.artistCount, 0),
+          duration: formatDuration(totalTracks * 3.5 * 60 * 1000),
+          confidence: 76,
+          type: 'mood-sad',
+          genreList: genres
+        });
+      }
+    }
+  }
+  
+  // === RECOMMENDATION 5: Rare Gems ===
+  const rareGenres = genreStats.filter(g => g.trackCount >= 5 && g.trackCount <= 30).slice(0, 4);
+  if (rareGenres.length >= 3) {
+    const genres = rareGenres.map(g => g.genre);
+    const totalTracks = rareGenres.reduce((sum, g) => sum + g.trackCount, 0);
+    
+    recommendations.push({
+      icon: '💎',
+      title: 'Hidden Gems',
+      description: 'Your smaller, overlooked genres. A discovery playlist showcasing the diversity of your taste.',
+      genres: genres,
+      trackCount: totalTracks,
+      artistCount: rareGenres.reduce((sum, g) => sum + g.artistCount, 0),
+      duration: formatDuration(totalTracks * 3.5 * 60 * 1000),
+      confidence: 71,
+      type: 'rare',
+      genreList: genres
+    });
+  }
+  
+  // === RECOMMENDATION 6: Cross-Genre Fusion ===
+  if (genreStats.length >= 6) {
+    // Pick genres from different families
+    const usedFamilies = new Set();
+    const diverseGenres = [];
+    
+    for (const stat of genreStats) {
+      const family = detectGenreFamily(stat.genre);
+      if (!usedFamilies.has(family.id) && diverseGenres.length < 4) {
+        diverseGenres.push(stat);
+        usedFamilies.add(family.id);
+      }
+      if (diverseGenres.length >= 4) break;
+    }
+    
+    if (diverseGenres.length >= 3) {
+      const genres = diverseGenres.map(g => g.genre);
+      const totalTracks = diverseGenres.reduce((sum, g) => sum + g.trackCount, 0);
+      
+      recommendations.push({
+        icon: '🌈',
+        title: 'Cross-Genre Fusion',
+        description: 'Maximum diversity! Genres from completely different families, showcasing your eclectic taste.',
+        genres: genres,
+        trackCount: totalTracks,
+        artistCount: diverseGenres.reduce((sum, g) => sum + g.artistCount, 0),
+        duration: formatDuration(totalTracks * 3.5 * 60 * 1000),
+        confidence: 68,
+        type: 'fusion',
+        genreList: genres
+      });
+    }
+  }
+  
+  // Return top 5 recommendations
+  return recommendations.slice(0, 5);
+}
+
+function applyRecommendation(index) {
+  const recommendations = window.currentRecommendations || [];
+  const rec = recommendations[index];
+  
+  if (!rec) return;
+  
+  // Clear current selection
+  selectedGenres.clear();
+  
+  // Select recommended genres
+  rec.genreList.forEach(genre => selectedGenres.add(genre));
+  
+  // Update UI
+  document.querySelectorAll('.genre-item, .subgenre-item').forEach(item => {
+    const genre = item.dataset.genre;
+    if (genre && selectedGenres.has(genre)) {
+      item.classList.add('selected');
+    } else if (genre) {
+      item.classList.remove('selected');
+    }
+  });
+  
+  updateSelectedCount();
+  
+  // Scroll to builder
+  document.getElementById('playlist-builder').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  
+  // Show success message
+  showStatus(`✨ Applied: ${rec.title} - ${rec.genres.length} genres selected`, 'success');
+  
+  // Refresh preview
+  refreshPreview();
+}
+
+// Store recommendations globally so applyRecommendation can access them
+window.currentRecommendations = [];
+
+// Wrap the original function to store recommendations
+const originalGenerate = generateSmartRecommendations;
+generateSmartRecommendations = async function() {
+  await originalGenerate();
+  // Store recommendations for later
+  const recommendations = await analyzeLibraryForRecommendations();
+  window.currentRecommendations = recommendations;
+};
+
+window.generateSmartRecommendations = generateSmartRecommendations;
+window.applyRecommendation = applyRecommendation;
