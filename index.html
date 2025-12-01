@@ -554,25 +554,50 @@
               <input type="text" id="playlist-name" placeholder="Leave blank for auto-generated name..." class="builder-input" />
             </div>
             
-            <!-- Playlist Templates -->
-            <div class="builder-section template-section">
+            <!-- Smart Recommendations -->
+            <div class="builder-section recommendations-section">
               <label class="builder-label">
-                Quick Start Template
+                🎯 Smart Recommendations
                 <span class="info-tooltip">
                   <span class="info-icon">i</span>
                   <span class="tooltip-content">
-                    <strong>Templates</strong> are pre-configured settings bundles for common use cases. Select one to auto-fill duration, diversity, and energy settings. Switch to <strong>Custom</strong> to fine-tune.
+                    <strong>AI-powered suggestions</strong> analyze YOUR library to recommend genre combinations, artist pairings, and playlist ideas that work well together based on your music.
+                  </span>
+                </span>
+              </label>
+              
+              <button id="generate-recommendations-btn" class="btn-recommendations" onclick="generateSmartRecommendations()">
+                ✨ Analyze My Library & Suggest
+              </button>
+              
+              <div id="recommendations-container" class="recommendations-container hidden">
+                <div class="recommendations-loading">
+                  <div class="loading-spinner"></div>
+                  <span>Analyzing your music taste...</span>
+                </div>
+                <div id="recommendations-list" class="recommendations-list"></div>
+              </div>
+            </div>
+            
+            <!-- Playlist Templates (Quick Presets) -->
+            <div class="builder-section template-section">
+              <label class="builder-label">
+                ⚡ Quick Presets
+                <span class="info-tooltip">
+                  <span class="info-icon">i</span>
+                  <span class="tooltip-content">
+                    <strong>Quick presets</strong> apply common settings (duration, energy filters) but don't select genres. Use <strong>Smart Recommendations</strong> above for personalized genre suggestions.
                   </span>
                 </span>
               </label>
               <select id="template-selector" class="template-selector">
                 <option value="custom">Custom (adjust settings below)</option>
-                <option value="workout">Workout Mix - High energy, 1 hour</option>
-                <option value="focus">Deep Focus - Low energy, 2 hours</option>
-                <option value="party">Party Playlist - Upbeat, 3 hours</option>
-                <option value="discovery">Discovery Mode - Max variety, 1 hour</option>
-                <option value="commute">Commute Mix - Balanced, 45 minutes</option>
-                <option value="background">Background Music - Chill, 4 hours</option>
+                <option value="workout">⚡ Workout - High energy, 1 hour</option>
+                <option value="focus">🧘 Focus - Low energy, 2 hours</option>
+                <option value="party">🎉 Party - Upbeat, 3 hours</option>
+                <option value="discovery">🔍 Discovery - Max variety, 1 hour</option>
+                <option value="commute">🚗 Commute - Balanced, 45 minutes</option>
+                <option value="background">🎵 Background - Chill, 4 hours</option>
               </select>
             </div>
             
