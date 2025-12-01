@@ -4060,7 +4060,7 @@ document.getElementById('generate-discovery-playlist').addEventListener('click',
 
 // ===== PAGE LOAD: Handle OAuth Redirect =====
 
-window.toggleAbout = toggleAbout;
+window.toggleAboutSection = toggleAboutSection;
 window.closeTour = closeTour;
 window.nextTourStep = nextTourStep;
 window.prevTourStep = prevTourStep;
