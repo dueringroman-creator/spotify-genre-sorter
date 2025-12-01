@@ -4530,31 +4530,144 @@ button:disabled {
 
 /* ===== FOCUS MODE FOR EXPANDED ITEMS ===== */
 
+/* When an item is focused, switch to exploration layout */
+.genre-grid.has-focus {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Non-focused items become compact list items */
 .genre-grid.has-focus .genre-item:not(.focused),
 .genre-grid.has-focus .genre-family-item:not(.focused),
 .genre-grid.has-focus .subgenre-item:not(.focused) {
-  opacity: 0.25;
-  pointer-events: none;
-  filter: blur(2px);
-  transition: all 0.3s ease;
+  /* Compact list view */
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0.4;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 6px;
 }
 
+.genre-grid.has-focus .genre-item:not(.focused):hover,
+.genre-grid.has-focus .genre-family-item:not(.focused):hover,
+.genre-grid.has-focus .subgenre-item:not(.focused):hover {
+  opacity: 0.6;
+  background: #1a1a1a;
+}
+
+/* Focused item gets MASSIVE space */
 .genre-item.focused,
 .genre-family-item.focused,
 .subgenre-item.focused {
   position: relative;
   z-index: 50;
-  transform: scale(1.02);
-  box-shadow: 0 16px 48px rgba(29, 185, 84, 0.4);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Take full width */
+  width: 100% !important;
+  max-width: 100% !important;
+  
+  /* Much more padding for breathing room */
+  padding: 32px !important;
+  
+  /* Stronger visual prominence */
+  background: #0a0a0a !important;
+  border: 2px solid #1db954 !important;
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(29, 185, 84, 0.3);
+  
+  /* Smooth transition */
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.genre-artists-list.expanded {
-  max-height: 1200px !important;
+/* Genre name in focused mode - make it prominent */
+.genre-item.focused .genre-name,
+.subgenre-item.focused .subgenre-name {
+  font-size: 24px !important;
+  color: #1db954 !important;
+  margin-bottom: 16px !important;
+}
+
+/* Artists list in focused mode - MUCH more space */
+.genre-item.focused .genre-artists-list,
+.subgenre-item.focused .genre-artists-list {
+  max-height: none !important; /* Remove height restriction */
+  padding: 24px !important;
   background: #0a0a0a;
-  padding: 20px;
+  border-radius: 12px;
+  margin-top: 20px;
+}
+
+/* Artist items get more space too */
+.genre-item.focused .artist-in-genre,
+.subgenre-item.focused .artist-in-genre {
+  padding: 16px !important;
+  margin-bottom: 12px !important;
+  background: #121212;
   border-radius: 8px;
-  margin-top: 12px;
+  border: 1px solid #282828;
+}
+
+.genre-item.focused .artist-name,
+.subgenre-item.focused .artist-name {
+  font-size: 15px !important;
+  font-weight: 600;
+}
+
+.genre-item.focused .artist-track-count {
+  font-size: 13px !important;
+}
+
+/* Track lists get readable space */
+.genre-item.focused .artist-tracks-list,
+.subgenre-item.focused .artist-tracks-list {
+  padding-left: 24px !important;
+  margin-top: 12px !important;
+}
+
+.genre-item.focused .track-item,
+.subgenre-item.focused .track-item {
+  padding: 10px 12px !important;
+  margin-bottom: 6px;
+  background: #1a1a1a;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.genre-item.focused .track-name,
+.subgenre-item.focused .track-name {
+  font-size: 14px !important;
+  flex: 1;
+  overflow: visible !important;
+  text-overflow: initial !important;
+  white-space: normal !important;
+}
+
+/* Expand button in focused mode */
+.genre-item.focused .genre-expand-btn,
+.genre-item.focused .track-expand-btn,
+.subgenre-item.focused .genre-expand-btn,
+.subgenre-item.focused .track-expand-btn {
+  padding: 10px 16px;
+  font-size: 14px;
+  background: #1db954;
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.genre-item.focused .genre-expand-btn:hover,
+.genre-item.focused .track-expand-btn:hover {
+  background: #1ed760;
+  transform: translateY(-1px);
 }
 
 /* Exclusion Visual Feedback */
@@ -4676,4 +4789,33 @@ button:disabled {
   font-size: 12px;
   font-style: italic;
   padding: 20px 0;
+}
+
+/* Close button for focused items */
+.focus-close-btn {
+  margin-left: auto;
+  padding: 8px 16px;
+  background: #282828;
+  border: 1px solid #383838;
+  border-radius: 6px;
+  color: #e3e3e3;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.focus-close-btn:hover {
+  background: #e74c3c;
+  border-color: #e74c3c;
+  color: #fff;
+}
+
+/* Make subgenre-header flex to accommodate close button */
+.subgenre-header {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
 }
