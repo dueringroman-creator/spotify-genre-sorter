@@ -227,10 +227,10 @@
           </div>
           <div class="sticky-actions">
             <button class="btn-secondary btn-small" onclick="scrollToPreview()">
-              Preview
+              View Preview
             </button>
             <button class="btn-primary btn-small" onclick="scrollToBuilder()">
-              Create Playlist
+              Go to Builder →
             </button>
           </div>
         </div>
@@ -422,6 +422,27 @@
         <div id="genre-selection-area" class="hidden">
           <div class="genre-header">
             <h3>Select Genres for Your Playlist</h3>
+            
+            <!-- Discrete Info Section -->
+            <div class="info-section" id="genre-info-section">
+              <div class="info-section-header" onclick="toggleInfoSection('genre-info-section')">
+                <div class="info-section-title">
+                  <span class="info-section-icon">ℹ️</span>
+                  <span>How genre detection works</span>
+                </div>
+                <span class="info-section-toggle">▼</span>
+              </div>
+              <div class="info-section-content">
+                <div class="info-section-body">
+                  <p><strong>Grouped View:</strong> Genres organized into families (Electronic, Rock, Hip-Hop, etc.). Each family has a color that flows to all subgenres.</p>
+                  <p><strong>Flat View:</strong> All genres listed individually. Great for precise control.</p>
+                  <p><strong>Color System:</strong> Notice the colored dots and left borders? They connect subgenres to their parent family.</p>
+                  <p><strong>Expanding Families:</strong> Click the expand button to see all subgenres. The family becomes the focal point with more space.</p>
+                  <p><strong>Detection:</strong> We analyze artist genres from Spotify using 3-pass fuzzy matching: exact matches → aliases (200+) → word splitting → fallback to "Other".</p>
+                </div>
+              </div>
+            </div>
+            
             <div class="genre-actions">
               <div class="view-toggle">
                 <button class="view-btn active" data-view="grouped">Grouped</button>
@@ -478,7 +499,7 @@
           <div id="floating-create-btn" class="floating-create-btn hidden">
             <button class="fab-button" onclick="scrollToPlaylistControls()">
               <span class="fab-icon">🎵</span>
-              <span class="fab-text">Create Playlist</span>
+              <span class="fab-text">Build Playlist</span>
               <span class="fab-count" id="fab-count">0 selected</span>
             </button>
           </div>
@@ -500,7 +521,15 @@
             
             <!-- Playlist Templates -->
             <div class="builder-section template-section">
-              <label class="builder-label">Quick Start Template</label>
+              <label class="builder-label">
+                Quick Start Template
+                <span class="info-tooltip">
+                  <span class="info-icon">i</span>
+                  <span class="tooltip-content">
+                    <strong>Templates</strong> are pre-configured settings bundles for common use cases. Select one to auto-fill duration, diversity, and energy settings. Switch to <strong>Custom</strong> to fine-tune.
+                  </span>
+                </span>
+              </label>
               <select id="template-selector" class="template-selector">
                 <option value="custom">Custom (adjust settings below)</option>
                 <option value="workout">Workout Mix - High energy, 1 hour</option>
@@ -535,6 +564,12 @@
               <div class="builder-section">
                 <label class="builder-label">
                   Artist Diversity: <span id="diversity-display">Max 3 tracks per artist</span>
+                  <span class="info-tooltip">
+                    <span class="info-icon">i</span>
+                    <span class="tooltip-content">
+                      <strong>Artist Diversity</strong> prevents "artist dumps" in your playlists. Set to <code>1</code> for maximum variety (discovery mode) or <code>10</code> to allow deep dives into favorite artists.
+                    </span>
+                  </span>
                 </label>
                 <input type="range" id="diversity-slider" min="1" max="10" value="3" class="diversity-slider" />
                 <div class="range-labels">
@@ -555,6 +590,12 @@
                 <label class="builder-checkbox">
                   <input type="checkbox" id="bpm-filter-enabled" />
                   <span>Filter by BPM (Tempo)</span>
+                  <span class="info-tooltip">
+                    <span class="info-icon">i</span>
+                    <span class="tooltip-content">
+                      <strong>BPM (Beats Per Minute)</strong> data comes from Spotify's Audio Features API. First use takes 2-5 seconds to fetch, then cached locally. Perfect for workout playlists or energy-specific vibes.
+                    </span>
+                  </span>
                 </label>
                 <div id="bpm-filter-controls" class="filter-controls hidden">
                   <label class="builder-label">
