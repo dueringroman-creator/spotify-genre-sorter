@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,25 +10,48 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Broman Helper Assistant -->
-  <div id="broman-helper" class="broman-helper hidden">
-    <div class="broman-avatar" id="broman-avatar">
-      <div class="broman-face">🎵</div>
-      <div class="broman-pulse"></div>
+  <!-- Broman Sidebar - The Berghain Bouncer of Playlists -->
+  <div id="broman-sidebar" class="broman-sidebar">
+    <div class="broman-header">
+      <div class="broman-icon">🎵</div>
+      <div class="broman-title">BROMAN</div>
+      <button class="broman-collapse" onclick="toggleBromanSidebar()" title="Collapse">←</button>
     </div>
-    <div class="broman-bubble" id="broman-bubble">
-      <button class="broman-close" onclick="dismissBroman()" title="Dismiss">×</button>
-      <div class="broman-content" id="broman-content">
-        <p class="broman-text">Welcome to Playlist Alchemist!</p>
-      </div>
-      <div class="broman-actions" id="broman-actions">
-        <!-- Action buttons will be inserted here -->
-      </div>
-      <label class="broman-dont-show">
-        <input type="checkbox" id="broman-dont-show" />
-        <span>Don't show this again</span>
-      </label>
+    
+    <div class="broman-comment" id="broman-comment">
+      <p>"You just discovered Spotify?"</p>
     </div>
+    
+    <div class="broman-section">
+      <div class="broman-section-title">CREDIBILITY</div>
+      <div class="broman-score">
+        <div class="score-number" id="broman-score">0</div>
+        <div class="score-label" id="broman-label">Spotify Shuffle User</div>
+      </div>
+      <div class="score-progress">
+        <div class="score-bar" id="broman-progress" style="width: 0%"></div>
+      </div>
+    </div>
+    
+    <div class="broman-section">
+      <div class="broman-section-title">PLAYLIST HISTORY</div>
+      <div class="broman-history" id="broman-history">
+        <div class="history-empty">No playlists yet.<br>Get to work.</div>
+      </div>
+    </div>
+    
+    <div class="broman-section broman-tip">
+      <div class="broman-section-title">TIP OF THE MOMENT</div>
+      <div class="broman-tip-content" id="broman-tip">
+        Connect your library and select some genres.
+      </div>
+    </div>
+  </div>
+  
+  <!-- Broman Collapsed Tab -->
+  <div id="broman-tab" class="broman-tab hidden" onclick="toggleBromanSidebar()">
+    <div class="tab-icon">🎵</div>
+    <div class="tab-text">B<br>R<br>O<br>M<br>A<br>N</div>
   </div>
 
   <!-- Quick Search Panel (Ctrl/Cmd+K) -->
@@ -78,7 +100,47 @@
     
     <!-- Login Section -->
     <div id="login-section" class="landing-page">
+      <!-- Hero with Graphic -->
       <div class="landing-hero">
+        <div class="hero-graphic">
+          <svg class="chaos-to-order" viewBox="0 0 400 120" xmlns="http://www.w3.org/2000/svg">
+            <!-- Chaos (scattered dots) -->
+            <g class="chaos-side">
+              <circle cx="20" cy="30" r="4" fill="#1db954" opacity="0.6"/>
+              <circle cx="35" cy="55" r="3" fill="#1db954" opacity="0.5"/>
+              <circle cx="25" cy="75" r="3.5" fill="#1db954" opacity="0.7"/>
+              <circle cx="50" cy="40" r="4" fill="#1db954" opacity="0.4"/>
+              <circle cx="45" cy="70" r="3" fill="#1db954" opacity="0.6"/>
+              <circle cx="60" cy="50" r="3.5" fill="#1db954" opacity="0.5"/>
+              <circle cx="40" cy="20" r="3" fill="#1db954" opacity="0.7"/>
+              <circle cx="55" cy="85" r="4" fill="#1db954" opacity="0.5"/>
+              <circle cx="30" cy="95" r="3" fill="#1db954" opacity="0.6"/>
+            </g>
+            
+            <!-- Arrow -->
+            <g class="arrow">
+              <line x1="80" y1="60" x2="140" y2="60" stroke="#535353" stroke-width="2"/>
+              <polygon points="140,60 135,55 135,65" fill="#535353"/>
+              <text x="110" y="50" fill="#7f7f7f" font-size="10" text-anchor="middle">ALGORITHM</text>
+            </g>
+            
+            <!-- Order (organized stacks) -->
+            <g class="order-side">
+              <rect x="160" y="25" width="30" height="8" rx="2" fill="#1db954" opacity="0.8"/>
+              <rect x="160" y="38" width="30" height="8" rx="2" fill="#1db954" opacity="0.8"/>
+              <rect x="160" y="51" width="30" height="8" rx="2" fill="#1db954" opacity="0.8"/>
+              
+              <rect x="200" y="35" width="30" height="8" rx="2" fill="#1db954" opacity="0.6"/>
+              <rect x="200" y="48" width="30" height="8" rx="2" fill="#1db954" opacity="0.6"/>
+              <rect x="200" y="61" width="30" height="8" rx="2" fill="#1db954" opacity="0.6"/>
+              
+              <rect x="240" y="40" width="30" height="8" rx="2" fill="#1db954" opacity="0.7"/>
+              <rect x="240" y="53" width="30" height="8" rx="2" fill="#1db954" opacity="0.7"/>
+              <rect x="240" y="66" width="30" height="8" rx="2" fill="#1db954" opacity="0.7"/>
+            </g>
+          </svg>
+        </div>
+        
         <h1 class="hero-title">Playlist Alchemist</h1>
         <p class="hero-tagline">
           Turn your chaotic Spotify library<br>
@@ -88,21 +150,68 @@
         
         <button id="login" class="btn-hero">Connect Spotify</button>
         
-        <div class="landing-features">
-          <div class="feature-pill">
-            <span class="feature-text">Smart genre detection</span>
-          </div>
-          <div class="feature-pill">
-            <span class="feature-text">DJ-quality mixing</span>
-          </div>
-          <div class="feature-pill">
-            <span class="feature-text">Privacy-first</span>
-          </div>
-        </div>
-        
         <p class="landing-note">
           No servers • No tracking • Works offline
         </p>
+      </div>
+      
+      <!-- How It Works (3 Steps with Graphics) -->
+      <div class="landing-steps">
+        <h2 class="steps-title">How It Works</h2>
+        
+        <div class="step-grid">
+          <!-- Step 1 -->
+          <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-graphic">
+              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="40" fill="none" stroke="#1db954" stroke-width="2" stroke-dasharray="5,5"/>
+                <circle cx="35" cy="40" r="3" fill="#1db954"/>
+                <circle cx="55" cy="35" r="3" fill="#1db954"/>
+                <circle cx="45" cy="55" r="3" fill="#1db954"/>
+                <circle cx="60" cy="50" r="3" fill="#1db954"/>
+                <circle cx="40" cy="65" r="3" fill="#1db954"/>
+                <text x="50" y="92" fill="#7f7f7f" font-size="10" text-anchor="middle">YOUR LIBRARY</text>
+              </svg>
+            </div>
+            <div class="step-title">We Analyze</div>
+            <div class="step-desc">Connect Spotify and we'll organize your entire library by genre</div>
+          </div>
+          
+          <!-- Step 2 -->
+          <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-graphic">
+              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <rect x="20" y="30" width="25" height="15" rx="3" fill="#1db954" opacity="0.8"/>
+                <rect x="55" y="30" width="25" height="15" rx="3" fill="none" stroke="#535353" stroke-width="1.5"/>
+                <rect x="20" y="55" width="25" height="15" rx="3" fill="#1db954" opacity="0.8"/>
+                <rect x="55" y="55" width="25" height="15" rx="3" fill="#1db954" opacity="0.8"/>
+                <text x="50" y="92" fill="#7f7f7f" font-size="10" text-anchor="middle">PICK GENRES</text>
+              </svg>
+            </div>
+            <div class="step-title">You Choose</div>
+            <div class="step-desc">Select genres, set vibe filters (BPM, energy, mood)</div>
+          </div>
+          
+          <!-- Step 3 -->
+          <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-graphic">
+              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <rect x="25" y="20" width="50" height="8" rx="2" fill="#1db954"/>
+                <rect x="25" y="32" width="50" height="8" rx="2" fill="#1db954" opacity="0.8"/>
+                <rect x="25" y="44" width="50" height="8" rx="2" fill="#1db954" opacity="0.6"/>
+                <rect x="25" y="56" width="50" height="8" rx="2" fill="#1db954" opacity="0.8"/>
+                <rect x="25" y="68" width="50" height="8" rx="2" fill="#1db954" opacity="0.7"/>
+                <polygon points="50,85 45,80 55,80" fill="#1db954"/>
+                <text x="50" y="95" fill="#7f7f7f" font-size="8" text-anchor="middle">TO SPOTIFY</text>
+              </svg>
+            </div>
+            <div class="step-title">We Create</div>
+            <div class="step-desc">DJ-quality playlists with smart mixing and artist diversity</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -239,105 +348,15 @@
         </div>
       </div>
       
-      <!-- About Section (Expandable) -->
-      <div class="about-sections">
-        <h3 style="color: #e3e3e3; margin-bottom: 16px;">Learn More</h3>
-        
-        <!-- Section 1: How It Works -->
-        <div class="about-section-item">
-          <button class="about-section-toggle" onclick="toggleAboutSection('how-it-works')">
-            <span class="toggle-icon" id="icon-how-it-works">▶</span>
-            <span class="toggle-title">How It Works</span>
-          </button>
-          <div id="about-how-it-works" class="about-section-content hidden">
-            <p><strong>Step 1:</strong> Choose your data source (Liked Songs, Top Artists, or Playlists)</p>
-            <p><strong>Step 2:</strong> We fetch artist genres from Spotify's API</p>
-            <p><strong>Step 3:</strong> Intelligent mapping of 200+ micro-genres into ~25 families</p>
-            <p><strong>Step 4:</strong> Select genres, adjust smart settings, create playlists!</p>
-            <p style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #282828; color: #7f7f7f; font-size: 13px;">
-              We cache everything locally for speed. Your 13,000-song library? Instant load on return visits.
-            </p>
-          </div>
-        </div>
-        
-        <!-- Section 2: Genre Mapping -->
-        <div class="about-section-item">
-          <button class="about-section-toggle" onclick="toggleAboutSection('genre-mapping')">
-            <span class="toggle-icon" id="icon-genre-mapping">▶</span>
-            <span class="toggle-title">Genre Mapping Logic</span>
-          </button>
-          <div id="about-genre-mapping" class="about-section-content hidden">
-            <p>Spotify has 200+ genres like "deep deep house," "bubblegrunge," and "escape room." Seriously.</p>
-            <p><strong>Our solution:</strong> 3-pass intelligent detection:</p>
-            <ol style="margin-left: 20px; color: #b3b3b3;">
-              <li><strong>Manual mappings:</strong> User-defined categories (you're the expert!)</li>
-              <li><strong>Exact matches:</strong> Direct keyword matching to families</li>
-              <li><strong>Fuzzy matching:</strong> 200+ aliases (e.g., "nu disco" → "disco")</li>
-              <li><strong>Word-based:</strong> Compound genre splitting</li>
-              <li><strong>Fallback:</strong> "Other" category (you can manually map these!)</li>
-            </ol>
-            <p style="margin-top: 12px; color: #1db954;">Result: 80% reduction in "Other" bucket vs naive approaches.</p>
-          </div>
-        </div>
-        
-        <!-- Section 3: Smart Algorithms -->
-        <div class="about-section-item">
-          <button class="about-section-toggle" onclick="toggleAboutSection('smart-mixing')">
-            <span class="toggle-icon" id="icon-smart-mixing">▶</span>
-            <span class="toggle-title">Smart Mixing Explained</span>
-          </button>
-          <div id="about-smart-mixing" class="about-section-content hidden">
-            <p><strong>Artist Diversity:</strong> Prevents "artist dumps." Max 3 tracks per artist by default (adjustable 1-10). No more playlists with 50 tracks from the same 3 artists.</p>
-            <p><strong>Smart Shuffle:</strong> Avoids consecutive tracks from the same artist. Creates natural flow like a DJ set.</p>
-            <p><strong>Duration Control:</strong> Target precise playlist lengths (30min - 5hrs). We calculate average track length and select accordingly.</p>
-            <p><strong>Live Preview:</strong> See stats before creating. Adjust settings and watch the preview update in real-time.</p>
-            <p style="margin-top: 12px; color: #1db954;">Result: Professional DJ-quality playlists, not random track dumps.</p>
-          </div>
-        </div>
-        
-        <!-- Section 4: Privacy & Caching -->
-        <div class="about-section-item">
-          <button class="about-section-toggle" onclick="toggleAboutSection('privacy')">
-            <span class="toggle-icon" id="icon-privacy">▶</span>
-            <span class="toggle-title">Privacy & Data</span>
-          </button>
-          <div id="about-privacy" class="about-section-content hidden">
-            <p><strong>Zero servers. Zero tracking. Zero data storage.</strong></p>
-            <p>Everything runs in <em>your browser</em>. We cache data locally using LocalStorage for speed, but it never leaves your device.</p>
-            <p><strong>What we cache:</strong></p>
-            <ul style="margin-left: 20px; color: #b3b3b3;">
-              <li>Your library tracks (for instant reload)</li>
-              <li>Genre mappings (for consistency)</li>
-              <li>Manual genre categorizations (your customizations)</li>
-            </ul>
-            <p><strong>What we don't collect:</strong></p>
-            <ul style="margin-left: 20px; color: #b3b3b3;">
-              <li>Personal information</li>
-              <li>Listening habits</li>
-              <li>Analytics or tracking data</li>
-              <li>Anything, really</li>
-            </ul>
-            <p style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #282828; color: #7f7f7f; font-size: 13px;">
-              Open source • No ads • No backend • Privacy-first by design
-            </p>
-          </div>
-        </div>
-        
-        <!-- Section 5: Pro Tips -->
-        <div class="about-section-item">
-          <button class="about-section-toggle" onclick="toggleAboutSection('pro-tips')">
-            <span class="toggle-icon" id="icon-pro-tips">▶</span>
-            <span class="toggle-title">Pro Tips & Tricks</span>
-          </button>
-          <div id="about-pro-tips" class="about-section-content hidden">
-            <p><strong>View Modes:</strong> Start with "Grouped" view for easiest navigation. Switch to "Flat List" for granular control.</p>
-            <p><strong>Manual Mapping:</strong> See orange "Map to Family" buttons on unmapped genres? Click to categorize them yourself!</p>
-            <p><strong>Advanced Settings:</strong> Adjust artist diversity (1-10 tracks per artist) and enable/disable consecutive artist avoidance.</p>
-            <p><strong>Preview Everything:</strong> Always check the preview before creating. Adjust sliders and watch stats update instantly.</p>
-            <p><strong>Artist/Track Exclusions:</strong> Click "Show Artists" to exclude specific artists. Click "Show Tracks" for song-level control.</p>
-            <p><strong>Export Options:</strong> Download playlists as CSV/TXT for DJ software or backup.</p>
-            <p><strong>Timeframe Filters:</strong> When using Liked Songs, filter by "Past month," "Past 6 months," etc.</p>
-          </div>
+      <div class="footer-learn-more">
+        <button class="learn-more-toggle" onclick="toggleLearnMore()">
+          <span id="learn-more-icon">▼</span> How does the algorithm work?
+        </button>
+        <div id="learn-more-content" class="learn-more-content hidden">
+          <p><strong>3-pass genre detection:</strong> Manual mappings → Exact matches → Fuzzy matching (200+ aliases) → Word-based splitting → Fallback to "Other"</p>
+          <p><strong>Smart mixing:</strong> Artist diversity control (max N tracks per artist), smart shuffle (no consecutive same artist), duration targeting with average track length calculation</p>
+          <p><strong>Audio filters:</strong> BPM, energy (intensity), and mood (valence) from Spotify's audio analysis API, cached locally</p>
+          <p><strong>Privacy:</strong> Everything runs in your browser. Zero servers. LocalStorage caching for speed. No data collected.</p>
         </div>
       </div>
       
@@ -479,6 +498,20 @@
               <input type="text" id="playlist-name" placeholder="Leave blank for auto-generated name..." class="builder-input" />
             </div>
             
+            <!-- Playlist Templates -->
+            <div class="builder-section template-section">
+              <label class="builder-label">Quick Start Template</label>
+              <select id="template-selector" class="template-selector">
+                <option value="custom">Custom (adjust settings below)</option>
+                <option value="workout">Workout Mix - High energy, 1 hour</option>
+                <option value="focus">Deep Focus - Low energy, 2 hours</option>
+                <option value="party">Party Playlist - Upbeat, 3 hours</option>
+                <option value="discovery">Discovery Mode - Max variety, 1 hour</option>
+                <option value="commute">Commute Mix - Balanced, 45 minutes</option>
+                <option value="background">Background Music - Chill, 4 hours</option>
+              </select>
+            </div>
+            
             <!-- Duration Control -->
             <div class="builder-section">
               <label class="builder-label">
@@ -515,6 +548,69 @@
                   <input type="checkbox" id="avoid-consecutive" checked />
                   <span>Avoid same artist back-to-back</span>
                 </label>
+              </div>
+              
+              <!-- BPM Filter -->
+              <div class="builder-section">
+                <label class="builder-checkbox">
+                  <input type="checkbox" id="bpm-filter-enabled" />
+                  <span>Filter by BPM (Tempo)</span>
+                </label>
+                <div id="bpm-filter-controls" class="filter-controls hidden">
+                  <label class="builder-label">
+                    BPM Range: <span id="bpm-display">60 - 180</span>
+                  </label>
+                  <div class="dual-range-container">
+                    <input type="range" id="bpm-min-slider" min="60" max="200" value="60" class="range-slider" />
+                    <input type="range" id="bpm-max-slider" min="60" max="200" value="180" class="range-slider" />
+                  </div>
+                  <div class="range-labels">
+                    <span>60 BPM</span>
+                    <span>200 BPM</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Energy Filter -->
+              <div class="builder-section">
+                <label class="builder-checkbox">
+                  <input type="checkbox" id="energy-filter-enabled" />
+                  <span>Filter by Energy Level</span>
+                </label>
+                <div id="energy-filter-controls" class="filter-controls hidden">
+                  <label class="builder-label">
+                    Energy: <span id="energy-display">Low → High</span>
+                  </label>
+                  <div class="dual-range-container">
+                    <input type="range" id="energy-min-slider" min="0" max="100" value="0" class="range-slider" />
+                    <input type="range" id="energy-max-slider" min="0" max="100" value="100" class="range-slider" />
+                  </div>
+                  <div class="range-labels">
+                    <span>😴 Calm</span>
+                    <span>⚡ Intense</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Mood Filter -->
+              <div class="builder-section">
+                <label class="builder-checkbox">
+                  <input type="checkbox" id="mood-filter-enabled" />
+                  <span>Filter by Mood (Valence)</span>
+                </label>
+                <div id="mood-filter-controls" class="filter-controls hidden">
+                  <label class="builder-label">
+                    Mood: <span id="mood-display">All moods</span>
+                  </label>
+                  <div class="dual-range-container">
+                    <input type="range" id="mood-min-slider" min="0" max="100" value="0" class="range-slider" />
+                    <input type="range" id="mood-max-slider" min="0" max="100" value="100" class="range-slider" />
+                  </div>
+                  <div class="range-labels">
+                    <span>😔 Sad</span>
+                    <span>😊 Happy</span>
+                  </div>
+                </div>
               </div>
             </div>
             
