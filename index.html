@@ -52,6 +52,7 @@
 
   <div class="container">
     <h1>Playlist Alchemist</h1>
+    <p class="app-tagline">Smart playlist creation for Spotify</p>
     <button id="help-button" class="help-button" title="Show help tour">?</button>
     
     <!-- Login Section -->
@@ -99,12 +100,12 @@
         
         <h1 class="hero-title">Playlist Alchemist</h1>
         <p class="hero-tagline">
-          Turn your chaotic Spotify library<br>
-          into organized playlists<br>
-          <span class="tagline-accent">(without the effort)</span>
+          Your music library has potential.<br>
+          We help you unlock it.<br>
+          <span class="tagline-accent">(The smart way to build playlists)</span>
         </p>
         
-        <button id="login" class="btn-hero">Connect Spotify</button>
+        <button id="login" class="btn-hero">Get Started</button>
         
         <p class="landing-note">
           No servers • No tracking • Works offline
@@ -413,14 +414,14 @@
         <!-- Load Button -->
         <div class="load-action">
           <button id="load-library-btn" class="btn-primary btn-large">
-            <span class="btn-text">Load Music Library</span>
+            <span class="btn-text">Load Your Library</span>
           </button>
-          <div class="load-hint">This will analyze your music and find all genres</div>
+          <div class="load-hint">One-time setup · Analyzes your music collection</div>
         </div>
         
         <div class="library-controls">
-          <button id="fetch-tracks" class="btn-secondary">Let's Go</button>
-          <button id="refresh-cache" class="btn-small" style="display: none;">Refresh Cache</button>
+          <button id="fetch-tracks" class="btn-secondary">Start</button>
+          <button id="refresh-cache" class="btn-small" style="display: none;">Refresh</button>
           <div id="cache-info" class="cache-info" style="display: none;"></div>
         </div>
 
@@ -760,19 +761,15 @@
           <!-- Playlist Menu Dropdown -->
           <div id="playlist-menu" class="playlist-menu hidden">
             <button class="playlist-menu-item" onclick="loadExistingPlaylist()">
-              <span class="menu-icon">📥</span>
               <span>Load Existing Playlist</span>
             </button>
             <button class="playlist-menu-item" onclick="duplicateCurrentPlaylist()">
-              <span class="menu-icon">📋</span>
               <span>Duplicate Current</span>
             </button>
             <button class="playlist-menu-item" onclick="closeAllButCurrent()">
-              <span class="menu-icon">🗑️</span>
               <span>Close Other Tabs</span>
             </button>
             <button class="playlist-menu-item" onclick="exportPlaylistData()">
-              <span class="menu-icon">💾</span>
               <span>Export Data</span>
             </button>
           </div>
@@ -1210,43 +1207,50 @@
         <div class="onboarding-overlay"></div>
         <div class="onboarding-content">
           <div class="onboarding-header">
-            <h2>Welcome to Playlist Alchemist!</h2>
+            <h2>Welcome to Playlist Alchemist</h2>
             <button class="onboarding-close" onclick="skipOnboarding()">×</button>
           </div>
           
           <div class="onboarding-body">
-            <p class="onboarding-intro">Create smart playlists from YOUR Spotify library with powerful filters and discovery tools.</p>
+            <p class="onboarding-intro">Build better playlists from your own library. No algorithm guessing—just your music, organized the way you want it.</p>
             
             <div class="onboarding-steps">
-              <h3>Quick Start (5 steps):</h3>
+              <h3>How it works:</h3>
               <ol class="onboarding-list">
-                <li>Load your music library</li>
-                <li>Browse and select genres</li>
-                <li>Apply filters (optional)</li>
-                <li>Preview your playlist</li>
-                <li>Create and save to Spotify</li>
+                <li>Load your library (one time)</li>
+                <li>Pick genres or apply filters</li>
+                <li>Preview what you'll get</li>
+                <li>Create playlist in seconds</li>
               </ol>
             </div>
             
             <div class="onboarding-features">
               <div class="feature-item">
-                <span class="feature-icon">🎵</span>
-                <span class="feature-text">Browse 250+ genres</span>
+                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+                <span class="feature-text">Save hours of manual sorting</span>
               </div>
               <div class="feature-item">
-                <span class="feature-icon">🎯</span>
+                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 12h18M3 6h18M3 18h18"/>
+                </svg>
                 <span class="feature-text">Filter by BPM, energy, mood</span>
               </div>
               <div class="feature-item">
-                <span class="feature-icon">✨</span>
-                <span class="feature-text">Smart recommendations</span>
+                <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                <span class="feature-text">Your music, fully organized</span>
               </div>
             </div>
           </div>
           
           <div class="onboarding-footer">
-            <button class="btn-secondary" onclick="skipOnboarding()">Skip - I'll Explore</button>
-            <button class="btn-primary" onclick="startTour()">Take the Tour</button>
+            <button class="btn-secondary" onclick="skipOnboarding()">Skip</button>
+            <button class="btn-primary" onclick="startTour()">Show Me How</button>
           </div>
         </div>
       </div>
