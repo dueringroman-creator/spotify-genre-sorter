@@ -10,94 +10,6 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Broman FAB - The Berghain Bouncer (Merged with Action Button) -->
-  <div id="broman-fab" class="broman-fab">
-    <!-- Collapsed Button (Always Visible) -->
-    <button class="broman-fab-button" onclick="toggleBromanFab()" id="broman-fab-btn">
-      <div class="fab-bouncer">🎧</div>
-      <div class="fab-score-badge" id="fab-score-badge">0</div>
-      <div class="fab-selection" id="fab-selection">
-        <span id="fab-genre-count">0</span> genres
-      </div>
-    </button>
-    
-    <!-- Expanded Panel (Slides Out) -->
-    <div class="broman-panel hidden" id="broman-panel">
-      <div class="broman-panel-header">
-        <div class="broman-panel-title">
-          <span class="bouncer-icon">🎧</span>
-          <span>BROMAN</span>
-          <span class="bouncer-subtitle">Your Playlist Bouncer</span>
-        </div>
-        <button class="broman-panel-close" onclick="toggleBromanFab()">✕</button>
-      </div>
-      
-      <div class="broman-panel-content">
-        <!-- Commentary -->
-        <div class="broman-comment-box" id="broman-comment">
-          <p>"You just discovered Spotify?"</p>
-        </div>
-        
-        <!-- Credibility Score -->
-        <div class="broman-section">
-          <div class="broman-section-title">CREDIBILITY SCORE</div>
-          <div class="broman-score">
-            <div class="score-number" id="broman-score">0</div>
-            <div class="score-label" id="broman-label">Spotify Shuffle User</div>
-          </div>
-          <div class="score-progress">
-            <div class="score-bar" id="broman-progress" style="width: 0%"></div>
-          </div>
-        </div>
-        
-        <!-- Current Selection -->
-        <div class="broman-section">
-          <div class="broman-section-title">CURRENT SELECTION</div>
-          <div class="selection-stats">
-            <div class="stat-row">
-              <span class="stat-label">Genres:</span>
-              <span class="stat-value" id="broman-genres">0</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">Tracks:</span>
-              <span class="stat-value" id="broman-tracks">0</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">Duration:</span>
-              <span class="stat-value" id="broman-duration">0m</span>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Action Buttons -->
-        <div class="broman-actions">
-          <button class="broman-btn broman-btn-secondary" onclick="scrollToPreview()">
-            View Preview
-          </button>
-          <button class="broman-btn broman-btn-primary" onclick="scrollToBuilder()">
-            Build Playlist →
-          </button>
-        </div>
-        
-        <!-- Library Insights -->
-        <div class="broman-section">
-          <div class="broman-section-title">LIBRARY INSIGHTS</div>
-          <div class="broman-insights" id="broman-insights">
-            <div class="insight-loading">Analyzing your library...</div>
-          </div>
-        </div>
-        
-        <!-- Playlist History -->
-        <div class="broman-section">
-          <div class="broman-section-title">RECENT PLAYLISTS</div>
-          <div class="broman-history" id="broman-history">
-            <div class="history-empty">No playlists yet.<br>Get to work.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Quick Search Panel (Ctrl/Cmd+K) -->
   <div id="quick-search-panel" class="quick-search-panel hidden">
     <div class="quick-search-overlay" onclick="closeQuickSearch()"></div>
@@ -412,27 +324,59 @@
         <button class="tab-btn" data-tab="history">Playlist History</button>
       </div>
 
+      <!-- Main Layout: Tabs + Persistent Panel -->
+      <div id="main-layout" class="main-layout">
+        <!-- LEFT: Tab Content -->
+        <div id="tabs-container" class="tabs-container">
       <!-- Tab Content: My Library -->
       <div id="library-tab" class="tab-content active">
-        <h2>Create Playlist from Your Music Library</h2>
+        <div class="library-header">
+          <div class="library-header-left">
+            <h2>Create Playlist from Your Library</h2>
+          </div>
+          <div class="library-header-right">
+            <div class="mode-switcher">
+              <label class="mode-label">Mode:</label>
+              <select id="creation-mode-select" class="mode-select" onchange="switchCreationMode(this.value)">
+                <option value="browse" selected>Browse Genres</option>
+                <option value="filter-first">Filter First</option>
+              </select>
+              <button class="mode-help-btn" onclick="showModeHelp()" title="Learn about modes">?</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Browse Mode (Default - existing genre grid) -->
+        <div id="browse-mode-section" class="creation-mode-section active"
+        
+        <!-- Browse Mode (Default - existing genre grid) -->
+        <div id="browse-mode-section" class="creation-mode-section active">
+        
+        <!-- Clear Instructions -->
+        <div class="instruction-banner">
+          <div class="instruction-step">Step 1: Choose your music source</div>
+          <div class="instruction-hint">Select where to pull tracks from</div>
+        </div>
         
         <!-- Data Source Selection -->
         <div class="data-source-options">
-          <h4 style="color: #e3e3e3; margin-bottom: 12px;">
-            What music should we dig into?
-            <span class="tooltip">i
-              <span class="tooltiptext">Pick where to pull your tracks from. Liked Songs is cached for speed!</span>
-            </span>
-          </h4>
-          <label>
+          <h3 class="section-heading">Music Source</h3>
+          
+          <label class="data-source-card">
             <input type="radio" name="data-source" value="liked-songs" checked>
-            <span>Songs I've liked</span>
+            <div class="source-card-content">
+              <div class="source-card-header">
+                <span class="source-title">Liked Songs</span>
+                <span class="source-badge recommended">Recommended</span>
+              </div>
+              <div class="source-description">Your entire library of liked tracks</div>
+              <div class="source-meta">Best for: Maximum variety and options</div>
+            </div>
           </label>
-          <div class="option-description">Your entire liked songs collection - perfect for big libraries!</div>
           
           <!-- Timeframe Filter for Liked Songs -->
           <div class="timeframe-selector" id="liked-timeframe-selector">
-            <label class="timeframe-label">Timeframe:</label>
+            <label class="timeframe-label">Time Period:</label>
             <select id="liked-timeframe" class="timeframe-select">
               <option value="all">All time</option>
               <option value="year">Past year</option>
@@ -443,17 +387,35 @@
             </select>
           </div>
           
-          <label>
+          <label class="data-source-card">
             <input type="radio" name="data-source" value="top-artists">
-            <span>Artists I listen to most</span>
+            <div class="source-card-content">
+              <div class="source-card-header">
+                <span class="source-title">Top Artists</span>
+              </div>
+              <div class="source-description">Your 50 most-played artists</div>
+              <div class="source-meta">Best for: Quick personalized mix</div>
+            </div>
           </label>
-          <div class="option-description">Your top 50 most-played artists - quick and personalized</div>
           
-          <label>
+          <label class="data-source-card">
             <input type="radio" name="data-source" value="playlists">
-            <span>All my playlists</span>
+            <div class="source-card-content">
+              <div class="source-card-header">
+                <span class="source-title">Specific Playlists</span>
+              </div>
+              <div class="source-description">Choose which playlists to include</div>
+              <div class="source-meta">Best for: Curated collections</div>
+            </div>
           </label>
-          <div class="option-description">Scan everything - your created playlists, saved ones, and followed ones</div>
+        </div>
+        
+        <!-- Load Button -->
+        <div class="load-action">
+          <button id="load-library-btn" class="btn-primary btn-large">
+            <span class="btn-text">Load Music Library</span>
+          </button>
+          <div class="load-hint">This will analyze your music and find all genres</div>
         </div>
         
         <div class="library-controls">
@@ -471,7 +433,7 @@
             <div class="info-section" id="genre-info-section">
               <div class="info-section-header" onclick="toggleInfoSection('genre-info-section')">
                 <div class="info-section-title">
-                  <span class="info-section-icon">ℹ️</span>
+                  <span class="info-section-icon"></span>
                   <span>How genre detection works</span>
                 </div>
                 <span class="info-section-toggle">▼</span>
@@ -538,285 +500,168 @@
               </div>
             </div>
           </div>
-          
-          <!-- Playlist Builder Interface -->
-          <div class="playlist-builder" id="playlist-builder">
-            <div class="playlist-builder-header">
-              <h3>Smart Playlist Builder</h3>
-              <button class="toggle-advanced" onclick="toggleAdvancedSettings()">
-                Advanced Settings
-              </button>
+        </div>
+        </div>
+        <!-- END Browse Mode Section -->
+        
+        <!-- Filter First Mode (New) -->
+        <div id="filter-first-section" class="creation-mode-section">
+          <div class="filter-first-container">
+            <div class="filter-first-header">
+              <h3>Set Your Criteria</h3>
+              <p class="filter-first-hint">Define what you're looking for, then we'll show matching genres from your library</p>
             </div>
             
-            <!-- Basic Settings -->
-            <div class="builder-section">
-              <label class="builder-label">Playlist Name</label>
-              <input type="text" id="playlist-name" placeholder="Leave blank for auto-generated name..." class="builder-input" />
-            </div>
-            
-            <!-- Smart Recommendations -->
-            <div class="builder-section recommendations-section">
-              <label class="builder-label">
-                🎯 Smart Recommendations
-                <span class="info-tooltip">
-                  <span class="info-icon">i</span>
-                  <span class="tooltip-content">
-                    <strong>AI-powered suggestions</strong> analyze YOUR library to recommend genre combinations, artist pairings, and playlist ideas that work well together based on your music.
-                  </span>
-                </span>
-              </label>
-              
-              <button id="generate-recommendations-btn" class="btn-recommendations" onclick="generateSmartRecommendations()">
-                ✨ Analyze My Library & Suggest
-              </button>
-              
-              <div id="recommendations-container" class="recommendations-container hidden">
-                <div class="recommendations-loading">
-                  <div class="loading-spinner"></div>
-                  <span>Analyzing your music taste...</span>
-                </div>
-                <div id="recommendations-list" class="recommendations-list"></div>
-              </div>
-            </div>
-            
-            <!-- Playlist Templates (Quick Presets) -->
-            <div class="builder-section template-section">
-              <label class="builder-label">
-                ⚡ Quick Presets
-                <span class="info-tooltip">
-                  <span class="info-icon">i</span>
-                  <span class="tooltip-content">
-                    <strong>Quick presets</strong> apply common settings (duration, energy filters) but don't select genres. Use <strong>Smart Recommendations</strong> above for personalized genre suggestions.
-                  </span>
-                </span>
-              </label>
-              <select id="template-selector" class="template-selector">
-                <option value="custom">Custom (adjust settings below)</option>
-                <option value="workout">⚡ Workout - High energy, 1 hour</option>
-                <option value="focus">🧘 Focus - Low energy, 2 hours</option>
-                <option value="party">🎉 Party - Upbeat, 3 hours</option>
-                <option value="discovery">🔍 Discovery - Max variety, 1 hour</option>
-                <option value="commute">🚗 Commute - Balanced, 45 minutes</option>
-                <option value="background">🎵 Background - Chill, 4 hours</option>
-              </select>
-            </div>
-            
-            <!-- Duration Control -->
-            <div class="builder-section">
-              <label class="builder-label">
-                Target Duration: <span id="duration-display">2h 0m</span>
-              </label>
-              <div class="duration-presets">
-                <button class="preset-btn" onclick="setDuration(3600)">1 hour</button>
-                <button class="preset-btn active" onclick="setDuration(7200)">2 hours</button>
-                <button class="preset-btn" onclick="setDuration(10800)">3 hours</button>
-                <button class="preset-btn" onclick="setDuration(14400)">4 hours</button>
-              </div>
-              <input type="range" id="duration-slider" min="1800" max="18000" step="300" value="7200" class="duration-slider" />
-              <div class="range-labels">
-                <span>30m</span>
-                <span>5h</span>
-              </div>
-            </div>
-            
-            <!-- Advanced Settings (collapsible) -->
-            <div class="advanced-settings hidden" id="advanced-settings">
-              <div class="builder-section">
-                <label class="builder-label">
-                  Artist Diversity: <span id="diversity-display">Max 3 tracks per artist</span>
-                  <span class="info-tooltip">
-                    <span class="info-icon">i</span>
-                    <span class="tooltip-content">
-                      <strong>Artist Diversity</strong> prevents "artist dumps" in your playlists. Set to <code>1</code> for maximum variety (discovery mode) or <code>10</code> to allow deep dives into favorite artists.
-                    </span>
-                  </span>
+            <div class="filter-first-form">
+              <!-- BPM Range -->
+              <div class="filter-first-row">
+                <label class="filter-first-label">
+                  <span class="label-text">BPM Range</span>
+                  <span class="label-hint">Beats per minute</span>
                 </label>
-                <input type="range" id="diversity-slider" min="1" max="10" value="3" class="diversity-slider" />
-                <div class="range-labels">
-                  <span>Max variety</span>
-                  <span>Allow repeats</span>
-                </div>
-              </div>
-              
-              <div class="builder-section">
-                <label class="builder-checkbox">
-                  <input type="checkbox" id="avoid-consecutive" checked />
-                  <span>Avoid same artist back-to-back</span>
-                </label>
-              </div>
-              
-              <!-- BPM Filter -->
-              <div class="builder-section">
-                <label class="builder-checkbox">
-                  <input type="checkbox" id="bpm-filter-enabled" />
-                  <span>Filter by BPM (Tempo)</span>
-                  <span class="info-tooltip">
-                    <span class="info-icon">i</span>
-                    <span class="tooltip-content">
-                      <strong>BPM (Beats Per Minute)</strong> data comes from Spotify's Audio Features API. First use takes 2-5 seconds to fetch, then cached locally. Perfect for workout playlists or energy-specific vibes.
-                    </span>
-                  </span>
-                </label>
-                <div id="bpm-filter-controls" class="filter-controls hidden">
-                  <label class="builder-label">
-                    BPM Range: <span id="bpm-display">60 - 180</span>
-                  </label>
-                  <div class="dual-range-container">
-                    <input type="range" id="bpm-min-slider" min="60" max="200" value="60" class="range-slider" />
-                    <input type="range" id="bpm-max-slider" min="60" max="200" value="180" class="range-slider" />
-                  </div>
-                  <div class="range-labels">
-                    <span>60 BPM</span>
-                    <span>200 BPM</span>
+                <div class="dual-range-container">
+                  <input type="range" id="ff-bpm-min" class="range-input" min="60" max="200" value="120" oninput="updateFFBPMRange()">
+                  <input type="range" id="ff-bpm-max" class="range-input" min="60" max="200" value="140" oninput="updateFFBPMRange()">
+                  <div class="range-values">
+                    <span id="ff-bpm-min-val">120</span> - <span id="ff-bpm-max-val">140</span> BPM
                   </div>
                 </div>
               </div>
               
-              <!-- Energy Filter -->
-              <div class="builder-section">
-                <label class="builder-checkbox">
-                  <input type="checkbox" id="energy-filter-enabled" />
-                  <span>Filter by Energy Level</span>
+              <!-- Energy Level -->
+              <div class="filter-first-row">
+                <label class="filter-first-label">
+                  <span class="label-text">Energy Level</span>
+                  <span class="label-hint">How intense the music feels</span>
                 </label>
-                <div id="energy-filter-controls" class="filter-controls hidden">
-                  <label class="builder-label">
-                    Energy: <span id="energy-display">Low → High</span>
-                  </label>
-                  <div class="dual-range-container">
-                    <input type="range" id="energy-min-slider" min="0" max="100" value="0" class="range-slider" />
-                    <input type="range" id="energy-max-slider" min="0" max="100" value="100" class="range-slider" />
-                  </div>
-                  <div class="range-labels">
-                    <span>😴 Calm</span>
-                    <span>⚡ Intense</span>
+                <div class="dual-range-container">
+                  <input type="range" id="ff-energy-min" class="range-input" min="0" max="100" value="50" oninput="updateFFEnergyRange()">
+                  <input type="range" id="ff-energy-max" class="range-input" min="0" max="100" value="100" oninput="updateFFEnergyRange()">
+                  <div class="range-values">
+                    <span id="ff-energy-min-val">50</span> - <span id="ff-energy-max-val">100</span>
                   </div>
                 </div>
               </div>
               
-              <!-- Mood Filter -->
-              <div class="builder-section">
-                <label class="builder-checkbox">
-                  <input type="checkbox" id="mood-filter-enabled" />
-                  <span>Filter by Mood (Valence)</span>
-                  <span class="info-tooltip">
-                    <span class="info-icon">i</span>
-                    <span class="tooltip-content">
-                      <strong>Valence</strong> measures musical positivity from Spotify's audio analysis. High = happy/cheerful/euphoric tracks. Low = sad/melancholic/dark vibes. Great for matching playlist mood to your current state.
-                    </span>
-                  </span>
+              <!-- Mood/Valence -->
+              <div class="filter-first-row">
+                <label class="filter-first-label">
+                  <span class="label-text">Mood</span>
+                  <span class="label-hint">Musical positivity (happy to sad)</span>
                 </label>
-                <div id="mood-filter-controls" class="filter-controls hidden">
-                  <label class="builder-label">
-                    Mood: <span id="mood-display">All moods</span>
-                  </label>
-                  <div class="dual-range-container">
-                    <input type="range" id="mood-min-slider" min="0" max="100" value="0" class="range-slider" />
-                    <input type="range" id="mood-max-slider" min="0" max="100" value="100" class="range-slider" />
-                  </div>
-                  <div class="range-labels">
-                    <span>😔 Sad</span>
-                    <span>😊 Happy</span>
+                <div class="dual-range-container">
+                  <input type="range" id="ff-mood-min" class="range-input" min="0" max="100" value="0" oninput="updateFFMoodRange()">
+                  <input type="range" id="ff-mood-max" class="range-input" min="0" max="100" value="100" oninput="updateFFMoodRange()">
+                  <div class="range-values">
+                    <span id="ff-mood-min-val">0</span> - <span id="ff-mood-max-val">100</span>
                   </div>
                 </div>
               </div>
               
-              <!-- Vocal/Instrumental Filter -->
-              <div class="builder-section">
-                <label class="builder-checkbox">
-                  <input type="checkbox" id="vocal-filter-enabled" />
-                  <span>Filter by Vocals</span>
-                  <span class="info-tooltip">
-                    <span class="info-icon">i</span>
-                    <span class="tooltip-content">
-                      <strong>Vocal Detection</strong> uses Spotify's <code>speechiness</code> and <code>instrumentalness</code> data. Filter for purely instrumental tracks, vocal-heavy songs, or spoken word/rap content.
-                    </span>
-                  </span>
+              <!-- Vocal Preference -->
+              <div class="filter-first-row">
+                <label class="filter-first-label">
+                  <span class="label-text">Vocal Preference</span>
                 </label>
-                <div id="vocal-filter-controls" class="filter-controls hidden">
-                  <label class="builder-label">
-                    Vocal Type: <span id="vocal-display">Any</span>
-                  </label>
-                  <select id="vocal-preference" class="builder-select">
-                    <option value="any">Any (No filter)</option>
-                    <option value="instrumental">Instrumental Only (No vocals)</option>
-                    <option value="vocal">Vocal Tracks (With singing)</option>
-                    <option value="spoken">Spoken Word / Rap Heavy</option>
-                  </select>
-                </div>
+                <select id="ff-vocal-type" class="filter-select">
+                  <option value="any">Any (vocal or instrumental)</option>
+                  <option value="instrumental">Instrumental only</option>
+                  <option value="vocal">With vocals</option>
+                  <option value="spoken">Spoken word</option>
+                </select>
+              </div>
+              
+              <!-- Duration -->
+              <div class="filter-first-row">
+                <label class="filter-first-label">
+                  <span class="label-text">Target Duration</span>
+                </label>
+                <select id="ff-duration" class="filter-select">
+                  <option value="1800">30 minutes</option>
+                  <option value="2700">45 minutes</option>
+                  <option value="3600" selected>1 hour</option>
+                  <option value="5400">1.5 hours</option>
+                  <option value="7200">2 hours</option>
+                  <option value="10800">3 hours</option>
+                  <option value="14400">4 hours</option>
+                </select>
+              </div>
+              
+              <!-- Find Button -->
+              <div class="filter-first-action">
+                <button id="find-matching-btn" class="btn-primary btn-large" onclick="findMatchingGenres()">
+                  <span class="btn-text">Find Matching Music</span>
+                </button>
+                <p class="action-hint">We'll search your library for genres with tracks matching these criteria</p>
               </div>
             </div>
             
-            <!-- Preview Section -->
-            <div class="builder-section preview-section" id="preview-section">
-              <div class="preview-header">
-                <h4>Preview</h4>
-                <button class="btn-small" onclick="refreshPreview()">↻ Refresh</button>
+            <!-- Results Section -->
+            <div id="filter-first-results" class="filter-first-results hidden">
+              <div class="results-header">
+                <h3>Matching Genres</h3>
+                <p id="results-summary" class="results-summary"></p>
               </div>
-              <div class="preview-stats" id="preview-stats">
-                <div class="stat-pill">
-                  <span class="stat-label">Tracks</span>
-                  <span class="stat-value" id="preview-tracks">—</span>
-                </div>
-                <div class="stat-pill">
-                  <span class="stat-label">Duration</span>
-                  <span class="stat-value" id="preview-duration">—</span>
-                </div>
-                <div class="stat-pill">
-                  <span class="stat-label">Artists</span>
-                  <span class="stat-value" id="preview-artists">—</span>
-                </div>
-                <div class="stat-pill">
-                  <span class="stat-label">Avg/Artist</span>
-                  <span class="stat-value" id="preview-avg">—</span>
-                </div>
+              
+              <div id="matching-genres-list" class="matching-genres-list">
+                <!-- Populated dynamically -->
               </div>
-              <div class="preview-tracks-list hidden" id="preview-tracks-list">
-                <!-- Will be populated dynamically -->
+              
+              <div class="results-actions">
+                <button class="btn-secondary" onclick="selectAllMatchingGenres()">Select All</button>
+                <button class="btn-secondary" onclick="clearMatchingGenres()">Clear Selection</button>
+                <button class="btn-primary" onclick="createPlaylistFromFilterFirst()">Create Playlist</button>
               </div>
-              <button class="btn-small" onclick="togglePreviewList()">
-                <span id="preview-toggle-text">Show Track List ▼</span>
-              </button>
-            </div>
-            
-            <!-- Mode Selection -->
-            <div class="builder-section">
-              <label class="builder-label">Organization Mode</label>
-              <div class="mode-selection">
-                <label class="mode-option">
-                  <input type="radio" name="playlist-mode" value="merged" checked />
-                  <div class="mode-card">
-                    <div class="mode-title">Merged Playlist</div>
-                    <div class="mode-desc">One smart playlist with all genres mixed</div>
-                  </div>
-                </label>
-                <label class="mode-option">
-                  <input type="radio" name="playlist-mode" value="separate" />
-                  <div class="mode-card">
-                    <div class="mode-title">Separate Playlists</div>
-                    <div class="mode-desc">Individual playlist per genre (no smart mixing)</div>
-                  </div>
-                </label>
-              </div>
-            </div>
-            
-            <!-- Create Button -->
-            <div class="builder-actions">
-              <button id="create-library-playlist" class="btn-primary btn-large" disabled>
-                Create Smart Playlist
-              </button>
             </div>
           </div>
         </div>
+        <!-- END Filter First Mode Section -->
+        
       </div>
+      <!-- END Library Tab -->
 
       <!-- Tab Content: Artist Discovery -->
       <div id="artist-tab" class="tab-content">
         <h2>Discover Music from Any Artist</h2>
         <p style="color: #b3b3b3; font-size: 14px; margin: -10px 0 20px 0;">
-          Search for any artist, then find similar artists <strong>from your own library</strong> based on matching genres. Perfect for building playlists around a specific sound!
+          Browse your artist library or search for any artist, then find similar artists <strong>from your own library</strong> based on matching genres.
         </p>
         
+        <!-- Artist Library Browser (NEW!) -->
+        <div class="artist-library-section">
+          <div class="section-header-inline">
+            <h3>Your Artist Library</h3>
+            <div class="artist-controls">
+              <input 
+                type="text" 
+                id="artist-library-search" 
+                class="artist-library-search-input"
+                placeholder="Filter artists..."
+                oninput="filterArtistLibrary(this.value)"
+              />
+              <select id="artist-sort" class="artist-sort-select" onchange="sortArtistLibrary(this.value)">
+                <option value="name">Sort: A-Z</option>
+                <option value="tracks">Sort: Most Tracks</option>
+                <option value="recent">Sort: Recently Added</option>
+              </select>
+            </div>
+          </div>
+          
+          <div id="artist-library-grid" class="artist-library-grid">
+            <div class="loading-state">
+              <div class="loading-spinner"></div>
+              <span>Load your library first to browse artists</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="section-divider">
+          <span class="divider-text">OR</span>
+        </div>
+        
         <!-- Artist Search -->
+        <div class="artist-search-section">
+          <h3>Search Any Artist on Spotify</h3>
         <div class="search-container">
           <input 
             type="text" 
@@ -842,7 +687,7 @@
           <div class="info-section" id="discovery-info-section">
             <div class="info-section-header" onclick="toggleInfoSection('discovery-info-section')">
               <div class="info-section-title">
-                <span class="info-section-icon">ℹ️</span>
+                <span class="info-section-icon"></span>
                 <span>How artist discovery works</span>
               </div>
               <span class="info-section-toggle">▼</span>
@@ -889,9 +734,832 @@
 
       <!-- Status Messages -->
       <div id="status" class="status-box">Ready to start!</div>
+        </div>
+        <!-- END Tabs Container -->
+
+        <!-- RIGHT: Persistent Playlist Panel -->
+        <div id="playlist-panel" class="playlist-panel">
+          <!-- Resize Handle -->
+          <div id="panel-resize-handle" class="panel-resize-handle" title="Drag to resize">
+            <div class="resize-handle-line"></div>
+          </div>
+          
+          <!-- Playlist Tabs -->
+          <div class="playlist-tabs-container">
+            <div class="playlist-tabs" id="playlist-tabs">
+              <!-- Tabs populated dynamically -->
+            </div>
+            <button class="playlist-tab-add" onclick="addNewPlaylistTab()" title="Create new playlist">
+              +
+            </button>
+            <button class="playlist-tab-menu" onclick="togglePlaylistMenu()" title="Playlist options">
+              ⋮
+            </button>
+          </div>
+          
+          <!-- Playlist Menu Dropdown -->
+          <div id="playlist-menu" class="playlist-menu hidden">
+            <button class="playlist-menu-item" onclick="loadExistingPlaylist()">
+              <span class="menu-icon">📥</span>
+              <span>Load Existing Playlist</span>
+            </button>
+            <button class="playlist-menu-item" onclick="duplicateCurrentPlaylist()">
+              <span class="menu-icon">📋</span>
+              <span>Duplicate Current</span>
+            </button>
+            <button class="playlist-menu-item" onclick="closeAllButCurrent()">
+              <span class="menu-icon">🗑️</span>
+              <span>Close Other Tabs</span>
+            </button>
+            <button class="playlist-menu-item" onclick="exportPlaylistData()">
+              <span class="menu-icon">💾</span>
+              <span>Export Data</span>
+            </button>
+          </div>
+          
+          <div class="panel-header">
+            <h3 class="panel-title">
+              <span>Your Playlist</span>
+            </h3>
+            <button class="panel-toggle" onclick="togglePlaylistPanel()" title="Minimize panel">
+              <span id="panel-toggle-icon">←</span>
+            </button>
+          </div>
+
+          <div class="panel-content">
+            <!-- Selection Summary -->
+            <div class="panel-section selection-summary">
+              <div class="summary-header">
+                <span class="summary-title">Selected</span>
+                <button class="btn-clear-selection" onclick="clearAllSelection()">Clear All</button>
+              </div>
+              <div id="selection-list-panel" class="selection-list">
+                <div class="selection-empty">
+                  <div class="empty-icon">📭</div>
+                  <div class="empty-text">No selection yet</div>
+                  <div class="empty-hint">Select genres or artists to start</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Playlist Name -->
+            <div class="panel-section">
+              <label class="panel-label">
+                Playlist Name
+                <span class="label-hint">(optional)</span>
+              </label>
+              <input type="text" id="playlist-name-panel" class="panel-input" placeholder="Auto-generated name..."/>
+            </div>
+
+            <!-- Duration -->
+            <div class="panel-section">
+              <label class="panel-label">Target Duration</label>
+              <select id="duration-select-panel" class="panel-select" onchange="updateDuration(this.value)">
+                <option value="1800">30 minutes</option>
+                <option value="2700">45 minutes</option>
+                <option value="3600">1 hour</option>
+                <option value="5400">1.5 hours</option>
+                <option value="7200" selected>2 hours</option>
+                <option value="10800">3 hours</option>
+                <option value="14400">4 hours</option>
+              </select>
+            </div>
+
+            <!-- Smart Recommendations (Collapsible) -->
+            <div class="panel-section panel-collapsible">
+              <button class="section-toggle" onclick="togglePanelSection('recommendations')">
+                <span class="section-toggle-title">
+                  
+                  <span>Smart Recommendations</span>
+                </span>
+                <span class="toggle-icon" id="recommendations-toggle">▼</span>
+              </button>
+              <div id="recommendations-section-panel" class="section-content collapsed">
+                <div class="section-inner">
+                  <div class="tool-purpose-banner-compact">
+                    <span class="banner-icon-small"></span>
+                    <span class="banner-text-small">Based on YOUR library only</span>
+                  </div>
+                  
+                  <button id="generate-recommendations-btn-panel" class="btn-recommendations-panel" onclick="generateSmartRecommendations()">
+                    Analyze ✨ Analyze & Suggest Suggest
+                  </button>
+                  
+                  <div id="recommendations-container-panel" class="recommendations-container-panel hidden">
+                    <div id="recommendations-list-panel" class="recommendations-list-panel"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Filters (Collapsible) -->
+            <div class="panel-section panel-collapsible">
+              <button class="section-toggle" onclick="togglePanelSection('filters')">
+                <span class="section-toggle-title">
+                  
+                  <span>Audio Filters</span>
+                </span>
+                <span class="toggle-icon" id="filters-toggle">▼</span>
+              </button>
+              <div id="filters-section-panel" class="section-content collapsed">
+                <div class="section-inner">
+                  <div class="filter-group">
+                    <label class="filter-label">
+                      <input type="checkbox" id="bpm-filter-enabled-panel" onchange="toggleFilter('bpm', this.checked)">
+                      <span>BPM Range</span>
+                    </label>
+                    <div class="filter-controls" id="bpm-filter-controls-panel" style="display: none;">
+                      <div class="dual-range-container">
+                        <input type="range" id="bpm-min-slider-panel" min="0" max="200" value="0" class="range-slider" oninput="updateBPMRange()"/>
+                        <input type="range" id="bpm-max-slider-panel" min="0" max="200" value="200" class="range-slider" oninput="updateBPMRange()"/>
+                      </div>
+                      <div class="range-display" id="bpm-display-panel">0 - 200 BPM</div>
+                    </div>
+                  </div>
+
+                  <div class="filter-group">
+                    <label class="filter-label">
+                      <input type="checkbox" id="energy-filter-enabled-panel" onchange="toggleFilter('energy', this.checked)">
+                      <span>Energy Level</span>
+                    </label>
+                    <div class="filter-controls" id="energy-filter-controls-panel" style="display: none;">
+                      <div class="dual-range-container">
+                        <input type="range" id="energy-min-slider-panel" min="0" max="100" value="0" class="range-slider" oninput="updateEnergyRange()"/>
+                        <input type="range" id="energy-max-slider-panel" min="0" max="100" value="100" class="range-slider" oninput="updateEnergyRange()"/>
+                      </div>
+                      <div class="range-display" id="energy-display-panel">All energy levels</div>
+                    </div>
+                  </div>
+
+                  <div class="filter-group">
+                    <label class="filter-label">
+                      <input type="checkbox" id="mood-filter-enabled-panel" onchange="toggleFilter('mood', this.checked)">
+                      <span>Mood</span>
+                    </label>
+                    <div class="filter-controls" id="mood-filter-controls-panel" style="display: none;">
+                      <div class="dual-range-container">
+                        <input type="range" id="mood-min-slider-panel" min="0" max="100" value="0" class="range-slider" oninput="updateMoodRange()"/>
+                        <input type="range" id="mood-max-slider-panel" min="0" max="100" value="100" class="range-slider" oninput="updateMoodRange()"/>
+                      </div>
+                      <div class="range-display" id="mood-display-panel">All moods</div>
+                    </div>
+                  </div>
+
+                  <div class="filter-group">
+                    <label class="filter-label">
+                      <input type="checkbox" id="vocal-filter-enabled-panel" onchange="toggleFilter('vocal', this.checked)">
+                      <span>Vocal Type</span>
+                    </label>
+                    <div class="filter-controls" id="vocal-filter-controls-panel" style="display: none;">
+                      <select id="vocal-preference-panel" class="filter-select" onchange="updateVocalFilter(this.value)">
+                        <option value="any">Any (No filter)</option>
+                        <option value="instrumental">Instrumental Only</option>
+                        <option value="vocal">Vocal Tracks</option>
+                        <option value="spoken">Spoken Word / Rap</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Preview (Collapsible) -->
+            <div class="panel-section panel-collapsible">
+              <button class="section-toggle" onclick="togglePanelSection('preview')">
+                <span class="section-toggle-title">
+                  
+                  <span>Preview</span>
+                </span>
+                <span class="toggle-icon" id="preview-toggle">▼</span>
+              </button>
+              <div id="preview-section-panel" class="section-content collapsed">
+                <div class="section-inner">
+                  <div class="preview-stats-compact">
+                    <div class="stat-compact">
+                      <span class="stat-label-compact">Tracks</span>
+                      <span class="stat-value-compact" id="preview-tracks-compact">—</span>
+                    </div>
+                    <div class="stat-compact">
+                      <span class="stat-label-compact">Duration</span>
+                      <span class="stat-value-compact" id="preview-duration-compact">—</span>
+                    </div>
+                    <div class="stat-compact">
+                      <span class="stat-label-compact">Artists</span>
+                      <span class="stat-value-compact" id="preview-artists-compact">—</span>
+                    </div>
+                  </div>
+                  
+                  <button class="btn-preview-full" onclick="openFullPreviewModal()">
+                    View Full Preview →
+                  </button>
+
+                  <button class="btn-refresh-preview" onclick="refreshPreview()">
+                    ↻ Refresh
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Presets -->
+            <div class="panel-section panel-collapsible">
+              <button class="section-toggle" onclick="togglePanelSection('presets')">
+                <span class="section-toggle-title">
+                  <span>Quick Presets</span>
+                </span>
+                <span class="toggle-icon" id="presets-toggle">▼</span>
+              </button>
+              <div id="presets-section-panel" class="section-content collapsed">
+                <div class="section-inner">
+                  <div class="preset-grid">
+                    <button class="preset-card" onclick="applyPreset('workout')">
+                      
+                      <span class="preset-name">Workout</span>
+                      <span class="preset-desc">High energy, 1h</span>
+                    </button>
+                    <button class="preset-card" onclick="applyPreset('focus')">
+                      
+                      <span class="preset-name">Focus</span>
+                      <span class="preset-desc">Low energy, 2h</span>
+                    </button>
+                    <button class="preset-card" onclick="applyPreset('party')">
+                      
+                      <span class="preset-name">Party</span>
+                      <span class="preset-desc">Upbeat, 3h</span>
+                    </button>
+                    <button class="preset-card" onclick="applyPreset('commute')">
+                      
+                      <span class="preset-name">Commute</span>
+                      <span class="preset-desc">Balanced, 45m</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Playlist Creation Mode -->
+            <div class="panel-section">
+              <label class="panel-label">Creation Mode</label>
+              <div class="creation-mode-cards">
+                <label class="mode-card-compact">
+                  <input type="radio" name="playlist-mode-panel" value="merged" checked onchange="updateCreationMode(this.value)">
+                  <div class="mode-card-content">
+                    
+                    <div class="mode-card-text">
+                      <div class="mode-card-title">Merged</div>
+                      <div class="mode-card-subtitle">One smart playlist</div>
+                    </div>
+                  </div>
+                </label>
+                <label class="mode-card-compact">
+                  <input type="radio" name="playlist-mode-panel" value="separate" onchange="updateCreationMode(this.value)">
+                  <div class="mode-card-content">
+                    
+                    <div class="mode-card-text">
+                      <div class="mode-card-title">Separate</div>
+                      <div class="mode-card-subtitle">Per genre</div>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Create Button (Always visible at bottom) -->
+            <div class="panel-actions">
+              <button id="create-playlist-btn-panel" class="btn-create-playlist-panel" onclick="createPlaylistFromPanel()">
+                <span class="btn-icon">✨</span>
+                <span class="btn-text">Create Playlist</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <!-- END Playlist Panel -->
+      </div>
+      <!-- END Main Layout -->
+      
+      <!-- Full Preview Modal (Phase 4) -->
+      <div id="preview-modal" class="preview-modal hidden">
+        <div class="preview-modal-overlay" onclick="closePreviewModal()"></div>
+        <div class="preview-modal-content">
+          <div class="preview-modal-header">
+            <div class="preview-modal-title">
+              <h2>Playlist Preview</h2>
+              <p class="preview-modal-subtitle" id="preview-modal-subtitle">Loading...</p>
+            </div>
+            <button class="preview-modal-close" onclick="closePreviewModal()">×</button>
+          </div>
+          
+          <div class="preview-modal-stats">
+            <div class="preview-stat-card">
+              <span class="preview-stat-label">Tracks</span>
+              <span class="preview-stat-value" id="modal-tracks-count">—</span>
+            </div>
+            <div class="preview-stat-card">
+              <span class="preview-stat-label">Duration</span>
+              <span class="preview-stat-value" id="modal-duration">—</span>
+            </div>
+            <div class="preview-stat-card">
+              <span class="preview-stat-label">Artists</span>
+              <span class="preview-stat-value" id="modal-artists-count">—</span>
+            </div>
+            <div class="preview-stat-card">
+              <span class="preview-stat-label">Avg BPM</span>
+              <span class="preview-stat-value" id="modal-avg-bpm">—</span>
+            </div>
+          </div>
+          
+          <div class="preview-modal-filters" id="modal-active-filters"></div>
+          
+          <div class="preview-modal-body">
+            <div class="preview-modal-controls">
+              <button class="btn-preview-action" onclick="refreshPreviewModal()">
+                ↻ Refresh
+              </button>
+              <button class="btn-preview-action" onclick="shufflePreviewModal()">
+                🔀 Shuffle
+              </button>
+              <button class="btn-preview-action btn-finalize" onclick="openFinalizeModal()">
+                ✏️ Finalize & Edit
+              </button>
+              <div class="preview-pagination-info" id="modal-pagination-info">
+                Showing 1-50 of 0 tracks
+              </div>
+            </div>
+            
+            <div class="preview-track-list-modal" id="modal-track-list">
+              <!-- Populated dynamically -->
+            </div>
+            
+            <div class="preview-pagination-controls" id="modal-pagination">
+              <button class="btn-page" onclick="changeModalPage(-1)" id="modal-prev-btn">
+                ← Previous
+              </button>
+              <span class="page-indicator" id="modal-page-indicator">Page 1</span>
+              <button class="btn-page" onclick="changeModalPage(1)" id="modal-next-btn">
+                Next →
+              </button>
+            </div>
+            
+            <div class="preview-modal-actions">
+              <button class="btn-secondary" onclick="closePreviewModal()">← Back</button>
+              <button class="btn-primary" onclick="openFinalizeModal()">Finalize & Edit →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Finalize Playlist Modal -->
+      <div id="finalize-modal" class="finalize-modal hidden">
+        <div class="finalize-modal-overlay" onclick="closeFinalizeModal()"></div>
+        <div class="finalize-modal-content">
+          <div class="finalize-modal-header">
+            <div class="finalize-header-left">
+              <h2>Finalize Your Playlist</h2>
+              <p class="finalize-subtitle">Reorder tracks, remove unwanted songs, and create your perfect playlist</p>
+            </div>
+            <button class="finalize-modal-close" onclick="closeFinalizeModal()">×</button>
+          </div>
+          
+          <div class="finalize-modal-info">
+            <div class="finalize-info-left">
+              <input type="text" id="finalize-playlist-name" class="finalize-playlist-name-input" placeholder="Playlist name..." />
+            </div>
+            <div class="finalize-info-right">
+              <span class="finalize-stat" id="finalize-track-count">0 tracks</span>
+              <span class="finalize-stat" id="finalize-duration">0m</span>
+            </div>
+          </div>
+          
+          <div class="finalize-modal-body">
+            <div class="finalize-toolbar">
+              <button class="btn-finalize-action" onclick="shuffleFinalizeTracks()" title="Shuffle all tracks">
+                Shuffle
+              </button>
+              <button class="btn-finalize-action" onclick="sortFinalizeByBPM()" title="Sort by BPM">
+                Sort by BPM
+              </button>
+              <button class="btn-finalize-action" onclick="sortFinalizeByArtist()" title="Sort by artist">
+                Sort by Artist
+              </button>
+              <div class="finalize-search">
+                <input type="text" id="finalize-search-input" placeholder="Search tracks..." oninput="searchFinalizeTracks(this.value)" />
+              </div>
+            </div>
+            
+            <div class="finalize-track-list" id="finalize-track-list">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+          
+          <div class="finalize-modal-footer">
+            <button class="btn-secondary" onclick="closeFinalizeModal()">← Back to Preview</button>
+            <button class="btn-primary btn-large" onclick="createPlaylistFromFinalize()">Create Playlist</button>
+          </div>
+        </div>
+      </div>
+      <!-- END Preview Modal -->
+      
+      <!-- Finalize Playlist Modal -->
+      <div id="finalize-modal" class="finalize-modal hidden">
+        <div class="finalize-modal-overlay" onclick="closeFinalizeModal()"></div>
+        <div class="finalize-modal-content">
+          <div class="finalize-modal-header">
+            <div class="finalize-modal-title">
+              <h2>Finalize Your Playlist</h2>
+              <p class="finalize-modal-subtitle">Reorder, remove tracks, or adjust before creating</p>
+            </div>
+            <button class="finalize-modal-close" onclick="closeFinalizeModal()">×</button>
+          </div>
+          
+          <div class="finalize-modal-info">
+            <div class="finalize-info-item">
+              <span class="info-label">Tracks:</span>
+              <span id="finalize-track-count" class="info-value">0</span>
+            </div>
+            <div class="finalize-info-item">
+              <span class="info-label">Duration:</span>
+              <span id="finalize-duration" class="info-value">—</span>
+            </div>
+            <div class="finalize-info-item finalize-name-input">
+              <span class="info-label">Name:</span>
+              <input type="text" id="finalize-playlist-name" class="finalize-name-field" placeholder="Playlist name (optional)">
+            </div>
+          </div>
+          
+          <div class="finalize-modal-body">
+            <div class="finalize-instructions">
+              <p>💡 Drag tracks to reorder (desktop) or use ↑↓ arrows. Click × to remove tracks.</p>
+            </div>
+            
+            <div class="finalize-track-list" id="finalize-track-list">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+          
+          <div class="finalize-modal-footer">
+            <button class="btn-secondary" onclick="closeFinalizeModal()">← Back to Preview</button>
+            <button class="btn-primary btn-large" onclick="createPlaylistFromFinalize()">
+              <span class="btn-text">Create Playlist</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- END Finalize Modal -->
+      
+      <!-- Onboarding Welcome Modal -->
+      <div id="onboarding-welcome" class="onboarding-modal hidden">
+        <div class="onboarding-overlay"></div>
+        <div class="onboarding-content">
+          <div class="onboarding-header">
+            <h2>Welcome to Playlist Alchemist!</h2>
+            <button class="onboarding-close" onclick="skipOnboarding()">×</button>
+          </div>
+          
+          <div class="onboarding-body">
+            <p class="onboarding-intro">Create smart playlists from YOUR Spotify library with powerful filters and discovery tools.</p>
+            
+            <div class="onboarding-steps">
+              <h3>Quick Start (5 steps):</h3>
+              <ol class="onboarding-list">
+                <li>Load your music library</li>
+                <li>Browse and select genres</li>
+                <li>Apply filters (optional)</li>
+                <li>Preview your playlist</li>
+                <li>Create and save to Spotify</li>
+              </ol>
+            </div>
+            
+            <div class="onboarding-features">
+              <div class="feature-item">
+                <span class="feature-icon">🎵</span>
+                <span class="feature-text">Browse 250+ genres</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-icon">🎯</span>
+                <span class="feature-text">Filter by BPM, energy, mood</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-icon">✨</span>
+                <span class="feature-text">Smart recommendations</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="onboarding-footer">
+            <button class="btn-secondary" onclick="skipOnboarding()">Skip - I'll Explore</button>
+            <button class="btn-primary" onclick="startTour()">Take the Tour</button>
+          </div>
+        </div>
+      </div>
+      <!-- END Onboarding Welcome -->
+      
+      <!-- Tour Tooltip -->
+      <div id="tour-tooltip" class="tour-tooltip hidden">
+        <div class="tour-tooltip-content">
+          <div class="tour-step-number" id="tour-step-number">Step 1 of 5</div>
+          <h3 class="tour-title" id="tour-title">Load Your Library</h3>
+          <p class="tour-description" id="tour-description">Click here to import your Spotify library</p>
+          <div class="tour-actions">
+            <button class="btn-link" onclick="skipTour()">Skip Tour</button>
+            <button class="btn-primary btn-small" onclick="nextTourStep()">Next →</button>
+          </div>
+        </div>
+        <div class="tour-arrow"></div>
+      </div>
+      <!-- END Tour Tooltip -->
+      
+      <!-- Tour Overlay -->
+      <div id="tour-overlay" class="tour-overlay hidden"></div>
+      
+      <!-- Tour Progress Indicator -->
+      <div id="tour-progress" class="tour-progress hidden" onclick="resumeTour()">
+        <span id="tour-progress-text">Setup: 0/5</span>
+      </div>
+      
+      <!-- Help Button -->
+      <div id="help-button" class="help-button hidden" onclick="openHelpMenu()">
+        <span>?</span>
+      </div>
+      
+      <!-- Help Menu -->
+      <div id="help-menu" class="help-menu hidden">
+        <div class="help-menu-header">
+          <h3>Help & Documentation</h3>
+          <button class="help-menu-close" onclick="closeHelpMenu()">×</button>
+        </div>
+        <div class="help-menu-body">
+          <button class="help-menu-item" onclick="restartTour()">
+            <span class="help-menu-icon">🎓</span>
+            <span>Restart Tour</span>
+          </button>
+          <button class="help-menu-item" onclick="showKeyboardShortcuts()">
+            <span class="help-menu-icon">⌨️</span>
+            <span>Keyboard Shortcuts</span>
+          </button>
+          <button class="help-menu-item" onclick="showModeHelp()">
+            <span class="help-menu-icon">ℹ️</span>
+            <span>Creation Modes</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- END Container -->
+    
+    <!-- Finalize Modal (Track Reordering) -->
+    <div id="finalize-modal" class="finalize-modal hidden">
+      <div class="finalize-modal-overlay" onclick="closeFinalizeModal()"></div>
+      <div class="finalize-modal-content">
+        <div class="finalize-modal-header">
+          <div class="finalize-modal-title">
+            <h2>Finalize Your Playlist</h2>
+            <p class="finalize-modal-subtitle">Reorder tracks, remove unwanted ones, and perfect your playlist</p>
+          </div>
+          <button class="finalize-modal-close" onclick="closeFinalizeModal()">×</button>
+        </div>
+        
+        <div class="finalize-modal-info">
+          <div class="finalize-info-card">
+            <label class="finalize-label">Playlist Name:</label>
+            <input type="text" id="finalize-playlist-name" class="finalize-name-input" placeholder="Enter playlist name...">
+          </div>
+          <div class="finalize-info-stats">
+            <span id="finalize-track-count">0 tracks</span>
+            <span class="finalize-separator">•</span>
+            <span id="finalize-duration">0:00</span>
+          </div>
+        </div>
+        
+        <div class="finalize-modal-body">
+          <div class="finalize-actions">
+            <button class="btn-finalize-action" onclick="sortTracksByBPM()">Sort by BPM</button>
+            <button class="btn-finalize-action" onclick="sortTracksByEnergy()">Sort by Energy</button>
+            <button class="btn-finalize-action" onclick="shuffleFinalizeTracks()">Shuffle</button>
+            <button class="btn-finalize-action" onclick="resetTrackOrder()">Reset Order</button>
+          </div>
+          
+          <div id="finalize-track-list" class="finalize-track-list">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+        
+        <div class="finalize-modal-footer">
+          <button class="btn-secondary" onclick="closeFinalizeModal()">← Back to Preview</button>
+          <button class="btn-primary btn-large" onclick="createPlaylistFromFinalize()">Create Playlist</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Onboarding Welcome Modal -->
+    <div id="welcome-modal" class="welcome-modal hidden">
+      <div class="welcome-modal-overlay"></div>
+      <div class="welcome-modal-content">
+        <div class="welcome-header">
+          <h1>Welcome to Playlist Alchemist!</h1>
+          <p class="welcome-subtitle">Create smart playlists from your Spotify library with powerful filters & discovery</p>
+        </div>
+        
+        <div class="welcome-body">
+          <h3>Quick Start Guide</h3>
+          <div class="welcome-steps">
+            <div class="welcome-step">
+              <div class="step-number">1</div>
+              <div class="step-content">
+                <h4>Load Your Library</h4>
+                <p>Import your Spotify music collection</p>
+              </div>
+            </div>
+            <div class="welcome-step">
+              <div class="step-number">2</div>
+              <div class="step-content">
+                <h4>Browse & Select</h4>
+                <p>Choose genres or use Filter First mode</p>
+              </div>
+            </div>
+            <div class="welcome-step">
+              <div class="step-number">3</div>
+              <div class="step-content">
+                <h4>Apply Filters</h4>
+                <p>Refine by BPM, energy, mood (optional)</p>
+              </div>
+            </div>
+            <div class="welcome-step">
+              <div class="step-number">4</div>
+              <div class="step-content">
+                <h4>Preview & Edit</h4>
+                <p>Check your playlist and reorder tracks</p>
+              </div>
+            </div>
+            <div class="welcome-step">
+              <div class="step-number">5</div>
+              <div class="step-content">
+                <h4>Create Playlist</h4>
+                <p>Save to your Spotify account</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="welcome-footer">
+          <button class="btn-secondary" onclick="skipWelcome()">Skip - I'll Explore</button>
+          <button class="btn-primary" onclick="startTour()">Take the Tour</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Tour Tooltip -->
+    <div id="tour-tooltip" class="tour-tooltip hidden">
+      <div class="tour-tooltip-content">
+        <div class="tour-tooltip-header">
+          <span class="tour-step-indicator" id="tour-step-indicator">Step 1/5</span>
+          <button class="tour-skip-btn" onclick="skipTour()">Skip Tour</button>
+        </div>
+        <div class="tour-tooltip-body">
+          <h4 id="tour-tooltip-title">Step Title</h4>
+          <p id="tour-tooltip-text">Step description</p>
+        </div>
+        <div class="tour-tooltip-footer">
+          <button class="btn-secondary btn-small" onclick="previousTourStep()">← Back</button>
+          <button class="btn-primary btn-small" onclick="nextTourStep()">Next →</button>
+        </div>
+      </div>
+      <div class="tour-tooltip-arrow"></div>
+    </div>
+    
+    <!-- Tour Overlay -->
+    <div id="tour-overlay" class="tour-overlay hidden"></div>
+    
+    <!-- Tour Progress (Top-Right) -->
+    <div id="tour-progress" class="tour-progress hidden" onclick="resumeTour()">
+      <span id="tour-progress-text">Setup: 0/5</span>
     </div>
   </div>
 
+  
+  <!-- Onboarding Welcome Modal -->
+  <div id="onboarding-modal" class="onboarding-modal hidden">
+    <div class="onboarding-overlay"></div>
+    <div class="onboarding-content">
+      <div class="onboarding-header">
+        <h2>Welcome to Playlist Alchemist!</h2>
+        <button class="onboarding-close" onclick="closeOnboarding()">×</button>
+      </div>
+      
+      <div class="onboarding-body">
+        <p class="onboarding-intro">
+          Create smart, personalized playlists from your Spotify library with powerful filters and intelligent recommendations.
+        </p>
+        
+        <div class="onboarding-steps">
+          <h3>Quick Start (5 steps):</h3>
+          <ol class="step-list">
+            <li>Load your music library</li>
+            <li>Browse and select genres</li>
+            <li>Apply filters (optional)</li>
+            <li>Preview your playlist</li>
+            <li>Create and save to Spotify</li>
+          </ol>
+        </div>
+        
+        <div class="onboarding-actions">
+          <button class="btn-secondary" onclick="skipOnboarding()">
+            Skip - I'll Explore
+          </button>
+          <button class="btn-primary" onclick="startTour()">
+            Take the Tour
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Tour Spotlight -->
+  <div id="tour-spotlight" class="tour-spotlight hidden">
+    <div class="tour-overlay"></div>
+    <div class="tour-highlight"></div>
+    <div class="tour-tooltip">
+      <div class="tour-tooltip-header">
+        <span class="tour-step-number"></span>
+        <button class="tour-skip" onclick="skipTour()">Skip Tour</button>
+      </div>
+      <div class="tour-tooltip-body">
+        <h4 class="tour-tooltip-title"></h4>
+        <p class="tour-tooltip-text"></p>
+      </div>
+      <div class="tour-tooltip-footer">
+        <button class="btn-secondary btn-small" onclick="previousTourStep()">Back</button>
+        <button class="btn-primary btn-small" onclick="nextTourStep()">Next</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Tour Progress Indicator -->
+  <div id="tour-progress" class="tour-progress hidden" onclick="resumeTour()">
+    <span class="progress-icon">✓</span>
+    <span class="progress-text">Setup: <span id="tour-progress-current">0</span>/5</span>
+  </div>
+  
+  <!-- Help Button (After Tour) -->
+  <button id="help-button" class="help-button hidden" onclick="openHelpMenu()" title="Help & Documentation">
+    ?
+  </button>
+  
+  <!-- Help Menu -->
+  <div id="help-menu" class="help-menu hidden">
+    <div class="help-menu-overlay" onclick="closeHelpMenu()"></div>
+    <div class="help-menu-content">
+      <div class="help-menu-header">
+        <h3>Help & Documentation</h3>
+        <button class="help-menu-close" onclick="closeHelpMenu()">×</button>
+      </div>
+      <div class="help-menu-body">
+        <button class="help-menu-item" onclick="restartTour()">
+          <span class="help-icon">🎓</span>
+          <span>Restart Tour</span>
+        </button>
+        <button class="help-menu-item" onclick="showKeyboardShortcuts()">
+          <span class="help-icon">⌨️</span>
+          <span>Keyboard Shortcuts</span>
+        </button>
+        <button class="help-menu-item" onclick="showFeatureGuide()">
+          <span class="help-icon">📖</span>
+          <span>Feature Guide</span>
+        </button>
+        <button class="help-menu-item" onclick="showFAQ()">
+          <span class="help-icon">❓</span>
+          <span>FAQ</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Existing Playlist Modal -->
+  <div id="load-playlist-modal" class="load-playlist-modal hidden">
+    <div class="load-playlist-content">
+      <div class="load-playlist-header">
+        <h3>Load Existing Playlist</h3>
+        <button class="onboarding-close" onclick="closeLoadPlaylistModal()">×</button>
+      </div>
+      
+      <div class="load-playlist-search">
+        <input 
+          type="text" 
+          id="load-playlist-search-input" 
+          placeholder="Search your playlists..." 
+          oninput="filterLoadPlaylists(this.value)"
+        />
+      </div>
+      
+      <div class="load-playlist-list" id="load-playlist-list">
+        <div style="text-align: center; padding: 40px; color: #7f7f7f;">
+          Loading your playlists...
+        </div>
+      </div>
+      
+      <div class="load-playlist-footer">
+        <button class="btn-secondary" onclick="closeLoadPlaylistModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+  
   <script src="app.js"></script>
 </body>
 </html>
