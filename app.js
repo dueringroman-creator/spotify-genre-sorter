@@ -8431,7 +8431,6 @@ function restoreTabState(tab) {
   
   // Update UI
   renderGenreView();
-  updateSelectionPanel();
   updateFilterUI();
 }
 
