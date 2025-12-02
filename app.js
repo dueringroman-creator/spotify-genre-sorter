@@ -3149,10 +3149,13 @@ document.getElementById('unmapped-filter').addEventListener('change', (e) => {
 
 // Duration slider
 // Template selector
-document.getElementById('template-selector').addEventListener('change', (e) => {
-  const templateId = e.target.value;
-  applyPlaylistTemplate(templateId);
-});
+const templateSelector = document.getElementById('template-selector');
+if (templateSelector) {
+  templateSelector.addEventListener('change', (e) => {
+    const templateId = e.target.value;
+    applyPlaylistTemplate(templateId);
+  });
+}
 
 // Duration slider
 document.getElementById('duration-slider').addEventListener('input', (e) => {
