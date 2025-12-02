@@ -7,6 +7,50 @@ const CLIENT_ID = '97762324651b49d1bb703566c9c36072';
 const REDIRECT_URI = 'https://dueringroman-creator.github.io/spotify-genre-sorter/';
 const CODE_VERIFIER_KEY = 'spotify_code_verifier';
 
+// ===== SAFE EVENT LISTENER SYSTEM ===== //
+
+// Track initialization state
+let domReady = false;
+let appInitialized = false;
+
+// Safe event listener helper
+function safeAddEventListener(elementIdOrElement, event, handler) {
+  let element;
+  
+  if (typeof elementIdOrElement === 'string') {
+    element = document.getElementById(elementIdOrElement);
+  } else {
+    element = elementIdOrElement;
+  }
+  
+  if (element) {
+    element.addEventListener(event, handler);
+    return element;
+  } else {
+    console.warn(`Element not found: ${elementIdOrElement}`);
+    return null;
+  }
+}
+
+// Wait for DOM to be ready before attaching event listeners
+function ensureDOMReady(callback) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', callback);
+  } else {
+    callback();
+  }
+}
+
+// Safe querySelector with error handling
+function safeQuerySelector(selector) {
+  try {
+    return document.querySelector(selector);
+  } catch (e) {
+    console.warn(`Invalid selector: ${selector}`, e);
+    return null;
+  }
+}
+
 // ===== GLOBAL STATE =====
 let selectedGenres = new Set();
 let genreSongMap = {};
@@ -1725,23 +1769,27 @@ function downloadFile(content, filename, mimeType) {
 
 // ===== LOGIN FLOW =====
 
-document.getElementById('login').addEventListener('click', async () => {
-  const verifier = generateRandomString(128);
-  const challenge = await generateCodeChallenge(verifier);
-  localStorage.setItem(CODE_VERIFIER_KEY, verifier);
-
-  const params = new URLSearchParams({
-    response_type: 'code',
-    client_id: CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
-    scope: 'user-library-read playlist-read-private playlist-modify-public playlist-modify-private user-top-read',
-    state: generateRandomString(16),
-    code_challenge_method: 'S256',
-    code_challenge: challenge
-  });
+const elem_login = document.getElementById('login');
+if (elem_login) {
+  elem_login.addEventListener('click', async () => {
+    const verifier = generateRandomString(128);
+    const challenge = await generateCodeChallenge(verifier);
+    localStorage.setItem(CODE_VERIFIER_KEY, verifier);
   
-  window.location = `https://accounts.spotify.com/authorize?${params.toString()}`;
-});
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      scope: 'user-library-read playlist-read-private playlist-modify-public playlist-modify-private user-top-read',
+      state: generateRandomString(16),
+      code_challenge_method: 'S256',
+      code_challenge: challenge
+    });
+    
+    window.location = `https://accounts.spotify.com/authorize?${params.toString()}`;
+  });
+}
+
 
 async function fetchAccessToken(code) {
   const verifier = localStorage.getItem(CODE_VERIFIER_KEY);
@@ -1878,99 +1926,107 @@ window.addEventListener('load', () => {
 
 // ===== LIBRARY MODE - FETCH TRACKS =====
 
-document.getElementById('fetch-tracks').addEventListener('click', async () => {
-  if (!window.spotifyToken) return;
-  
-  const dataSource = document.querySelector('input[name="data-source"]:checked').value;
-  document.getElementById('fetch-tracks').disabled = true;
-  
-  // Check for cache conflicts (different data source)
-  const allCacheSources = ['liked', 'playlists', 'top-artists'];
-  let conflictingCache = null;
-  
-  for (const source of allCacheSources) {
-    if (source !== dataSource) {
-      const cache = loadFromCache(source);
-      if (cache) {
-        conflictingCache = { source, cache };
-        break;
+const elem_fetch_tracks = document.getElementById('fetch-tracks');
+if (elem_fetch_tracks) {
+  elem_fetch_tracks.addEventListener('click', async () => {
+    if (!window.spotifyToken) return;
+    
+    const dataSource = document.querySelector('input[name="data-source"]:checked').value;
+    document.getElementById('fetch-tracks').disabled = true;
+    
+    // Check for cache conflicts (different data source)
+    const allCacheSources = ['liked', 'playlists', 'top-artists'];
+    let conflictingCache = null;
+    
+    for (const source of allCacheSources) {
+      if (source !== dataSource) {
+        const cache = loadFromCache(source);
+        if (cache) {
+          conflictingCache = { source, cache };
+          break;
+        }
       }
     }
-  }
-  
-  if (conflictingCache) {
-    const sourceName = {
-      'liked': 'Liked Songs',
-      'playlists': 'Playlists',
-      'top-artists': 'Top Artists'
-    }[conflictingCache.source];
     
-    const targetName = {
-      'liked': 'Liked Songs',
-      'playlists': 'Playlists',
-      'top-artists': 'Top Artists'
-    }[dataSource];
-    
-    const shouldClear = confirm(
-      `You have cached data from "${sourceName}" (${getTimeAgo(new Date(conflictingCache.cache.timestamp))}).\n\n` +
-      `Do you want to clear it and load fresh data from "${targetName}"?\n\n` +
-      `Click OK to clear cache and load ${targetName}\n` +
-      `Click Cancel to keep using ${sourceName} cache`
-    );
-    
-    if (shouldClear) {
-      // Clear the conflicting cache
-      clearSpecificCache(conflictingCache.source);
-    } else {
-      // Switch to the cached source
-      document.querySelector(`input[value="${conflictingCache.source}"]`).checked = true;
-      document.getElementById('fetch-tracks').disabled = false;
-      return;
+    if (conflictingCache) {
+      const sourceName = {
+        'liked': 'Liked Songs',
+        'playlists': 'Playlists',
+        'top-artists': 'Top Artists'
+      }[conflictingCache.source];
+      
+      const targetName = {
+        'liked': 'Liked Songs',
+        'playlists': 'Playlists',
+        'top-artists': 'Top Artists'
+      }[dataSource];
+      
+      const shouldClear = confirm(
+        `You have cached data from "${sourceName}" (${getTimeAgo(new Date(conflictingCache.cache.timestamp))}).\n\n` +
+        `Do you want to clear it and load fresh data from "${targetName}"?\n\n` +
+        `Click OK to clear cache and load ${targetName}\n` +
+        `Click Cancel to keep using ${sourceName} cache`
+      );
+      
+      if (shouldClear) {
+        // Clear the conflicting cache
+        clearSpecificCache(conflictingCache.source);
+      } else {
+        // Switch to the cached source
+        document.querySelector(`input[value="${conflictingCache.source}"]`).checked = true;
+        document.getElementById('fetch-tracks').disabled = false;
+        return;
+      }
     }
-  }
-  
-  const cached = loadFromCache(dataSource);
-  if (cached) {
-    const useCache = confirm(`Found cached data from ${getTimeAgo(new Date(cached.timestamp))}. Use cached data? (Cancel to fetch fresh data)`);
-    if (useCache) {
-      cachedLibraryData = cached.data;
+    
+    const cached = loadFromCache(dataSource);
+    if (cached) {
+      const useCache = confirm(`Found cached data from ${getTimeAgo(new Date(cached.timestamp))}. Use cached data? (Cancel to fetch fresh data)`);
+      if (useCache) {
+        cachedLibraryData = cached.data;
+        await processLibraryData(dataSource);
+        document.getElementById('fetch-tracks').disabled = false;
+        updateCacheInfo(cached.timestamp);
+        return;
+      }
+    }
+    
+    try {
+      switch (dataSource) {
+        case 'liked-songs':
+          await fetchLikedSongs();
+          break;
+        case 'top-artists':
+          await fetchTopArtists();
+          break;
+        case 'playlists':
+          await fetchFromPlaylists();
+          break;
+      }
+      
+      saveToCache(dataSource, cachedLibraryData);
+      updateCacheInfo(Date.now());
+      
       await processLibraryData(dataSource);
-      document.getElementById('fetch-tracks').disabled = false;
-      updateCacheInfo(cached.timestamp);
-      return;
-    }
-  }
-  
-  try {
-    switch (dataSource) {
-      case 'liked-songs':
-        await fetchLikedSongs();
-        break;
-      case 'top-artists':
-        await fetchTopArtists();
-        break;
-      case 'playlists':
-        await fetchFromPlaylists();
-        break;
+    } catch (e) {
+      updateStatus(`Error: ${e.message}`);
     }
     
-    saveToCache(dataSource, cachedLibraryData);
-    updateCacheInfo(Date.now());
-    
-    await processLibraryData(dataSource);
-  } catch (e) {
-    updateStatus(`Error: ${e.message}`);
-  }
-  
-  document.getElementById('fetch-tracks').disabled = false;
-});
+    document.getElementById('fetch-tracks').disabled = false;
+  });
+}
 
-document.getElementById('refresh-cache').addEventListener('click', async () => {
-  const dataSource = document.querySelector('input[name="data-source"]:checked').value;
-  clearCache(dataSource);
-  updateCacheInfo(null);
-  updateStatus('Cache cleared. Click "Load Music Library" to fetch fresh data.');
-});
+
+const elem_refresh_cache = document.getElementById('refresh-cache');
+if (elem_refresh_cache) {
+  elem_refresh_cache.addEventListener('click', async () => {
+    const dataSource = document.querySelector('input[name="data-source"]:checked').value;
+    clearCache(dataSource);
+    updateCacheInfo(null);
+    updateStatus('Cache cleared. Click "Load Music Library" to fetch fresh data.');
+  });
+}
+
 
 async function fetchLikedSongs() {
   updateStatus('Loading your Spotify library...');
@@ -2208,15 +2264,23 @@ function showPlaylistSelectionUI(playlists) {
     
     document.body.appendChild(modal);
     
-    document.getElementById('cancel-playlist-selection').addEventListener('click', () => {
-      document.body.removeChild(modal);
-      resolve(false);
-    });
+    const elem_cancel_playlist_selection = document.getElementById('cancel-playlist-selection');
+    if (elem_cancel_playlist_selection) {
+      elem_cancel_playlist_selection.addEventListener('click', () => {
+        document.body.removeChild(modal);
+        resolve(false);
+      });
+    }
+
     
-    document.getElementById('confirm-playlist-selection').addEventListener('click', () => {
-      document.body.removeChild(modal);
-      resolve(true);
-    });
+    const elem_confirm_playlist_selection = document.getElementById('confirm-playlist-selection');
+    if (elem_confirm_playlist_selection) {
+      elem_confirm_playlist_selection.addEventListener('click', () => {
+        document.body.removeChild(modal);
+        resolve(true);
+      });
+    }
+
   });
 }
 
@@ -2729,26 +2793,34 @@ function showGenreMappingDialog(genre, event) {
   
   document.body.appendChild(modal);
   
-  document.getElementById('cancel-genre-mapping').addEventListener('click', () => {
-    document.body.removeChild(modal);
-  });
+  const elem_cancel_genre_mapping = document.getElementById('cancel-genre-mapping');
+  if (elem_cancel_genre_mapping) {
+    elem_cancel_genre_mapping.addEventListener('click', () => {
+      document.body.removeChild(modal);
+    });
+  }
+
   
-  document.getElementById('confirm-genre-mapping').addEventListener('click', () => {
-    const selectedFamily = document.getElementById('family-select').value;
-    if (selectedFamily) {
-      // Store the mapping
-      manualGenreMappings[genre.toLowerCase()] = selectedFamily;
-      
-      // Save to localStorage
-      localStorage.setItem('manual_genre_mappings', JSON.stringify(manualGenreMappings));
-      
-      // Re-render the view
-      renderGenreView();
-      
-      updateStatus(`Mapped "${genre}" to ${genreFamilies[selectedFamily].name} family`);
-    }
-    document.body.removeChild(modal);
-  });
+  const elem_confirm_genre_mapping = document.getElementById('confirm-genre-mapping');
+  if (elem_confirm_genre_mapping) {
+    elem_confirm_genre_mapping.addEventListener('click', () => {
+      const selectedFamily = document.getElementById('family-select').value;
+      if (selectedFamily) {
+        // Store the mapping
+        manualGenreMappings[genre.toLowerCase()] = selectedFamily;
+        
+        // Save to localStorage
+        localStorage.setItem('manual_genre_mappings', JSON.stringify(manualGenreMappings));
+        
+        // Re-render the view
+        renderGenreView();
+        
+        updateStatus(`Mapped "${genre}" to ${genreFamilies[selectedFamily].name} family`);
+      }
+      document.body.removeChild(modal);
+    });
+  }
+
 }
 
 function handleArtistToggle(genre, artistId, isChecked) {
@@ -3054,96 +3126,112 @@ function updateSelectedCount() {
 
 // ===== GENRE FILTER =====
 
-document.getElementById('genre-filter').addEventListener('input', (e) => {
-  const filter = e.target.value.toLowerCase();
-  
-  if (genreViewMode === 'flat') {
-    const items = document.querySelectorAll('.genre-item');
-    items.forEach(item => {
-      const genre = item.getAttribute('data-genre').toLowerCase();
-      if (genre.includes(filter)) {
-        item.style.display = '';
-      } else {
-        item.style.display = 'none';
-      }
-    });
-  } else {
-    const items = document.querySelectorAll('.genre-family-item');
-    items.forEach(item => {
-      const familyName = item.querySelector('.genre-family-name').textContent.toLowerCase();
-      const subgenres = Array.from(item.querySelectorAll('.subgenre-name'))
-        .map(el => el.textContent.toLowerCase());
-      
-      const matches = familyName.includes(filter) || 
-                      subgenres.some(sg => sg.includes(filter));
-      
-      if (matches || filter === '') {
-        item.style.display = '';
-      } else {
-        item.style.display = 'none';
-      }
-    });
-  }
-});
+const elem_genre_filter = document.getElementById('genre-filter');
+if (elem_genre_filter) {
+  elem_genre_filter.addEventListener('input', (e) => {
+    const filter = e.target.value.toLowerCase();
+    
+    if (genreViewMode === 'flat') {
+      const items = document.querySelectorAll('.genre-item');
+      items.forEach(item => {
+        const genre = item.getAttribute('data-genre').toLowerCase();
+        if (genre.includes(filter)) {
+          item.style.display = '';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    } else {
+      const items = document.querySelectorAll('.genre-family-item');
+      items.forEach(item => {
+        const familyName = item.querySelector('.genre-family-name').textContent.toLowerCase();
+        const subgenres = Array.from(item.querySelectorAll('.subgenre-name'))
+          .map(el => el.textContent.toLowerCase());
+        
+        const matches = familyName.includes(filter) || 
+                        subgenres.some(sg => sg.includes(filter));
+        
+        if (matches || filter === '') {
+          item.style.display = '';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    }
+  });
+}
+
 
 // ===== SELECT ALL / CLEAR ALL =====
 
-document.getElementById('select-all-genres').addEventListener('click', () => {
-  if (genreViewMode === 'flat') {
-    const items = document.querySelectorAll('.genre-item');
-    items.forEach(item => {
-      const genre = item.getAttribute('data-genre');
-      if (item.style.display !== 'none') {
-        selectedGenres.add(genre);
-        item.classList.add('selected');
-      }
-    });
-  } else {
-    const items = document.querySelectorAll('.genre-family-item');
-    items.forEach(item => {
-      if (item.style.display !== 'none') {
-        const familyId = item.getAttribute('data-family-id');
-        const familyMap = buildGenreFamilyMap(genreSongMap);
-        const family = familyMap[familyId];
-        
-        Object.keys(family.genres).forEach(g => selectedGenres.add(g));
-        item.classList.add('selected');
-        
-        item.querySelectorAll('.subgenre-item').forEach(sub => {
-          sub.classList.add('selected');
-        });
-      }
-    });
-  }
-  updateSelectedCount();
-});
+const elem_select_all_genres = document.getElementById('select-all-genres');
+if (elem_select_all_genres) {
+  elem_select_all_genres.addEventListener('click', () => {
+    if (genreViewMode === 'flat') {
+      const items = document.querySelectorAll('.genre-item');
+      items.forEach(item => {
+        const genre = item.getAttribute('data-genre');
+        if (item.style.display !== 'none') {
+          selectedGenres.add(genre);
+          item.classList.add('selected');
+        }
+      });
+    } else {
+      const items = document.querySelectorAll('.genre-family-item');
+      items.forEach(item => {
+        if (item.style.display !== 'none') {
+          const familyId = item.getAttribute('data-family-id');
+          const familyMap = buildGenreFamilyMap(genreSongMap);
+          const family = familyMap[familyId];
+          
+          Object.keys(family.genres).forEach(g => selectedGenres.add(g));
+          item.classList.add('selected');
+          
+          item.querySelectorAll('.subgenre-item').forEach(sub => {
+            sub.classList.add('selected');
+          });
+        }
+      });
+    }
+    updateSelectedCount();
+  });
+}
 
-document.getElementById('clear-genres').addEventListener('click', () => {
-  selectedGenres.clear();
-  
-  document.querySelectorAll('.genre-item').forEach(item => {
-    item.classList.remove('selected');
+
+const elem_clear_genres = document.getElementById('clear-genres');
+if (elem_clear_genres) {
+  elem_clear_genres.addEventListener('click', () => {
+    selectedGenres.clear();
+    
+    document.querySelectorAll('.genre-item').forEach(item => {
+      item.classList.remove('selected');
+    });
+    
+    document.querySelectorAll('.genre-family-item').forEach(item => {
+      item.classList.remove('selected');
+    });
+    
+    document.querySelectorAll('.subgenre-item').forEach(item => {
+      item.classList.remove('selected');
+    });
+    
+    updateSelectedCount();
   });
-  
-  document.querySelectorAll('.genre-family-item').forEach(item => {
-    item.classList.remove('selected');
-  });
-  
-  document.querySelectorAll('.subgenre-item').forEach(item => {
-    item.classList.remove('selected');
-  });
-  
-  updateSelectedCount();
-});
+}
+
 
 // Unmapped filter checkbox
-document.getElementById('unmapped-filter').addEventListener('change', (e) => {
-  if (e.target.checked) {
-    showOnlyUnmapped();
-  } else {
-    showAllGenres();
-  }
-});
+const elem_unmapped_filter = document.getElementById('unmapped-filter');
+if (elem_unmapped_filter) {
+  elem_unmapped_filter.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      showOnlyUnmapped();
+    } else {
+      showAllGenres();
+    }
+  });
+}
+
 
 // ===== PLAYLIST BUILDER EVENT LISTENERS =====
 
@@ -3158,151 +3246,207 @@ if (templateSelector) {
 }
 
 // Duration slider
-document.getElementById('duration-slider').addEventListener('input', (e) => {
-  const seconds = parseInt(e.target.value);
-  smartPlaylistSettings.targetDuration = seconds;
-  updateDurationDisplay(seconds);
-  refreshPreview();
-  
-  // Reset template selector to "custom" when manually adjusting
-  document.getElementById('template-selector').value = 'custom';
-});
+const elem_duration_slider = document.getElementById('duration-slider');
+if (elem_duration_slider) {
+  elem_duration_slider.addEventListener('input', (e) => {
+    const seconds = parseInt(e.target.value);
+    smartPlaylistSettings.targetDuration = seconds;
+    updateDurationDisplay(seconds);
+    refreshPreview();
+    
+    // Reset template selector to "custom" when manually adjusting
+    document.getElementById('template-selector').value = 'custom';
+  });
+}
+
 
 // Diversity slider
-document.getElementById('diversity-slider').addEventListener('input', (e) => {
-  const value = parseInt(e.target.value);
-  smartPlaylistSettings.maxTracksPerArtist = value;
-  updateDiversityDisplay(value);
-  refreshPreview();
-  
-  // Reset template selector to "custom" when manually adjusting
-  document.getElementById('template-selector').value = 'custom';
-});
+const elem_diversity_slider = document.getElementById('diversity-slider');
+if (elem_diversity_slider) {
+  elem_diversity_slider.addEventListener('input', (e) => {
+    const value = parseInt(e.target.value);
+    smartPlaylistSettings.maxTracksPerArtist = value;
+    updateDiversityDisplay(value);
+    refreshPreview();
+    
+    // Reset template selector to "custom" when manually adjusting
+    document.getElementById('template-selector').value = 'custom';
+  });
+}
+
 
 // Avoid consecutive checkbox
-document.getElementById('avoid-consecutive').addEventListener('change', (e) => {
-  smartPlaylistSettings.avoidConsecutiveSameArtist = e.target.checked;
-  refreshPreview();
-  
-  // Reset template selector to "custom" when manually adjusting
-  document.getElementById('template-selector').value = 'custom';
-});
+const elem_avoid_consecutive = document.getElementById('avoid-consecutive');
+if (elem_avoid_consecutive) {
+  elem_avoid_consecutive.addEventListener('change', (e) => {
+    smartPlaylistSettings.avoidConsecutiveSameArtist = e.target.checked;
+    refreshPreview();
+    
+    // Reset template selector to "custom" when manually adjusting
+    document.getElementById('template-selector').value = 'custom';
+  });
+}
+
 
 // ===== AUDIO FEATURE FILTERS =====
 
 // BPM Filter
-document.getElementById('bpm-filter-enabled').addEventListener('change', (e) => {
-  smartPlaylistSettings.bpmRange.enabled = e.target.checked;
-  document.getElementById('bpm-filter-controls').classList.toggle('hidden', !e.target.checked);
-  if (e.target.checked) enrichAndRefresh();
-  else refreshPreview();
-  document.getElementById('template-selector').value = 'custom';
-});
+const elem_bpm_filter_enabled = document.getElementById('bpm-filter-enabled');
+if (elem_bpm_filter_enabled) {
+  elem_bpm_filter_enabled.addEventListener('change', (e) => {
+    smartPlaylistSettings.bpmRange.enabled = e.target.checked;
+    document.getElementById('bpm-filter-controls').classList.toggle('hidden', !e.target.checked);
+    if (e.target.checked) enrichAndRefresh();
+    else refreshPreview();
+    document.getElementById('template-selector').value = 'custom';
+  });
+}
 
-document.getElementById('bpm-min-slider').addEventListener('input', (e) => {
-  const min = parseInt(e.target.value);
-  const max = parseInt(document.getElementById('bpm-max-slider').value);
-  if (min > max) {
-    document.getElementById('bpm-max-slider').value = min;
-    smartPlaylistSettings.bpmRange.max = min;
-  }
-  smartPlaylistSettings.bpmRange.min = min;
-  document.getElementById('bpm-display').textContent = `${min} - ${smartPlaylistSettings.bpmRange.max}`;
-  refreshPreview();
-});
 
-document.getElementById('bpm-max-slider').addEventListener('input', (e) => {
-  const max = parseInt(e.target.value);
-  const min = parseInt(document.getElementById('bpm-min-slider').value);
-  if (max < min) {
-    document.getElementById('bpm-min-slider').value = max;
-    smartPlaylistSettings.bpmRange.min = max;
-  }
-  smartPlaylistSettings.bpmRange.max = max;
-  document.getElementById('bpm-display').textContent = `${smartPlaylistSettings.bpmRange.min} - ${max}`;
-  refreshPreview();
-});
+const elem_bpm_min_slider = document.getElementById('bpm-min-slider');
+if (elem_bpm_min_slider) {
+  elem_bpm_min_slider.addEventListener('input', (e) => {
+    const min = parseInt(e.target.value);
+    const max = parseInt(document.getElementById('bpm-max-slider').value);
+    if (min > max) {
+      document.getElementById('bpm-max-slider').value = min;
+      smartPlaylistSettings.bpmRange.max = min;
+    }
+    smartPlaylistSettings.bpmRange.min = min;
+    document.getElementById('bpm-display').textContent = `${min} - ${smartPlaylistSettings.bpmRange.max}`;
+    refreshPreview();
+  });
+}
+
+
+const elem_bpm_max_slider = document.getElementById('bpm-max-slider');
+if (elem_bpm_max_slider) {
+  elem_bpm_max_slider.addEventListener('input', (e) => {
+    const max = parseInt(e.target.value);
+    const min = parseInt(document.getElementById('bpm-min-slider').value);
+    if (max < min) {
+      document.getElementById('bpm-min-slider').value = max;
+      smartPlaylistSettings.bpmRange.min = max;
+    }
+    smartPlaylistSettings.bpmRange.max = max;
+    document.getElementById('bpm-display').textContent = `${smartPlaylistSettings.bpmRange.min} - ${max}`;
+    refreshPreview();
+  });
+}
+
 
 // Energy Filter
-document.getElementById('energy-filter-enabled').addEventListener('change', (e) => {
-  smartPlaylistSettings.energyRange.enabled = e.target.checked;
-  document.getElementById('energy-filter-controls').classList.toggle('hidden', !e.target.checked);
-  if (e.target.checked) enrichAndRefresh();
-  else refreshPreview();
-  document.getElementById('template-selector').value = 'custom';
-});
+const elem_energy_filter_enabled = document.getElementById('energy-filter-enabled');
+if (elem_energy_filter_enabled) {
+  elem_energy_filter_enabled.addEventListener('change', (e) => {
+    smartPlaylistSettings.energyRange.enabled = e.target.checked;
+    document.getElementById('energy-filter-controls').classList.toggle('hidden', !e.target.checked);
+    if (e.target.checked) enrichAndRefresh();
+    else refreshPreview();
+    document.getElementById('template-selector').value = 'custom';
+  });
+}
 
-document.getElementById('energy-min-slider').addEventListener('input', (e) => {
-  const min = parseInt(e.target.value);
-  const max = parseInt(document.getElementById('energy-max-slider').value);
-  if (min > max) {
-    document.getElementById('energy-max-slider').value = min;
-    smartPlaylistSettings.energyRange.max = min;
-  }
-  smartPlaylistSettings.energyRange.min = min;
-  updateEnergyDisplay(min, smartPlaylistSettings.energyRange.max);
-  refreshPreview();
-});
 
-document.getElementById('energy-max-slider').addEventListener('input', (e) => {
-  const max = parseInt(e.target.value);
-  const min = parseInt(document.getElementById('energy-min-slider').value);
-  if (max < min) {
-    document.getElementById('energy-min-slider').value = max;
-    smartPlaylistSettings.energyRange.min = max;
-  }
-  smartPlaylistSettings.energyRange.max = max;
-  updateEnergyDisplay(smartPlaylistSettings.energyRange.min, max);
-  refreshPreview();
-});
+const elem_energy_min_slider = document.getElementById('energy-min-slider');
+if (elem_energy_min_slider) {
+  elem_energy_min_slider.addEventListener('input', (e) => {
+    const min = parseInt(e.target.value);
+    const max = parseInt(document.getElementById('energy-max-slider').value);
+    if (min > max) {
+      document.getElementById('energy-max-slider').value = min;
+      smartPlaylistSettings.energyRange.max = min;
+    }
+    smartPlaylistSettings.energyRange.min = min;
+    updateEnergyDisplay(min, smartPlaylistSettings.energyRange.max);
+    refreshPreview();
+  });
+}
+
+
+const elem_energy_max_slider = document.getElementById('energy-max-slider');
+if (elem_energy_max_slider) {
+  elem_energy_max_slider.addEventListener('input', (e) => {
+    const max = parseInt(e.target.value);
+    const min = parseInt(document.getElementById('energy-min-slider').value);
+    if (max < min) {
+      document.getElementById('energy-min-slider').value = max;
+      smartPlaylistSettings.energyRange.min = max;
+    }
+    smartPlaylistSettings.energyRange.max = max;
+    updateEnergyDisplay(smartPlaylistSettings.energyRange.min, max);
+    refreshPreview();
+  });
+}
+
 
 // Mood Filter
-document.getElementById('mood-filter-enabled').addEventListener('change', (e) => {
-  smartPlaylistSettings.moodRange.enabled = e.target.checked;
-  document.getElementById('mood-filter-controls').classList.toggle('hidden', !e.target.checked);
-  if (e.target.checked) enrichAndRefresh();
-  else refreshPreview();
-  document.getElementById('template-selector').value = 'custom';
-});
+const elem_mood_filter_enabled = document.getElementById('mood-filter-enabled');
+if (elem_mood_filter_enabled) {
+  elem_mood_filter_enabled.addEventListener('change', (e) => {
+    smartPlaylistSettings.moodRange.enabled = e.target.checked;
+    document.getElementById('mood-filter-controls').classList.toggle('hidden', !e.target.checked);
+    if (e.target.checked) enrichAndRefresh();
+    else refreshPreview();
+    document.getElementById('template-selector').value = 'custom';
+  });
+}
 
-document.getElementById('mood-min-slider').addEventListener('input', (e) => {
-  const min = parseInt(e.target.value);
-  const max = parseInt(document.getElementById('mood-max-slider').value);
-  if (min > max) {
-    document.getElementById('mood-max-slider').value = min;
-    smartPlaylistSettings.moodRange.max = min;
-  }
-  smartPlaylistSettings.moodRange.min = min;
-  updateMoodDisplay(min, smartPlaylistSettings.moodRange.max);
-  refreshPreview();
-});
 
-document.getElementById('mood-max-slider').addEventListener('input', (e) => {
-  const max = parseInt(e.target.value);
-  const min = parseInt(document.getElementById('mood-min-slider').value);
-  if (max < min) {
-    document.getElementById('mood-min-slider').value = max;
-    smartPlaylistSettings.moodRange.min = max;
-  }
-  smartPlaylistSettings.moodRange.max = max;
-  updateMoodDisplay(smartPlaylistSettings.moodRange.min, max);
-  refreshPreview();
-});
+const elem_mood_min_slider = document.getElementById('mood-min-slider');
+if (elem_mood_min_slider) {
+  elem_mood_min_slider.addEventListener('input', (e) => {
+    const min = parseInt(e.target.value);
+    const max = parseInt(document.getElementById('mood-max-slider').value);
+    if (min > max) {
+      document.getElementById('mood-max-slider').value = min;
+      smartPlaylistSettings.moodRange.max = min;
+    }
+    smartPlaylistSettings.moodRange.min = min;
+    updateMoodDisplay(min, smartPlaylistSettings.moodRange.max);
+    refreshPreview();
+  });
+}
+
+
+const elem_mood_max_slider = document.getElementById('mood-max-slider');
+if (elem_mood_max_slider) {
+  elem_mood_max_slider.addEventListener('input', (e) => {
+    const max = parseInt(e.target.value);
+    const min = parseInt(document.getElementById('mood-min-slider').value);
+    if (max < min) {
+      document.getElementById('mood-min-slider').value = max;
+      smartPlaylistSettings.moodRange.min = max;
+    }
+    smartPlaylistSettings.moodRange.max = max;
+    updateMoodDisplay(smartPlaylistSettings.moodRange.min, max);
+    refreshPreview();
+  });
+}
+
 
 // Vocal Filter
-document.getElementById('vocal-filter-enabled').addEventListener('change', (e) => {
-  smartPlaylistSettings.vocalFilter.enabled = e.target.checked;
-  document.getElementById('vocal-filter-controls').classList.toggle('hidden', !e.target.checked);
-  if (e.target.checked) enrichAndRefresh();
-  else refreshPreview();
-  document.getElementById('template-selector').value = 'custom';
-});
+const elem_vocal_filter_enabled = document.getElementById('vocal-filter-enabled');
+if (elem_vocal_filter_enabled) {
+  elem_vocal_filter_enabled.addEventListener('change', (e) => {
+    smartPlaylistSettings.vocalFilter.enabled = e.target.checked;
+    document.getElementById('vocal-filter-controls').classList.toggle('hidden', !e.target.checked);
+    if (e.target.checked) enrichAndRefresh();
+    else refreshPreview();
+    document.getElementById('template-selector').value = 'custom';
+  });
+}
 
-document.getElementById('vocal-preference').addEventListener('change', (e) => {
-  smartPlaylistSettings.vocalFilter.type = e.target.value;
-  updateVocalDisplay(e.target.value);
-  refreshPreview();
-});
+
+const elem_vocal_preference = document.getElementById('vocal-preference');
+if (elem_vocal_preference) {
+  elem_vocal_preference.addEventListener('change', (e) => {
+    smartPlaylistSettings.vocalFilter.type = e.target.value;
+    updateVocalDisplay(e.target.value);
+    refreshPreview();
+  });
+}
+
 
 // Helper function to enrich tracks and refresh
 async function enrichAndRefresh() {
@@ -3364,21 +3508,25 @@ function updateVocalDisplay(type) {
 
 // ===== CREATE PLAYLIST FROM LIBRARY =====
 
-document.getElementById('create-library-playlist').addEventListener('click', async () => {
-  if (selectedGenres.size === 0) return;
-  
-  document.getElementById('create-library-playlist').disabled = true;
-  
-  const mode = document.querySelector('input[name="playlist-mode"]:checked').value;
-  
-  if (mode === 'merged') {
-    await createMergedPlaylist();
-  } else {
-    await createSeparatePlaylists();
-  }
-  
-  document.getElementById('create-library-playlist').disabled = false;
-});
+const elem_create_library_playlist = document.getElementById('create-library-playlist');
+if (elem_create_library_playlist) {
+  elem_create_library_playlist.addEventListener('click', async () => {
+    if (selectedGenres.size === 0) return;
+    
+    document.getElementById('create-library-playlist').disabled = true;
+    
+    const mode = document.querySelector('input[name="playlist-mode"]:checked').value;
+    
+    if (mode === 'merged') {
+      await createMergedPlaylist();
+    } else {
+      await createSeparatePlaylists();
+    }
+    
+    document.getElementById('create-library-playlist').disabled = false;
+  });
+}
+
 
 // ===== STICKY CONTROL BAR =====
 
@@ -4913,18 +5061,22 @@ let searchTimeout;
 let selectedArtist = null;
 let selectedRelatedArtists = new Set();
 
-document.getElementById('artist-search').addEventListener('input', (e) => {
-  const query = e.target.value.trim();
-  
-  clearTimeout(searchTimeout);
-  
-  if (query.length < 2) {
-    document.getElementById('search-results').innerHTML = '';
-    return;
-  }
-  
-  searchTimeout = setTimeout(() => searchArtist(query), 300);
-});
+const elem_artist_search = document.getElementById('artist-search');
+if (elem_artist_search) {
+  elem_artist_search.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    
+    clearTimeout(searchTimeout);
+    
+    if (query.length < 2) {
+      document.getElementById('search-results').innerHTML = '';
+      return;
+    }
+    
+    searchTimeout = setTimeout(() => searchArtist(query), 300);
+  });
+}
+
 
 async function searchArtist(query) {
   if (!window.spotifyToken) return;
@@ -5012,109 +5164,113 @@ function selectArtist(artist) {
   updateBromanSelection();
 }
 
-document.getElementById('find-related').addEventListener('click', async () => {
-  if (!selectedArtist) return;
-  
-  updateStatus('Scanning your library for artists with matching genres...');
-  document.getElementById('find-related').disabled = true;
-  
-  try {
-    // Get the selected artist's genres
-    const selectedGenres = selectedArtist.genres || [];
+const elem_find_related = document.getElementById('find-related');
+if (elem_find_related) {
+  elem_find_related.addEventListener('click', async () => {
+    if (!selectedArtist) return;
     
-    if (selectedGenres.length === 0) {
-      updateStatus('This artist has no genres listed - cannot find similar artists');
-      document.getElementById('find-related').disabled = false;
-      return;
-    }
+    updateStatus('Scanning your library for artists with matching genres...');
+    document.getElementById('find-related').disabled = true;
     
-    // Get all artists from cached library data with their genres
-    if (!cachedLibraryData || !cachedLibraryData.items) {
-      updateStatus('Please load your library first (go to My Library tab and click "Let\'s Go")');
-      document.getElementById('find-related').disabled = false;
-      return;
-    }
-    
-    const tracks = cachedLibraryData.items;
-    
-    // Build map of artist ID -> {name, genres, imageUrl, matchCount}
-    const artistMap = new Map();
-    
-    tracks.forEach(item => {
-      if (!item.track || !item.track.artists || !item.track.artists[0]) return;
+    try {
+      // Get the selected artist's genres
+      const selectedGenres = selectedArtist.genres || [];
       
-      const artist = item.track.artists[0];
-      
-      // Skip the selected artist itself
-      if (artist.id === selectedArtist.id) return;
-      
-      if (!artistMap.has(artist.id)) {
-        artistMap.set(artist.id, {
-          id: artist.id,
-          name: artist.name,
-          genres: [],
-          images: item.track.album.images,
-          matchCount: 0,
-          matchingGenres: []
-        });
+      if (selectedGenres.length === 0) {
+        updateStatus('This artist has no genres listed - cannot find similar artists');
+        document.getElementById('find-related').disabled = false;
+        return;
       }
-    });
-    
-    // Fetch genres for all artists (we need to get this from Spotify)
-    const artistIds = Array.from(artistMap.keys());
-    
-    for (let i = 0; i < artistIds.length; i += 50) {
-      const batch = artistIds.slice(i, i + 50).join(',');
-      const resp = await fetchWithRetry(`https://api.spotify.com/v1/artists?ids=${batch}`, {
-        headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
-      });
-      const data = await resp.json();
       
-      data.artists.forEach(a => {
-        if (a && artistMap.has(a.id)) {
-          const artistData = artistMap.get(a.id);
-          artistData.genres = a.genres || [];
-          
-          // Calculate matching genres
-          const matches = artistData.genres.filter(g => selectedGenres.includes(g));
-          artistData.matchCount = matches.length;
-          artistData.matchingGenres = matches;
+      // Get all artists from cached library data with their genres
+      if (!cachedLibraryData || !cachedLibraryData.items) {
+        updateStatus('Please load your library first (go to My Library tab and click "Let\'s Go")');
+        document.getElementById('find-related').disabled = false;
+        return;
+      }
+      
+      const tracks = cachedLibraryData.items;
+      
+      // Build map of artist ID -> {name, genres, imageUrl, matchCount}
+      const artistMap = new Map();
+      
+      tracks.forEach(item => {
+        if (!item.track || !item.track.artists || !item.track.artists[0]) return;
+        
+        const artist = item.track.artists[0];
+        
+        // Skip the selected artist itself
+        if (artist.id === selectedArtist.id) return;
+        
+        if (!artistMap.has(artist.id)) {
+          artistMap.set(artist.id, {
+            id: artist.id,
+            name: artist.name,
+            genres: [],
+            images: item.track.album.images,
+            matchCount: 0,
+            matchingGenres: []
+          });
         }
       });
-    }
-    
-    // Filter to only artists with at least 1 matching genre and sort by match count
-    const relatedArtists = Array.from(artistMap.values())
-      .filter(a => a.matchCount > 0)
-      .sort((a, b) => b.matchCount - a.matchCount)
-      .slice(0, 20); // Top 20 matches
-    
-    if (relatedArtists.length === 0) {
-      updateStatus('No artists in your library share genres with this artist');
+      
+      // Fetch genres for all artists (we need to get this from Spotify)
+      const artistIds = Array.from(artistMap.keys());
+      
+      for (let i = 0; i < artistIds.length; i += 50) {
+        const batch = artistIds.slice(i, i + 50).join(',');
+        const resp = await fetchWithRetry(`https://api.spotify.com/v1/artists?ids=${batch}`, {
+          headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
+        });
+        const data = await resp.json();
+        
+        data.artists.forEach(a => {
+          if (a && artistMap.has(a.id)) {
+            const artistData = artistMap.get(a.id);
+            artistData.genres = a.genres || [];
+            
+            // Calculate matching genres
+            const matches = artistData.genres.filter(g => selectedGenres.includes(g));
+            artistData.matchCount = matches.length;
+            artistData.matchingGenres = matches;
+          }
+        });
+      }
+      
+      // Filter to only artists with at least 1 matching genre and sort by match count
+      const relatedArtists = Array.from(artistMap.values())
+        .filter(a => a.matchCount > 0)
+        .sort((a, b) => b.matchCount - a.matchCount)
+        .slice(0, 20); // Top 20 matches
+      
+      if (relatedArtists.length === 0) {
+        updateStatus('No artists in your library share genres with this artist');
+        document.getElementById('find-related').disabled = false;
+        return;
+      }
+      
+      // Show how many high vs medium matches
+      const highMatches = relatedArtists.filter(a => a.matchCount >= 3).length;
+      const mediumMatches = relatedArtists.filter(a => a.matchCount === 2).length;
+      const lowMatches = relatedArtists.filter(a => a.matchCount === 1).length;
+      
+      let matchSummary = `Found ${relatedArtists.length} similar artists: `;
+      const parts = [];
+      if (highMatches > 0) parts.push(`${highMatches} with 3+ genre matches`);
+      if (mediumMatches > 0) parts.push(`${mediumMatches} with 2 matches`);
+      if (lowMatches > 0) parts.push(`${lowMatches} with 1 match`);
+      matchSummary += parts.join(', ');
+      
+      displayRelatedArtists(relatedArtists, selectedGenres);
+      updateStatus(matchSummary);
       document.getElementById('find-related').disabled = false;
-      return;
+    } catch (e) {
+      updateStatus(`Error finding related artists: ${e.message}`);
+      document.getElementById('find-related').disabled = false;
     }
-    
-    // Show how many high vs medium matches
-    const highMatches = relatedArtists.filter(a => a.matchCount >= 3).length;
-    const mediumMatches = relatedArtists.filter(a => a.matchCount === 2).length;
-    const lowMatches = relatedArtists.filter(a => a.matchCount === 1).length;
-    
-    let matchSummary = `Found ${relatedArtists.length} similar artists: `;
-    const parts = [];
-    if (highMatches > 0) parts.push(`${highMatches} with 3+ genre matches`);
-    if (mediumMatches > 0) parts.push(`${mediumMatches} with 2 matches`);
-    if (lowMatches > 0) parts.push(`${lowMatches} with 1 match`);
-    matchSummary += parts.join(', ');
-    
-    displayRelatedArtists(relatedArtists, selectedGenres);
-    updateStatus(matchSummary);
-    document.getElementById('find-related').disabled = false;
-  } catch (e) {
-    updateStatus(`Error finding related artists: ${e.message}`);
-    document.getElementById('find-related').disabled = false;
-  }
-});
+  });
+}
+
 
 function displayRelatedArtists(artists, selectedGenres) {
   const container = document.getElementById('related-artists-grid');
@@ -5170,95 +5326,99 @@ function displayRelatedArtists(artists, selectedGenres) {
   document.getElementById('related-artists-section').classList.remove('hidden');
 }
 
-document.getElementById('generate-discovery-playlist').addEventListener('click', async () => {
-  if (!selectedArtist && selectedRelatedArtists.size === 0) {
-    updateStatus('Please select at least one artist first');
-    return;
-  }
-  
-  updateStatus('Creating smart discovery playlist...');
-  document.getElementById('generate-discovery-playlist').disabled = true;
-  
-  try {
-    const artistIds = [selectedArtist.id, ...Array.from(selectedRelatedArtists)];
-    
-    let allTracks = [];
-    for (const artistId of artistIds) {
-      const resp = await fetch(
-        `https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=US`,
-        { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
-      );
-      const data = await resp.json();
-      
-      // Get top tracks for each artist, convert to expected format
-      data.tracks.slice(0, 5).forEach(track => {
-        if (!track.duration_ms) track.duration_ms = 210000; // Default 3.5 min
-        if (!track.artists) track.artists = [{id: artistId, name: 'Unknown'}];
-        allTracks.push(track);
-      });
+const elem_generate_discovery_playlist = document.getElementById('generate-discovery-playlist');
+if (elem_generate_discovery_playlist) {
+  elem_generate_discovery_playlist.addEventListener('click', async () => {
+    if (!selectedArtist && selectedRelatedArtists.size === 0) {
+      updateStatus('Please select at least one artist first');
+      return;
     }
     
-    // Apply smart selection (1 hour, max 3 per artist)
-    const smartTracks = selectSmartTracks(allTracks, {
-      targetDuration: 3600, // 1 hour for discovery
-      maxTracksPerArtist: 3,
-      avoidConsecutiveSameArtist: true
-    });
+    updateStatus('Creating smart discovery playlist...');
+    document.getElementById('generate-discovery-playlist').disabled = true;
     
-    const stats = calculatePlaylistStats(smartTracks);
-    
-    const userResp = await fetch('https://api.spotify.com/v1/me', {
-      headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
-    });
-    const userData = await userResp.json();
-    
-    const customName = document.getElementById('discovery-playlist-name').value.trim();
-    const playlistName = customName ? `PA: ${customName}` : `PA: ${selectedArtist.name} + Similar Vibes`;
-    
-    const createResp = await fetch(`https://api.spotify.com/v1/users/${userData.id}/playlists`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${window.spotifyToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    try {
+      const artistIds = [selectedArtist.id, ...Array.from(selectedRelatedArtists)];
+      
+      let allTracks = [];
+      for (const artistId of artistIds) {
+        const resp = await fetch(
+          `https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=US`,
+          { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+        );
+        const data = await resp.json();
+        
+        // Get top tracks for each artist, convert to expected format
+        data.tracks.slice(0, 5).forEach(track => {
+          if (!track.duration_ms) track.duration_ms = 210000; // Default 3.5 min
+          if (!track.artists) track.artists = [{id: artistId, name: 'Unknown'}];
+          allTracks.push(track);
+        });
+      }
+      
+      // Apply smart selection (1 hour, max 3 per artist)
+      const smartTracks = selectSmartTracks(allTracks, {
+        targetDuration: 3600, // 1 hour for discovery
+        maxTracksPerArtist: 3,
+        avoidConsecutiveSameArtist: true
+      });
+      
+      const stats = calculatePlaylistStats(smartTracks);
+      
+      const userResp = await fetch('https://api.spotify.com/v1/me', {
+        headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
+      });
+      const userData = await userResp.json();
+      
+      const customName = document.getElementById('discovery-playlist-name').value.trim();
+      const playlistName = customName ? `PA: ${customName}` : `PA: ${selectedArtist.name} + Similar Vibes`;
+      
+      const createResp = await fetch(`https://api.spotify.com/v1/users/${userData.id}/playlists`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${window.spotifyToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: playlistName,
+          description: `${selectedArtist.name}${selectedRelatedArtists.size > 0 ? ` + ${selectedRelatedArtists.size} similar artist${selectedRelatedArtists.size !== 1 ? 's' : ''}` : ''} • ${stats.uniqueArtists} artists • ${stats.durationFormatted} • Created by Playlist Alchemist`,
+          public: false
+        })
+      });
+      const playlist = await createResp.json();
+      
+      const trackUris = smartTracks.map(t => t.uri);
+      await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${window.spotifyToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ uris: trackUris })
+      });
+      
+      addToHistory({
         name: playlistName,
-        description: `${selectedArtist.name}${selectedRelatedArtists.size > 0 ? ` + ${selectedRelatedArtists.size} similar artist${selectedRelatedArtists.size !== 1 ? 's' : ''}` : ''} • ${stats.uniqueArtists} artists • ${stats.durationFormatted} • Created by Playlist Alchemist`,
-        public: false
-      })
-    });
-    const playlist = await createResp.json();
-    
-    const trackUris = smartTracks.map(t => t.uri);
-    await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${window.spotifyToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ uris: trackUris })
-    });
-    
-    addToHistory({
-      name: playlistName,
-      external_urls: { spotify: playlist.external_urls.spotify }
-    }, smartTracks);
-    
-    // Update Broman history display
-    updateBromanHistory();
-    
-    // Create clickable Spotify link with stats
-    const spotifyLink = playlist.external_urls.spotify;
-    const statusEl = document.getElementById('status');
-    statusEl.innerHTML = `"<strong>${playlistName}</strong>" created<br>${stats.totalTracks} tracks • ${stats.uniqueArtists} artists • ${stats.durationFormatted}<br><a href="${spotifyLink}" target="_blank" style="color: #1db954; text-decoration: underline;">→ Open in Spotify</a>`;
-    
-    document.getElementById('generate-discovery-playlist').disabled = false;
-    document.getElementById('discovery-playlist-name').value = '';
-  } catch (e) {
-    updateStatus(`Error: ${e.message}`);
-    document.getElementById('generate-discovery-playlist').disabled = false;
-  }
-});
+        external_urls: { spotify: playlist.external_urls.spotify }
+      }, smartTracks);
+      
+      // Update Broman history display
+      updateBromanHistory();
+      
+      // Create clickable Spotify link with stats
+      const spotifyLink = playlist.external_urls.spotify;
+      const statusEl = document.getElementById('status');
+      statusEl.innerHTML = `"<strong>${playlistName}</strong>" created<br>${stats.totalTracks} tracks • ${stats.uniqueArtists} artists • ${stats.durationFormatted}<br><a href="${spotifyLink}" target="_blank" style="color: #1db954; text-decoration: underline;">→ Open in Spotify</a>`;
+      
+      document.getElementById('generate-discovery-playlist').disabled = false;
+      document.getElementById('discovery-playlist-name').value = '';
+    } catch (e) {
+      updateStatus(`Error: ${e.message}`);
+      document.getElementById('generate-discovery-playlist').disabled = false;
+    }
+  });
+}
+
 
 // ===== PAGE LOAD: Handle OAuth Redirect =====
 
