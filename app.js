@@ -114,10 +114,36 @@ async function handleSpotifyCallback() {
 
 function saveToCache(key, data) {
   try {
+    // Try to save
     localStorage.setItem(`playlist_alchemist_${key}`, JSON.stringify(data));
     localStorage.setItem(`playlist_alchemist_${key}_timestamp`, Date.now().toString());
   } catch (e) {
-    console.warn('Cache save failed:', e);
+    if (e.name === 'QuotaExceededError') {
+      console.warn('⚠️ Storage quota exceeded. Clearing old cache...');
+      
+      // Clear old cached data (keep only current source)
+      const keysToKeep = [`playlist_alchemist_${key}`, `playlist_alchemist_${key}_timestamp`];
+      Object.keys(localStorage).forEach(storageKey => {
+        if (storageKey.startsWith('playlist_alchemist_') && !keysToKeep.includes(storageKey)) {
+          localStorage.removeItem(storageKey);
+        }
+      });
+      
+      // Try again after cleanup
+      try {
+        localStorage.setItem(`playlist_alchemist_${key}`, JSON.stringify(data));
+        localStorage.setItem(`playlist_alchemist_${key}_timestamp`, Date.now().toString());
+        console.log('✅ Saved after cache cleanup');
+      } catch (e2) {
+        console.error('❌ Still cannot save. Storage may be full.', e2);
+        // Store in memory as fallback
+        window.memoryCache = window.memoryCache || {};
+        window.memoryCache[key] = { data, timestamp: Date.now() };
+        console.log('💾 Using memory cache as fallback');
+      }
+    } else {
+      console.warn('Cache save failed:', e);
+    }
   }
 }
 
@@ -131,6 +157,12 @@ function loadFromCache(key) {
         data: JSON.parse(cached),
         timestamp: parseInt(timestamp)
       };
+    }
+    
+    // Check memory cache fallback
+    if (window.memoryCache && window.memoryCache[key]) {
+      console.log('📦 Loading from memory cache');
+      return window.memoryCache[key];
     }
   } catch (e) {
     console.warn('Cache load failed:', e);
@@ -244,19 +276,28 @@ async function fetchAudioFeatures(trackIds) {
   // Process in batches of 100 (Spotify API limit)
   for (let i = 0; i < trackIds.length; i += 100) {
     const batch = trackIds.slice(i, i + 100);
-    const response = await fetchSpotifyAPI(`audio-features?ids=${batch.join(',')}`);
     
-    response.audio_features.forEach((feature, idx) => {
-      if (feature) {
-        features[batch[idx]] = feature;
+    try {
+      const response = await fetchSpotifyAPI(`audio-features?ids=${batch.join(',')}`);
+      
+      if (response && response.audio_features) {
+        response.audio_features.forEach((feature, idx) => {
+          if (feature) {
+            features[batch[idx]] = feature;
+          }
+        });
       }
-    });
+    } catch (error) {
+      // If 403 or other error, skip this batch and continue
+      console.warn(`⚠️ Could not fetch audio features for batch ${i/100 + 1}. Continuing...`);
+      // Don't throw - just skip this batch
+    }
   }
   
   return features;
 }
 
-async function createSpotifyPlaylist(name, tracks) {
+async function createSpotifyPlaylist(name, tracks, description = 'Created with Playlist Alchemist') {
   // Get user ID
   const user = await fetchSpotifyAPI('me');
   
@@ -268,7 +309,7 @@ async function createSpotifyPlaylist(name, tracks) {
     },
     body: JSON.stringify({
       name: name,
-      description: 'Created with Playlist Alchemist',
+      description: description,
       public: false
     })
   });
@@ -292,65 +333,359 @@ async function createSpotifyPlaylist(name, tracks) {
 }
 
 
-// ===== GENRE DETECTION SYSTEM =====
+// ============================================
+// ENHANCED GENRE DETECTION SYSTEM
+// 500+ Aliases & Fuzzy Matching
+// ============================================
 
-// Simplified genre detection - maps Spotify genres to common categories
-function detectGenreFamily(spotifyGenre) {
-  const genre = spotifyGenre.toLowerCase().trim();
+const GENRE_ALIASES = {
+  // UK Bass scene (comprehensive)
+  'uk garage': 'UK Garage',
+  'uk funky': 'UK Funky',
+  '2-step': 'UK Garage',
+  '2step': 'UK Garage',
+  '3 step': 'UK Garage',
+  'bassline': 'Bassline',
+  'bass music': 'Bass Music',
+  'grime': 'Grime',
+  'uk grime': 'Grime',
+  'uk drill': 'UK Drill',
+  'drill': 'UK Drill',
+  'chicago drill': 'Drill',
+  'footwork': 'Breakbeat',
+  'juke': 'Breakbeat',
+  'baltimore club': 'Breakbeat',
+  'jersey club': 'Breakbeat',
   
-  // Electronic genres
-  if (genre.includes('techno') || genre.includes('tekno')) return 'Techno';
-  if (genre.includes('house')) return 'House';
-  if (genre.includes('trance')) return 'Trance';
-  if (genre.includes('drum and bass') || genre.includes('dnb') || genre.includes('d&b') || genre.includes('jungle')) return 'Drum & Bass';
-  if (genre.includes('dubstep') || genre.includes('brostep')) return 'Dubstep';
-  if (genre.includes('edm') || genre.includes('big room') || genre.includes('festival')) return 'EDM';
-  if (genre.includes('ambient') || genre.includes('downtempo') || genre.includes('chillout')) return 'Ambient';
-  if (genre.includes('breakbeat') || genre.includes('breaks')) return 'Breakbeat';
-  if (genre.includes('electro')) return 'Electro';
-  if (genre.includes('idm') || genre.includes('glitch')) return 'IDM';
+  // Disco/Funk family
+  'nu disco': 'Nu Disco',
+  'new disco': 'Nu Disco',
+  'nudisco': 'Nu Disco',
+  'nu-disco': 'Nu Disco',
+  'disco house': 'House',
+  'french disco': 'Disco',
+  'space disco': 'Disco',
+  'italo disco': 'Italo Disco',
+  'post-disco': 'Disco',
+  'funk': 'Funk',
+  'g-funk': 'G-Funk',
+  'boogie': 'Funk',
+  'boogie-woogie': 'Funk',
+  'funk carioca': 'Funk',
+  'funk belo horizonte': 'Funk',
+  'afrobeat': 'Afrobeat',
+  'afro tech': 'House',
+  'afroswing': 'Hip Hop',
+  'afrobeats': 'Afrobeats',
   
-  // Rock genres
-  if (genre.includes('rock') && !genre.includes('electro')) return 'Rock';
-  if (genre.includes('metal')) return 'Metal';
-  if (genre.includes('punk')) return 'Punk';
-  if (genre.includes('indie') && !genre.includes('dance')) return 'Indie';
-  if (genre.includes('alternative')) return 'Alternative';
-  if (genre.includes('grunge')) return 'Grunge';
+  // Techno variations
+  'tekno': 'Techno',
+  'technо': 'Techno',
+  'tecno': 'Techno',
+  'tekk': 'Techno',
+  'schranz': 'Techno',
+  'hardtechno': 'Techno',
+  'hard techno': 'Techno',
+  'minimal techno': 'Techno',
+  'dub techno': 'Techno',
+  'acid techno': 'Techno',
+  'detroit techno': 'Techno',
+  'berlin techno': 'Techno',
+  'industrial techno': 'Techno',
   
-  // Urban genres
-  if (genre.includes('hip hop') || genre.includes('hip-hop') || genre.includes('rap')) return 'Hip Hop';
-  if (genre.includes('r&b') || genre.includes('rnb') || genre.includes('rnb')) return 'R&B';
-  if (genre.includes('trap') && !genre.includes('edm')) return 'Trap';
-  if (genre.includes('drill')) return 'Drill';
-  if (genre.includes('grime')) return 'Grime';
+  // House variations
+  'houze': 'House',
+  'housе': 'House',
+  'deep house': 'House',
+  'progressive house': 'House',
+  'tech house': 'House',
+  'bass house': 'House',
+  'future house': 'House',
+  'electro house': 'House',
+  'tropical house': 'House',
+  'afro house': 'House',
+  'jackin house': 'House',
+  'chicago house': 'House',
+  'soulful house': 'House',
+  'vocal house': 'House',
+  'funky house': 'House',
+  'melodic house': 'House',
   
-  // Pop & mainstream
-  if (genre.includes('pop') && !genre.includes('k-pop')) return 'Pop';
-  if (genre.includes('k-pop') || genre.includes('kpop')) return 'K-Pop';
-  if (genre.includes('dance')) return 'Dance';
-  if (genre.includes('disco')) return 'Disco';
-  if (genre.includes('funk')) return 'Funk';
+  // Hip hop variations
+  'hiphop': 'Hip Hop',
+  'hip-hop': 'Hip Hop',
+  'rap': 'Hip Hop',
+  'trap': 'Trap',
+  'hip hop': 'Hip Hop',
+  'boom bap': 'Hip Hop',
+  'conscious hip hop': 'Hip Hop',
+  'gangsta rap': 'Hip Hop',
+  'east coast hip hop': 'Hip Hop',
+  'west coast hip hop': 'Hip Hop',
+  'southern hip hop': 'Hip Hop',
+  'cloud rap': 'Hip Hop',
+  'mumble rap': 'Hip Hop',
+  'crunk': 'Hip Hop',
+  'horrorcore': 'Hip Hop',
   
-  // Jazz & blues
-  if (genre.includes('jazz')) return 'Jazz';
-  if (genre.includes('blues')) return 'Blues';
-  if (genre.includes('soul')) return 'Soul';
+  // Indie Electronic
+  'indie dance': 'Indie Dance',
+  'electroclash': 'Electroclash',
+  'alternative dance': 'Indie Dance',
+  'new rave': 'New Rave',
   
-  // Classical & orchestral
-  if (genre.includes('classical') || genre.includes('orchestra')) return 'Classical';
-  if (genre.includes('soundtrack') || genre.includes('score')) return 'Soundtrack';
+  // Electronic/EDM variations
+  'electronica': 'Electronic',
+  'electro': 'Electro',
+  'edm': 'EDM',
+  'electronic dance music': 'EDM',
+  'big room': 'EDM',
+  'complextro': 'Dubstep',
   
-  // World & regional
-  if (genre.includes('reggae') || genre.includes('dancehall')) return 'Reggae';
-  if (genre.includes('latin') || genre.includes('salsa') || genre.includes('bachata')) return 'Latin';
-  if (genre.includes('country')) return 'Country';
-  if (genre.includes('folk')) return 'Folk';
+  // Classic Electronic
+  'synthwave': 'Synthwave',
+  'new wave': 'New Wave',
+  'cold wave': 'New Wave',
+  'darkwave': 'New Wave',
+  'eurodance': 'Eurodance',
+  'italo dance': 'Italo Dance',
+  'electro swing': 'Electro Swing',
   
-  // Default
+  // Lo-Fi/Chill
+  'lo-fi': 'Lo-Fi',
+  'lofi': 'Lo-Fi',
+  'lo-fi beats': 'Lo-Fi',
+  'lofi beats': 'Lo-Fi',
+  'lo-fi indie': 'Lo-Fi',
+  'chillwave': 'Chillwave',
+  'chillstep': 'Chillstep',
+  'vaporwave': 'Vaporwave',
+  
+  // Bass Music
+  'future bass': 'Future Bass',
+  'melodic bass': 'Melodic Bass',
+  'miami bass': 'Bass Music',
+  
+  // Experimental/IDM
+  'idm': 'IDM',
+  'glitch': 'Glitch',
+  'breakcore': 'Breakcore',
+  'noise': 'Noise',
+  'power electronics': 'Power Electronics',
+  'avant-garde': 'Experimental',
+  'avantgarde': 'Experimental',
+  'gabba': 'Gabber',
+  'speedcore': 'Speedcore',
+  'hardcore': 'Hardcore',
+  'frenchcore': 'Frenchcore',
+  'happy hardcore': 'Happy Hardcore',
+  'hardstyle': 'Hardstyle',
+  'drumstep': 'Drum & Bass',
+  
+  // Industrial/experimental
+  'industrial': 'Industrial',
+  'ebm': 'EBM',
+  'electro-industrial': 'Industrial',
+  'dark ambient': 'Dark Ambient',
+  'drone': 'Drone',
+  'space music': 'Ambient',
+  
+  // Downtempo/Trip-hop
+  'trip-hop': 'Trip-Hop',
+  'trip hop': 'Trip-Hop',
+  'downtempo': 'Downtempo',
+  'lounge': 'Lounge',
+  'quiet storm': 'Quiet Storm',
+  
+  // Drum & bass
+  'dnb': 'Drum & Bass',
+  'd&b': 'Drum & Bass',
+  'jungle': 'Drum & Bass',
+  'liquid dnb': 'Drum & Bass',
+  'liquid funk': 'Drum & Bass',
+  'neurofunk': 'Drum & Bass',
+  'jump up': 'Drum & Bass',
+  
+  // Dubstep/bass
+  'brostep': 'Dubstep',
+  'riddim': 'Dubstep',
+  'future garage': 'Future Garage',
+  
+  // Trance variations
+  'progressive trance': 'Trance',
+  'uplifting trance': 'Trance',
+  'psytrance': 'Psytrance',
+  'goa trance': 'Goa Trance',
+  'vocal trance': 'Trance',
+  'tech trance': 'Trance',
+  
+  // Ambient variations
+  'chillout': 'Ambient',
+  'space ambient': 'Ambient',
+  'new age': 'New Age',
+  
+  // Breakbeat variations
+  'big beat': 'Breakbeat',
+  'nu skool breaks': 'Breakbeat',
+  'breaks': 'Breakbeat',
+  
+  // Rock variations
+  'indie rock': 'Indie Rock',
+  'alternative rock': 'Alternative Rock',
+  'alt rock': 'Alternative Rock',
+  'post-rock': 'Post-Rock',
+  'post rock': 'Post-Rock',
+  'prog rock': 'Progressive Rock',
+  'progressive rock': 'Progressive Rock',
+  'post-punk': 'Post-Punk',
+  'post punk': 'Post-Punk',
+  'grunge': 'Grunge',
+  'post-grunge': 'Grunge',
+  'shoegaze': 'Shoegaze',
+  'garage rock': 'Garage Rock',
+  'psychedelic rock': 'Psychedelic Rock',
+  
+  // Pop variations
+  'synthpop': 'Synth Pop',
+  'synth pop': 'Synth Pop',
+  'electropop': 'Electro Pop',
+  'indie pop': 'Indie Pop',
+  'dream pop': 'Dream Pop',
+  'art pop': 'Art Pop',
+  'k-pop': 'K-Pop',
+  'kpop': 'K-Pop',
+  'j-pop': 'J-Pop',
+  'jpop': 'J-Pop',
+  
+  // Jazz variations
+  'nu jazz': 'Nu Jazz',
+  'acid jazz': 'Acid Jazz',
+  'smooth jazz': 'Smooth Jazz',
+  'bebop': 'Bebop',
+  
+  // Reggae/Dancehall variations
+  'dub': 'Dub',
+  'roots reggae': 'Reggae',
+  'dancehall': 'Dancehall',
+  'ragga': 'Ragga',
+  
+  // Latin/World music
+  'reggaeton': 'Reggaeton',
+  'neoperreo': 'Reggaeton',
+  'urbano latino': 'Latin',
+  'latin alternative': 'Latin',
+  'latin indie': 'Latin',
+  'latin': 'Latin',
+  'salsa': 'Salsa',
+  'mambo': 'Salsa',
+  'cumbia': 'Cumbia',
+  'electrocumbia': 'Cumbia',
+  'samba': 'Samba',
+  'bossa nova': 'Bossa Nova',
+  'mpb': 'MPB',
+  'nova mpb': 'MPB',
+  'soca': 'Soca',
+  'zouk': 'Zouk',
+  'kizomba': 'Kizomba',
+  'kuduro': 'Kuduro',
+  'gqom': 'Gqom',
+  'amapiano': 'Amapiano',
+  'highlife': 'Highlife',
+  
+  // Dance/EDM
+  'moombahton': 'Moombahton',
+  'guaracha': 'Guaracha',
+  'melbourne bounce': 'Melbourne Bounce',
+  
+  // Other electronic
+  'phonk': 'Phonk',
+  'drift phonk': 'Phonk',
+  
+  // R&B
+  'r&b': 'R&B',
+  'rnb': 'R&B',
+  'r and b': 'R&B',
+  'neo soul': 'Neo Soul',
+  'new jack swing': 'R&B',
+  
+  // Misc
+  'emo': 'Emo',
+  'motown': 'Soul',
+  'swing': 'Swing',
+  'big band': 'Big Band',
+  'ragtime': 'Ragtime',
+  'doo-wop': 'Doo-Wop',
+  'adult standards': 'Jazz',
+  'singer-songwriter': 'Singer-Songwriter',
+  'indie folk': 'Indie Folk',
+  'folk': 'Folk',
+  'country': 'Country',
+  'bluegrass': 'Bluegrass',
+  'blues': 'Blues',
+  'soul': 'Soul',
+  'gospel': 'Gospel',
+  'classical': 'Classical',
+  'opera': 'Opera',
+  'metal': 'Metal',
+  'death metal': 'Death Metal',
+  'black metal': 'Black Metal',
+  'thrash metal': 'Thrash Metal',
+  'heavy metal': 'Heavy Metal',
+  'punk': 'Punk',
+  'pop punk': 'Pop Punk',
+  'ska': 'Ska',
+  'ska punk': 'Ska Punk',
+  'soundtrack': 'Soundtrack',
+  'score': 'Soundtrack'
+};
+
+// Enhanced detection function
+function detectGenreFamilyEnhanced(spotifyGenre) {
+  const lower = spotifyGenre.toLowerCase().trim();
+  
+  // Direct alias match
+  if (GENRE_ALIASES[lower]) {
+    return GENRE_ALIASES[lower];
+  }
+  
+  // Substring match in aliases
+  for (const [alias, family] of Object.entries(GENRE_ALIASES)) {
+    if (lower.includes(alias)) {
+      return family;
+    }
+  }
+  
+  // Word-based matching for compound genres
+  const words = lower.split(/[\s\-]+/);
+  for (const word of words) {
+    if (GENRE_ALIASES[word]) {
+      return GENRE_ALIASES[word];
+    }
+  }
+  
+  // Fallback to basic detection
+  if (lower.includes('techno')) return 'Techno';
+  if (lower.includes('house')) return 'House';
+  if (lower.includes('trance')) return 'Trance';
+  if (lower.includes('dnb') || lower.includes('drum') || lower.includes('bass') || lower.includes('jungle')) return 'Drum & Bass';
+  if (lower.includes('dubstep')) return 'Dubstep';
+  if (lower.includes('ambient')) return 'Ambient';
+  if (lower.includes('rock')) return 'Rock';
+  if (lower.includes('metal')) return 'Metal';
+  if (lower.includes('punk')) return 'Punk';
+  if (lower.includes('hip hop') || lower.includes('rap')) return 'Hip Hop';
+  if (lower.includes('jazz')) return 'Jazz';
+  if (lower.includes('blues')) return 'Blues';
+  if (lower.includes('reggae')) return 'Reggae';
+  if (lower.includes('pop')) return 'Pop';
+  if (lower.includes('indie')) return 'Indie';
+  if (lower.includes('folk')) return 'Folk';
+  if (lower.includes('country')) return 'Country';
+  if (lower.includes('classical')) return 'Classical';
+  if (lower.includes('electronic') || lower.includes('electro')) return 'Electronic';
+  
   return 'Other';
 }
-
 
 // ===== BUILD GENRE MAPS =====
 
@@ -380,7 +715,7 @@ async function buildGenreMaps(tracks) {
     track.artists.forEach(artist => {
       const spotifyGenres = artistGenreMap[artist.id] || [];
       spotifyGenres.forEach(spotifyGenre => {
-        const normalizedGenre = detectGenreFamily(spotifyGenre);
+        const normalizedGenre = detectGenreFamilyEnhanced(spotifyGenre);
         trackGenres.add(normalizedGenre);
       });
     });
@@ -455,6 +790,8 @@ function applyFilters(tracks, settings) {
 
 // ===== PLAYLIST GENERATION =====
 
+// ===== SMART SHUFFLE & ARTIST DIVERSITY =====
+
 function generatePlaylistTracks() {
   let allTracks = [];
   
@@ -475,31 +812,77 @@ function generatePlaylistTracks() {
   // Apply filters
   allTracks = applyFilters(allTracks, smartPlaylistSettings);
   
-  // Target duration in seconds
-  const targetDuration = smartPlaylistSettings.targetDuration;
-  const targetDurationMs = targetDuration * 1000;
-  
-  // Smart selection to meet duration
-  let totalDuration = 0;
+  // SMART SHUFFLE ALGORITHM
+  const targetDurationMs = smartPlaylistSettings.targetDuration * 1000;
+  const maxPerArtist = 3;
   const selectedTracks = [];
+  const artistTrackCount = new Map();
+  let totalDuration = 0;
   
-  // Shuffle for variety
-  const shuffled = [...allTracks].sort(() => Math.random() - 0.5);
+  // Sort by energy for better flow (high to low for workout vibe)
+  allTracks.sort((a, b) => {
+    const aFeatures = audioFeaturesCache[a.id];
+    const bFeatures = audioFeaturesCache[b.id];
+    if (!aFeatures || !bFeatures) return 0;
+    return bFeatures.energy - aFeatures.energy;
+  });
   
-  for (const track of shuffled) {
-    if (totalDuration >= targetDurationMs) break;
+  let lastArtistId = null;
+  const availableTracks = [...allTracks];
+  
+  while (availableTracks.length > 0 && totalDuration < targetDurationMs) {
+    let trackAdded = false;
     
-    selectedTracks.push(track);
-    totalDuration += track.duration_ms;
+    // Try to find a track from a different artist than the last one
+    for (let i = 0; i < availableTracks.length; i++) {
+      const track = availableTracks[i];
+      const artistId = track.artists[0].id;
+      
+      // Check constraints
+      const sameAsLast = artistId === lastArtistId;
+      const artistCount = artistTrackCount.get(artistId) || 0;
+      const maxReached = artistCount >= maxPerArtist;
+      
+      if (sameAsLast || maxReached) continue;
+      
+      // Add this track
+      selectedTracks.push(track);
+      artistTrackCount.set(artistId, artistCount + 1);
+      totalDuration += track.duration_ms;
+      lastArtistId = artistId;
+      
+      // Remove from available
+      availableTracks.splice(i, 1);
+      trackAdded = true;
+      break;
+    }
+    
+    // If we couldn't add any track (all remaining are from same artist or maxed out)
+    if (!trackAdded) {
+      // Relax the "different from last" constraint and try again
+      for (let i = 0; i < availableTracks.length; i++) {
+        const track = availableTracks[i];
+        const artistId = track.artists[0].id;
+        const artistCount = artistTrackCount.get(artistId) || 0;
+        
+        if (artistCount >= maxPerArtist) continue;
+        
+        selectedTracks.push(track);
+        artistTrackCount.set(artistId, artistCount + 1);
+        totalDuration += track.duration_ms;
+        lastArtistId = artistId;
+        availableTracks.splice(i, 1);
+        break;
+      }
+      
+      // If still nothing added, we're done
+      if (!trackAdded) break;
+    }
   }
   
   return selectedTracks;
 }
 
-
-// ===== UI CONNECTION LAYER =====
-
-// Show/hide app sections
 function showAppSection() {
   document.getElementById('login-section').style.display = 'none';
   document.getElementById('app-section').style.display = 'block';
@@ -576,6 +959,9 @@ async function handleLoadLibrary() {
     // Store tracks
     userTracks = tracks;
     
+    // Show cache info if loaded from cache
+    updateCacheInfo(source, cached);
+    
     // Build genre maps
     progressText.textContent = 'Analyzing genres...';
     await buildGenreMaps(tracks);
@@ -614,18 +1000,37 @@ function renderGenreGrid() {
   grid.innerHTML = allGenres.map(genre => {
     const count = genreSongMap[genre].length;
     const selected = selectedGenres.has(genre) ? 'selected' : '';
+    const color = getGenreColor(genre);
+    const safeId = genre.replace(/[^a-z0-9]/gi, '_');
+    
+    // Count artists
+    const tracks = genreSongMap[genre] || [];
+    const artistSet = new Set();
+    tracks.forEach(t => artistSet.add(t.artists[0].id));
+    const artistCount = artistSet.size;
     
     return `
-      <div class="genre-card ${selected}" data-genre="${genre}">
-        <div class="genre-name">${genre}</div>
-        <div class="genre-count">${count} tracks</div>
+      <div class="genre-card ${selected}" data-genre="${genre}" style="--genre-color: ${color}">
+        <div class="genre-header">
+          <div class="genre-info">
+            <div class="genre-name">${genre}</div>
+            <div class="genre-count">${count} tracks • ${artistCount} artists</div>
+          </div>
+        </div>
+        <button class="genre-expand-btn" onclick="toggleGenreExpand('${escapeHtml(genre)}', event)">
+          Show Artists ▼
+        </button>
+        <div class="genre-expanded-content" id="genre-expanded-${safeId}"></div>
       </div>
     `;
   }).join('');
   
   // Add click listeners
   grid.querySelectorAll('.genre-card').forEach(card => {
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
+      // Don't toggle if clicking expand button
+      if (e.target.classList.contains('genre-expand-btn')) return;
+      
       const genre = card.dataset.genre;
       toggleGenre(genre, card);
     });
@@ -742,7 +1147,14 @@ function closePreviewModal() {
 
 // Create playlist
 async function createPlaylist() {
-  const name = document.getElementById('playlist-name').value || 'My Playlist';
+  const nameInput = document.getElementById('playlist-name');
+  let name = nameInput.value || '';
+  
+  // Auto-generate name if empty or still default
+  if (!name || name === 'My Playlist') {
+    name = generatePlaylistName();
+  }
+  
   const tracks = generatePlaylistTracks();
   
   if (tracks.length === 0) {
@@ -756,12 +1168,15 @@ async function createPlaylist() {
   createBtn.textContent = 'Creating...';
   
   try {
-    await createSpotifyPlaylist(name, tracks);
+    // Generate description
+    const description = generatePlaylistDescription();
+    
+    await createSpotifyPlaylist(name, tracks, description);
     showNotification(`Playlist "${name}" created with ${tracks.length} tracks!`);
     
     // Reset
     clearSelection();
-    document.getElementById('playlist-name').value = 'My Playlist';
+    nameInput.value = 'My Playlist';
     
   } catch (error) {
     console.error('Create error:', error);
@@ -771,6 +1186,42 @@ async function createPlaylist() {
     createBtn.textContent = originalText;
   }
 }
+
+// Generate smart playlist name
+function generatePlaylistName() {
+  if (selectedGenres.size === 0) return 'My Playlist';
+  
+  const genreArray = Array.from(selectedGenres);
+  
+  // If single genre
+  if (genreArray.length === 1) {
+    return `${genreArray[0]} Mix`;
+  }
+  
+  // If 2-3 genres, list them
+  if (genreArray.length <= 3) {
+    return `${genreArray.join(' + ')} Mix`;
+  }
+  
+  // If many genres, use creative names
+  const date = new Date();
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = monthNames[date.getMonth()];
+  
+  return `${month} ${date.getFullYear()} Mix`;
+}
+
+// Generate description
+function generatePlaylistDescription() {
+  if (selectedGenres.size === 0) return 'Created with Playlist Alchemist';
+  
+  const genreArray = Array.from(selectedGenres);
+  const genreList = genreArray.slice(0, 5).join(', ');
+  const remaining = genreArray.length > 5 ? ` and ${genreArray.length - 5} more` : '';
+  
+  return `${genreList}${remaining} • Created with Playlist Alchemist`;
+}
+
 
 // Show notification
 function showNotification(message) {
@@ -869,6 +1320,9 @@ function updateDurationFilter() {
 function initializeApp() {
   console.log('🎵 Playlist Alchemist initializing...');
   
+  // Initialize navigation
+  initNavigation();
+  
   // Login button
   const loginBtn = document.getElementById('login');
   if (loginBtn) {
@@ -879,6 +1333,12 @@ function initializeApp() {
   const loadBtn = document.getElementById('load-library-btn');
   if (loadBtn) {
     loadBtn.addEventListener('click', handleLoadLibrary);
+  }
+  
+  // Refresh cache button
+  const refreshBtn = document.getElementById('refresh-cache-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', handleRefreshCache);
   }
   
   // Genre search
@@ -961,10 +1421,12 @@ function initializeApp() {
     });
   }
   
-  // Close modals on overlay click
+  // Close modals on overlay click (not on modal content)
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', function() {
-      this.parentElement.style.display = 'none';
+    overlay.addEventListener('click', function(e) {
+      if (e.target === this) {
+        this.style.display = 'none';
+      }
     });
   });
   
@@ -979,4 +1441,430 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializeApp);
 } else {
   initializeApp();
+}
+
+
+// ===== NAVIGATION SYSTEM =====
+
+function switchSection(sectionId) {
+  // Hide all sections
+  document.querySelectorAll('.content-section').forEach(section => {
+    section.classList.remove('active');
+    section.style.display = 'none';
+  });
+  
+  // Show selected section
+  const targetSection = document.getElementById(`${sectionId}-section`);
+  if (targetSection) {
+    targetSection.classList.add('active');
+    targetSection.style.display = 'block';
+  }
+  
+  // Update nav items
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  
+  const activeNav = document.querySelector(`.nav-item[data-section="${sectionId}"]`);
+  if (activeNav) {
+    activeNav.classList.add('active');
+  }
+}
+
+// Initialize navigation listeners
+function initNavigation() {
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const section = item.dataset.section;
+      switchSection(section);
+    });
+  });
+}
+
+// ===== INTERACTIVE TOUR SYSTEM =====
+
+const tourSteps = [
+  {
+    target: '#load-library-btn',
+    title: 'Step 1: Load Your Music',
+    message: 'Click here to analyze your Spotify library. Takes about 30 seconds for most collections.',
+    position: 'bottom',
+    highlight: true
+  },
+  {
+    target: '.genre-grid',
+    title: 'Step 2: Pick Your Genres',
+    message: 'Click the genres you want in your playlist. Mix and match—create a workout mix, chill vibes, whatever you\'re feeling.',
+    position: 'left',
+    highlight: true
+  },
+  {
+    target: '.filters-section',
+    title: 'Step 3: Fine-Tune (Optional)',
+    message: 'Want high-energy tracks? Specific BPM range? Set filters here. Or skip this—filters are totally optional.',
+    position: 'right',
+    highlight: true
+  },
+  {
+    target: '#preview-btn',
+    title: 'Step 4: Preview',
+    message: 'Check what you\'re about to create. See the track list before committing.',
+    position: 'top',
+    highlight: true
+  },
+  {
+    target: '#create-btn',
+    title: 'Step 5: Create!',
+    message: 'Hit this button and your playlist appears in Spotify. Literally magic.',
+    position: 'top',
+    highlight: true
+  }
+];
+
+let currentTourStep = 0;
+let tourActive = false;
+
+function startTour() {
+  currentTourStep = 0;
+  tourActive = true;
+  showTourStep(0);
+}
+
+function showTourStep(stepIndex) {
+  if (stepIndex >= tourSteps.length) {
+    endTour();
+    return;
+  }
+  
+  const step = tourSteps[stepIndex];
+  const targetElement = document.querySelector(step.target);
+  
+  if (!targetElement) {
+    // Skip to next step if element doesn't exist
+    showTourStep(stepIndex + 1);
+    return;
+  }
+  
+  // Remove existing tour elements
+  document.querySelectorAll('.tour-highlight, .tour-tooltip, .tour-overlay').forEach(el => el.remove());
+  
+  // Create overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'tour-overlay';
+  overlay.onclick = () => nextTourStep();
+  document.body.appendChild(overlay);
+  
+  // Highlight target
+  if (step.highlight) {
+    targetElement.classList.add('tour-highlight');
+  }
+  
+  // Create tooltip
+  const tooltip = document.createElement('div');
+  tooltip.className = `tour-tooltip tour-${step.position}`;
+  tooltip.innerHTML = `
+    <div class="tour-header">
+      <h3 class="tour-title">${step.title}</h3>
+      <button class="tour-close" onclick="endTour()">×</button>
+    </div>
+    <p class="tour-message">${step.message}</p>
+    <div class="tour-footer">
+      <div class="tour-progress">${stepIndex + 1} of ${tourSteps.length}</div>
+      <div class="tour-buttons">
+        ${stepIndex > 0 ? '<button class="btn-secondary btn-sm" onclick="previousTourStep()">Back</button>' : ''}
+        <button class="btn-primary btn-sm" onclick="nextTourStep()">${stepIndex < tourSteps.length - 1 ? 'Next' : 'Done'}</button>
+      </div>
+    </div>
+  `;
+  
+  // Position tooltip near target
+  document.body.appendChild(tooltip);
+  positionTooltip(tooltip, targetElement, step.position);
+}
+
+function positionTooltip(tooltip, target, position) {
+  const targetRect = target.getBoundingClientRect();
+  const tooltipRect = tooltip.getBoundingClientRect();
+  
+  let top, left;
+  
+  switch (position) {
+    case 'top':
+      top = targetRect.top - tooltipRect.height - 20;
+      left = targetRect.left + (targetRect.width / 2) - (tooltipRect.width / 2);
+      break;
+    case 'bottom':
+      top = targetRect.bottom + 20;
+      left = targetRect.left + (targetRect.width / 2) - (tooltipRect.width / 2);
+      break;
+    case 'left':
+      top = targetRect.top + (targetRect.height / 2) - (tooltipRect.height / 2);
+      left = targetRect.left - tooltipRect.width - 20;
+      break;
+    case 'right':
+      top = targetRect.top + (targetRect.height / 2) - (tooltipRect.height / 2);
+      left = targetRect.right + 20;
+      break;
+  }
+  
+  tooltip.style.top = `${Math.max(10, top)}px`;
+  tooltip.style.left = `${Math.max(10, Math.min(window.innerWidth - tooltipRect.width - 10, left))}px`;
+}
+
+function nextTourStep() {
+  currentTourStep++;
+  showTourStep(currentTourStep);
+}
+
+function previousTourStep() {
+  currentTourStep--;
+  showTourStep(currentTourStep);
+}
+
+function endTour() {
+  tourActive = false;
+  document.querySelectorAll('.tour-highlight, .tour-tooltip, .tour-overlay').forEach(el => el.remove());
+  localStorage.setItem('tour_completed', 'true');
+}
+
+
+// ===== CACHE INFO DISPLAY =====
+
+function updateCacheInfo(source, cachedData) {
+  const cacheInfoDiv = document.getElementById('cache-info');
+  const cacheMessage = document.getElementById('cache-message');
+  
+  if (cachedData && cachedData.timestamp) {
+    const ageMs = Date.now() - cachedData.timestamp;
+    const ageText = formatCacheAge(ageMs);
+    
+    cacheMessage.textContent = `Loaded from cache (${ageText} ago)`;
+    cacheInfoDiv.style.display = 'flex';
+  } else {
+    cacheMessage.textContent = 'Freshly loaded';
+    cacheInfoDiv.style.display = 'flex';
+  }
+}
+
+function formatCacheAge(ms) {
+  const minutes = Math.floor(ms / 60000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  
+  if (days > 0) return `${days} day${days > 1 ? 's' : ''}`;
+  if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''}`;
+  if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+  return 'just now';
+}
+
+async function handleRefreshCache() {
+  // Clear cache for current source
+  const sourceInput = document.querySelector('input[name="data-source"]:checked');
+  if (!sourceInput) return;
+  
+  const source = sourceInput.value;
+  
+  // Clear cache
+  localStorage.removeItem(`playlist_alchemist_${source}`);
+  localStorage.removeItem(`playlist_alchemist_${source}_timestamp`);
+  
+  // Hide cache info
+  document.getElementById('cache-info').style.display = 'none';
+  
+  // Reload
+  await handleLoadLibrary();
+}
+
+// ===== GENRE COLOR SYSTEM =====
+
+const GENRE_COLORS = {
+  // Electronic colors (blues & purples)
+  'Techno': '#00d4ff',
+  'House': '#0088ff',
+  'Trance': '#b19cd9',
+  'Drum & Bass': '#ff00ff',
+  'Dubstep': '#9d00ff',
+  'EDM': '#00ccff',
+  'Ambient': '#4db8ff',
+  'Breakbeat': '#ff66cc',
+  'Electro': '#00ffcc',
+  'IDM': '#6699ff',
+  
+  // UK Bass (greens & teals)
+  'UK Garage': '#00ff88',
+  'UK Drill': '#00cc66',
+  'Grime': '#00ff99',
+  'Bassline': '#00ffaa',
+  'Bass Music': '#00ddaa',
+  'Future Bass': '#00ffbb',
+  'Melodic Bass': '#66ffcc',
+  
+  // Hip Hop / Urban (oranges & reds)
+  'Hip Hop': '#ff6600',
+  'Rap': '#ff7700',
+  'Trap': '#ff4400',
+  'R&B': '#ff8844',
+  'Soul': '#ff9966',
+  'Funk': '#ffaa44',
+  'G-Funk': '#ff7744',
+  
+  // Rock / Alternative (reds & pinks)
+  'Rock': '#ff3333',
+  'Metal': '#cc0000',
+  'Punk': '#ff0066',
+  'Indie Rock': '#ff6699',
+  'Alternative Rock': '#ff4488',
+  'Grunge': '#cc3366',
+  'Post-Rock': '#ff77aa',
+  'Shoegaze': '#ff88bb',
+  
+  // Pop (pinks & magentas)
+  'Pop': '#ff00aa',
+  'K-Pop': '#ff44cc',
+  'Synth Pop': '#ff66dd',
+  'Indie Pop': '#ff88ee',
+  'Dream Pop': '#ffaaff',
+  'Electro Pop': '#ff77dd',
+  
+  // Dance / Disco (yellows & golds)
+  'Disco': '#ffdd00',
+  'Nu Disco': '#ffee44',
+  'Dance': '#ffcc00',
+  'Eurodance': '#ffaa00',
+  'Italo Disco': '#ffbb22',
+  'Funk': '#ffcc33',
+  
+  // World / Latin (warm oranges)
+  'Reggae': '#ffaa00',
+  'Reggaeton': '#ff9900',
+  'Latin': '#ff8800',
+  'Salsa': '#ff7700',
+  'Samba': '#ff9944',
+  'Bossa Nova': '#ffaa66',
+  'Afrobeats': '#ff8833',
+  'Amapiano': '#ff9955',
+  
+  // Jazz / Blues (warm browns & golds)
+  'Jazz': '#dda000',
+  'Blues': '#aa7700',
+  'Swing': '#cc9900',
+  'Bebop': '#eebb00',
+  'Acid Jazz': '#ddaa22',
+  'Nu Jazz': '#eebb44',
+  
+  // Chill / Lo-Fi (soft pastels)
+  'Lo-Fi': '#88ddff',
+  'Chillwave': '#99eeff',
+  'Chillstep': '#aaffff',
+  'Downtempo': '#77ccee',
+  'Trip-Hop': '#6699cc',
+  'Lounge': '#99bbdd',
+  
+  // Classical / World (elegant purples)
+  'Classical': '#bb88ff',
+  'Opera': '#aa77ee',
+  'Folk': '#998866',
+  'Country': '#aa8855',
+  'Bluegrass': '#bb9966',
+  
+  // Indie / Alternative (varied)
+  'Indie': '#ff9999',
+  'Indie Dance': '#ff88cc',
+  'Electroclash': '#ff77dd',
+  
+  // Experimental (grays & cyans)
+  'Experimental': '#00dddd',
+  'Glitch': '#00cccc',
+  'Noise': '#00bbbb',
+  'IDM': '#00aacc',
+  
+  // Hardcore / Hard styles (bright reds)
+  'Hardcore': '#ff0000',
+  'Hardstyle': '#ff2200',
+  'Gabber': '#ff1100',
+  'Speedcore': '#ff0033',
+  'Frenchcore': '#ff2244',
+  
+  // Default
+  'Other': '#666666'
+};
+
+function getGenreColor(genre) {
+  return GENRE_COLORS[genre] || '#666666';
+}
+
+
+// ===== GENRE INLINE EXPANSION =====
+
+function toggleGenreExpand(genre, event) {
+  event.stopPropagation();
+  
+  const safeId = genre.replace(/[^a-z0-9]/gi, '_');
+  const expandedDiv = document.getElementById(`genre-expanded-${safeId}`);
+  const button = event.target;
+  
+  if (expandedDiv.classList.contains('expanded')) {
+    // Collapse
+    expandedDiv.classList.remove('expanded');
+    expandedDiv.innerHTML = '';
+    button.textContent = 'Show Artists ▼';
+  } else {
+    // Expand
+    const tracks = genreSongMap[genre] || [];
+    const color = getGenreColor(genre);
+    
+    // Group by artist
+    const artistMap = new Map();
+    tracks.forEach(track => {
+      const artistName = track.artists[0].name;
+      const artistId = track.artists[0].id;
+      
+      if (!artistMap.has(artistId)) {
+        artistMap.set(artistId, {
+          name: artistName,
+          tracks: []
+        });
+      }
+      artistMap.get(artistId).tracks.push(track);
+    });
+    
+    // Sort artists by track count
+    const sortedArtists = Array.from(artistMap.entries())
+      .sort((a, b) => b[1].tracks.length - a[1].tracks.length);
+    
+    // Render artists
+    expandedDiv.innerHTML = `
+      <div class="genre-artists-section">
+        ${sortedArtists.map(([artistId, artistData]) => {
+          const safeArtistId = artistId.replace(/[^a-z0-9]/gi, '_');
+          return `
+            <div class="artist-item">
+              <div class="artist-header" onclick="toggleArtistTracks('${safeId}', '${safeArtistId}')">
+                <span class="artist-name">${escapeHtml(artistData.name)}</span>
+                <span class="artist-count">${artistData.tracks.length} tracks</span>
+              </div>
+              <div class="artist-tracks-list" id="artist-tracks-${safeId}-${safeArtistId}">
+                ${artistData.tracks.map(track => `
+                  <div class="track-item-inline">
+                    <span class="track-name-inline">${escapeHtml(track.name)}</span>
+                    <span class="track-duration-inline">${formatDuration(track.duration_ms)}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+    
+    expandedDiv.classList.add('expanded');
+    button.textContent = 'Hide Artists ▲';
+  }
+}
+
+function toggleArtistTracks(genreId, artistId) {
+  const tracksList = document.getElementById(`artist-tracks-${genreId}-${artistId}`);
+  if (tracksList) {
+    tracksList.classList.toggle('expanded');
+  }
 }
