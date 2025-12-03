@@ -1019,12 +1019,23 @@ async function handleLoadLibrary() {
   try {
     let tracks = [];
     
+    // Include timeframe in cache key for liked songs
+    const cacheKey = source === 'liked-songs' && timeframe !== 'all' 
+      ? `${source}-${timeframe}` 
+      : source;
+    
     // Check cache first
-    const cached = loadFromCache(source);
+    const cached = loadFromCache(cacheKey);
     if (cached && (Date.now() - cached.timestamp) < 86400000) { // 24 hours
       tracks = cached.data;
       progressFill.style.width = '100%';
       progressText.textContent = `Loaded ${tracks.length} tracks from cache`;
+      
+      // Log for debugging
+      console.log(`Loaded from cache: ${cacheKey}, ${tracks.length} tracks`);
+      if (tracks.length > 0 && tracks[0].added_at) {
+        console.log(`Sample added_at: ${tracks[0].added_at}`);
+      }
     } else {
       // Fetch fresh data
       if (source === 'liked-songs') {
@@ -1033,6 +1044,13 @@ async function handleLoadLibrary() {
           progressFill.style.width = `${percent}%`;
           progressText.textContent = `Loading ${current}/${total} tracks...`;
         });
+        
+        // Apply timeframe filter BEFORE caching
+        if (timeframe !== 'all') {
+          const originalCount = tracks.length;
+          tracks = filterByTimeframe(tracks, timeframe);
+          console.log(`Filtered before cache: ${originalCount} → ${tracks.length} tracks (${timeframe})`);
+        }
       } else if (source === 'top-artists') {
         progressText.textContent = 'Fetching your top artists...';
         tracks = await fetchTopArtists();
@@ -1049,18 +1067,15 @@ async function handleLoadLibrary() {
         progressFill.style.width = '100%';
       }
       
-      // Save to cache
-      saveToCache(source, tracks);
+      // Save to cache with timeframe-specific key
+      saveToCache(cacheKey, tracks);
     }
     
-    // Apply timeframe filter for liked songs
+    // Show timeframe indicator if filtered
     if (source === 'liked-songs' && timeframe !== 'all') {
-      const originalCount = tracks.length;
-      tracks = filterByTimeframe(tracks, timeframe);
-      const filteredCount = tracks.length;
       const label = getTimeframeLabel(timeframe);
       
-      progressText.textContent = `Filtered: ${filteredCount} tracks from ${label} (${originalCount} total)`;
+      progressText.textContent = `Loaded ${tracks.length} tracks from ${label}`;
       progressText.style.color = '#1db954'; // Green to show filter active
       
       // Show timeframe indicator
@@ -1069,12 +1084,10 @@ async function handleLoadLibrary() {
         indicator.innerHTML = `
           <span class="indicator-icon">📅</span>
           <span class="indicator-text">Showing tracks from ${label}</span>
-          <span class="indicator-count">${filteredCount} of ${originalCount}</span>
+          <span class="indicator-count">${tracks.length} tracks</span>
         `;
         indicator.style.display = 'flex';
       }
-      
-      console.log(`Timeframe filter: ${originalCount} → ${filteredCount} tracks (${label})`);
     } else {
       progressText.style.color = '#e3e3e3'; // Normal color
       
