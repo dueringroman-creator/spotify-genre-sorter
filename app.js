@@ -14,16 +14,19 @@ let userTracks = [];
 let artistGenreMap = {};
 let genreSongMap = {};
 let selectedGenres = new Set();
+let selectedTracks = new Set(); // Individual track selection
 let allGenres = [];
 let audioFeaturesCache = {};
 
-// Smart playlist settings
+// Smart playlist settings - FILTERS DISABLED BY DEFAULT
 const smartPlaylistSettings = {
-  bpm: { min: 0, max: 200 },
-  energy: { min: 0, max: 100 },
-  mood: { min: 0, max: 100 },
+  bpm: { min: 0, max: 300, enabled: false },
+  energy: { min: 0, max: 100, enabled: false },
+  mood: { min: 0, max: 100, enabled: false },
   vocalType: 'any',
-  targetDuration: 3600
+  maxTracks: null, // No limit by default
+  maxTracksPerArtist: 3, // Diversity enabled
+  shuffleMode: 'smart' // smart, random, or none
 };
 
 // ===== SPOTIFY AUTHENTICATION =====
@@ -90,6 +93,16 @@ async function handleSpotifyCallback() {
       const data = await response.json();
       spotifyToken = data.access_token;
       window.spotifyToken = spotifyToken;
+      
+      // Fetch user profile immediately
+      try {
+        const user = await fetchSpotifyAPI('me');
+        window.spotifyUserId = user.id;
+        window.spotifyUserName = user.display_name;
+        console.log(`✅ Logged in as: ${user.display_name}`);
+      } catch (error) {
+        console.error('Failed to fetch user profile:', error);
+      }
       
       // Clean URL
       window.history.replaceState({}, document.title, REDIRECT_URI);
@@ -297,12 +310,16 @@ async function fetchAudioFeatures(trackIds) {
   return features;
 }
 
-async function createSpotifyPlaylist(name, tracks, description = 'Created with Playlist Alchemist') {
-  // Get user ID
-  const user = await fetchSpotifyAPI('me');
+async function createSpotifyPlaylist(name, tracks, description = 'Created with Playlist Alchemist', isPublic = false) {
+  // Get user ID if not cached
+  if (!window.spotifyUserId) {
+    const user = await fetchSpotifyAPI('me');
+    window.spotifyUserId = user.id;
+    window.spotifyUserName = user.display_name;
+  }
   
   // Create playlist
-  const playlist = await fetchSpotifyAPI(`users/${user.id}/playlists`, {
+  const playlist = await fetchSpotifyAPI(`users/${window.spotifyUserId}/playlists`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -310,7 +327,7 @@ async function createSpotifyPlaylist(name, tracks, description = 'Created with P
     body: JSON.stringify({
       name: name,
       description: description,
-      public: false
+      public: isPublic
     })
   });
   
@@ -759,20 +776,20 @@ function applyFilters(tracks, settings) {
     const features = audioFeaturesCache[track.id];
     if (!features) return true; // Include if no features available
     
-    // BPM filter
-    if (settings.bpm.min > 0 || settings.bpm.max < 200) {
+    // BPM filter - ONLY if enabled
+    if (settings.bpm.enabled) {
       const bpm = features.tempo;
       if (bpm < settings.bpm.min || bpm > settings.bpm.max) return false;
     }
     
-    // Energy filter (0-100 scale)
-    if (settings.energy.min > 0 || settings.energy.max < 100) {
+    // Energy filter (0-100 scale) - ONLY if enabled
+    if (settings.energy.enabled) {
       const energy = features.energy * 100;
       if (energy < settings.energy.min || energy > settings.energy.max) return false;
     }
     
-    // Mood filter (valence - 0-100 scale)
-    if (settings.mood.min > 0 || settings.mood.max < 100) {
+    // Mood filter (valence - 0-100 scale) - ONLY if enabled
+    if (settings.mood.enabled) {
       const mood = features.valence * 100;
       if (mood < settings.mood.min || mood > settings.mood.max) return false;
     }
@@ -786,6 +803,75 @@ function applyFilters(tracks, settings) {
     
     return true;
   });
+}
+
+// Toggle filter enabled/disabled
+function toggleFilterEnabled(filterType) {
+  const checkbox = document.getElementById(`${filterType}-enabled`);
+  const controls = document.getElementById(`${filterType}-controls`);
+  
+  smartPlaylistSettings[filterType].enabled = checkbox.checked;
+  controls.style.display = checkbox.checked ? 'block' : 'none';
+  
+  updateFilterStatus();
+  updateTotals();
+}
+
+// Update filter display text
+function updateFilterDisplay(filterType) {
+  const min = parseInt(document.getElementById(`${filterType}-min`).value);
+  const max = parseInt(document.getElementById(`${filterType}-max`).value);
+  const display = document.getElementById(`${filterType}-display`);
+  
+  smartPlaylistSettings[filterType].min = min;
+  smartPlaylistSettings[filterType].max = max;
+  
+  if (filterType === 'bpm') {
+    display.textContent = `${min} - ${max} BPM`;
+  } else if (filterType === 'energy') {
+    display.textContent = `Energy: ${min} - ${max}`;
+  } else if (filterType === 'mood') {
+    display.textContent = `Mood: ${min} - ${max}`;
+  }
+  
+  updateTotals();
+}
+
+// Update filter status text
+function updateFilterStatus() {
+  const activeFilters = [];
+  if (smartPlaylistSettings.bpm.enabled) activeFilters.push('BPM');
+  if (smartPlaylistSettings.energy.enabled) activeFilters.push('Energy');
+  if (smartPlaylistSettings.mood.enabled) activeFilters.push('Mood');
+  
+  const statusEl = document.getElementById('filter-count');
+  if (activeFilters.length === 0) {
+    statusEl.textContent = 'No filters active - showing all tracks';
+    statusEl.style.color = '#7f7f7f';
+  } else {
+    statusEl.textContent = `${activeFilters.length} filter${activeFilters.length > 1 ? 's' : ''} active: ${activeFilters.join(', ')}`;
+    statusEl.style.color = '#1db954';
+  }
+}
+
+// Update max tracks per artist
+function updateMaxTracksPerArtist() {
+  const value = document.getElementById('max-tracks-per-artist').value;
+  smartPlaylistSettings.maxTracksPerArtist = parseInt(value);
+  updateTotals();
+}
+
+// Update shuffle mode
+function updateShuffleMode() {
+  const value = document.getElementById('shuffle-mode').value;
+  smartPlaylistSettings.shuffleMode = value;
+}
+
+// Update max playlist size
+function updateMaxPlaylistSize() {
+  const value = document.getElementById('max-playlist-size').value;
+  smartPlaylistSettings.maxTracks = value === 'null' ? null : parseInt(value);
+  updateTotals();
 }
 
 // ===== PLAYLIST GENERATION =====
@@ -809,78 +895,42 @@ function generatePlaylistTracks() {
     return true;
   });
   
+  // Remove excluded tracks (from preview editing)
+  if (excludedFromPreview && excludedFromPreview.size > 0) {
+    allTracks = allTracks.filter(t => !excludedFromPreview.has(t.id));
+  }
+  
   // Apply filters
   allTracks = applyFilters(allTracks, smartPlaylistSettings);
   
-  // SMART SHUFFLE ALGORITHM
-  const targetDurationMs = smartPlaylistSettings.targetDuration * 1000;
-  const maxPerArtist = 3;
-  const selectedTracks = [];
+  // Apply max tracks per artist (diversity)
+  const maxPerArtist = smartPlaylistSettings.maxTracksPerArtist;
   const artistTrackCount = new Map();
-  let totalDuration = 0;
   
-  // Sort by energy for better flow (high to low for workout vibe)
-  allTracks.sort((a, b) => {
-    const aFeatures = audioFeaturesCache[a.id];
-    const bFeatures = audioFeaturesCache[b.id];
-    if (!aFeatures || !bFeatures) return 0;
-    return bFeatures.energy - aFeatures.energy;
-  });
-  
-  let lastArtistId = null;
-  const availableTracks = [...allTracks];
-  
-  while (availableTracks.length > 0 && totalDuration < targetDurationMs) {
-    let trackAdded = false;
-    
-    // Try to find a track from a different artist than the last one
-    for (let i = 0; i < availableTracks.length; i++) {
-      const track = availableTracks[i];
+  if (maxPerArtist < 999) {
+    allTracks = allTracks.filter(track => {
       const artistId = track.artists[0].id;
-      
-      // Check constraints
-      const sameAsLast = artistId === lastArtistId;
-      const artistCount = artistTrackCount.get(artistId) || 0;
-      const maxReached = artistCount >= maxPerArtist;
-      
-      if (sameAsLast || maxReached) continue;
-      
-      // Add this track
-      selectedTracks.push(track);
-      artistTrackCount.set(artistId, artistCount + 1);
-      totalDuration += track.duration_ms;
-      lastArtistId = artistId;
-      
-      // Remove from available
-      availableTracks.splice(i, 1);
-      trackAdded = true;
-      break;
-    }
-    
-    // If we couldn't add any track (all remaining are from same artist or maxed out)
-    if (!trackAdded) {
-      // Relax the "different from last" constraint and try again
-      for (let i = 0; i < availableTracks.length; i++) {
-        const track = availableTracks[i];
-        const artistId = track.artists[0].id;
-        const artistCount = artistTrackCount.get(artistId) || 0;
-        
-        if (artistCount >= maxPerArtist) continue;
-        
-        selectedTracks.push(track);
-        artistTrackCount.set(artistId, artistCount + 1);
-        totalDuration += track.duration_ms;
-        lastArtistId = artistId;
-        availableTracks.splice(i, 1);
-        break;
-      }
-      
-      // If still nothing added, we're done
-      if (!trackAdded) break;
-    }
+      const count = artistTrackCount.get(artistId) || 0;
+      if (count >= maxPerArtist) return false;
+      artistTrackCount.set(artistId, count + 1);
+      return true;
+    });
   }
   
-  return selectedTracks;
+  // Apply shuffle mode
+  if (smartPlaylistSettings.shuffleMode === 'smart') {
+    allTracks = smartShuffle(allTracks);
+  } else if (smartPlaylistSettings.shuffleMode === 'random') {
+    allTracks = shuffleArray(allTracks);
+  }
+  // 'none' = keep as-is
+  
+  // Apply max playlist size
+  if (smartPlaylistSettings.maxTracks) {
+    allTracks = allTracks.slice(0, smartPlaylistSettings.maxTracks);
+  }
+  
+  return allTracks;
 }
 
 function showAppSection() {
@@ -970,6 +1020,15 @@ async function handleLoadLibrary() {
     progressText.textContent = 'Loading audio features...';
     await getAudioFeaturesForTracks(tracks);
     
+    // Build library data for Library section
+    buildLibraryData();
+    
+    // Build stats data for Stats section
+    buildStatsData();
+    
+    // Generate smart recommendations
+    generateAndDisplayRecommendations();
+    
     // Show genre section
     document.getElementById('genre-section').style.display = 'block';
     renderGenreGrid();
@@ -1017,6 +1076,13 @@ function renderGenreGrid() {
             <div class="genre-count">${count} tracks • ${artistCount} artists</div>
           </div>
         </div>
+        <a href="https://musicmap.info/#${encodeURIComponent(genre.toLowerCase().replace(/\s+/g, '-'))}" 
+           target="_blank" 
+           class="genre-map-link"
+           onclick="event.stopPropagation()"
+           title="Explore ${genre} on MusicMap">
+          🗺️ Info
+        </a>
         <button class="genre-expand-btn" onclick="toggleGenreExpand('${escapeHtml(genre)}', event)">
           Show Artists ▼
         </button>
@@ -1125,20 +1191,82 @@ function clearSelection() {
 }
 
 // Show preview modal
+let previewTracks = [];
+let excludedFromPreview = new Set();
+let previewPage = 0;
+const PREVIEW_TRACKS_PER_PAGE = 50;
+
 function showPreviewModal() {
-  const tracks = generatePlaylistTracks();
+  previewTracks = generatePlaylistTracks();
+  excludedFromPreview.clear();
+  previewPage = 0;
+  
+  renderPreviewTracks();
+  document.getElementById('preview-modal').style.display = 'flex';
+}
+
+function renderPreviewTracks() {
   const list = document.getElementById('preview-tracks-list');
   
-  list.innerHTML = tracks.map(track => `
-    <div class="preview-track">
-      <div class="preview-track-info">
-        <div class="preview-track-name">${escapeHtml(track.name)}</div>
-        <div class="preview-track-artist">${escapeHtml(track.artists[0].name)}</div>
-      </div>
-    </div>
-  `).join('');
+  const activeTracks = previewTracks.filter(t => !excludedFromPreview.has(t.id));
+  const totalPages = Math.ceil(activeTracks.length / PREVIEW_TRACKS_PER_PAGE);
+  const startIdx = previewPage * PREVIEW_TRACKS_PER_PAGE;
+  const endIdx = startIdx + PREVIEW_TRACKS_PER_PAGE;
+  const displayTracks = activeTracks.slice(startIdx, endIdx);
   
-  document.getElementById('preview-modal').style.display = 'flex';
+  list.innerHTML = `
+    <div class="preview-header-info">
+      <span>${activeTracks.length} tracks total</span>
+      ${excludedFromPreview.size > 0 ? `<span class="excluded-count">${excludedFromPreview.size} excluded</span>` : ''}
+      ${excludedFromPreview.size > 0 ? `<button class="btn-small" onclick="clearExcluded()">Reset</button>` : ''}
+    </div>
+    
+    <div class="preview-tracks-container">
+      ${displayTracks.map((track, idx) => `
+        <div class="preview-track-item" data-track-id="${track.id}">
+          <span class="preview-track-number">${startIdx + idx + 1}</span>
+          <div class="preview-track-info">
+            <div class="preview-track-name">${escapeHtml(track.name)}</div>
+            <div class="preview-track-artist">${escapeHtml(track.artists[0].name)}</div>
+          </div>
+          <span class="preview-track-duration">${formatDuration(track.duration_ms)}</span>
+          <button class="preview-track-remove" onclick="excludeTrackFromPreview('${track.id}')" title="Remove from playlist">
+            ×
+          </button>
+        </div>
+      `).join('')}
+    </div>
+    
+    ${totalPages > 1 ? `
+      <div class="preview-pagination">
+        <button onclick="changePreviewPage(-1)" ${previewPage === 0 ? 'disabled' : ''}>
+          ← Previous
+        </button>
+        <span>Page ${previewPage + 1} of ${totalPages}</span>
+        <button onclick="changePreviewPage(1)" ${previewPage >= totalPages - 1 ? 'disabled' : ''}>
+          Next →
+        </button>
+      </div>
+    ` : ''}
+  `;
+}
+
+function excludeTrackFromPreview(trackId) {
+  excludedFromPreview.add(trackId);
+  renderPreviewTracks();
+}
+
+function clearExcluded() {
+  excludedFromPreview.clear();
+  previewPage = 0;
+  renderPreviewTracks();
+}
+
+function changePreviewPage(delta) {
+  const activeTracks = previewTracks.filter(t => !excludedFromPreview.has(t.id));
+  const totalPages = Math.ceil(activeTracks.length / PREVIEW_TRACKS_PER_PAGE);
+  previewPage = Math.max(0, Math.min(previewPage + delta, totalPages - 1));
+  renderPreviewTracks();
 }
 
 function closePreviewModal() {
@@ -1162,6 +1290,13 @@ async function createPlaylist() {
     return;
   }
   
+  // If multiple genres selected, show dialog
+  if (selectedGenres.size > 1) {
+    showPlaylistCreationDialog(name, tracks);
+    return;
+  }
+  
+  // Single genre - create directly
   const createBtn = document.getElementById('create-btn');
   const originalText = createBtn.textContent;
   createBtn.disabled = true;
@@ -1171,7 +1306,7 @@ async function createPlaylist() {
     // Generate description
     const description = generatePlaylistDescription();
     
-    await createSpotifyPlaylist(name, tracks, description);
+    await createSpotifyPlaylist(name, tracks, description, false); // Private by default
     showNotification(`Playlist "${name}" created with ${tracks.length} tracks!`);
     
     // Reset
@@ -1181,6 +1316,108 @@ async function createPlaylist() {
   } catch (error) {
     console.error('Create error:', error);
     showNotification('Error creating playlist. Please try again.');
+  } finally {
+    createBtn.disabled = false;
+    createBtn.textContent = originalText;
+  }
+}
+
+// Show playlist creation dialog
+function showPlaylistCreationDialog(name, tracks) {
+  const modal = document.getElementById('playlist-creation-modal');
+  const genreCount = document.getElementById('creation-genre-count');
+  const genreList = document.getElementById('creation-genre-list');
+  
+  genreCount.textContent = selectedGenres.size;
+  genreList.innerHTML = Array.from(selectedGenres).map(genre => {
+    const count = (genreSongMap[genre] || []).length;
+    return `<div class="creation-genre-item">• ${genre} (${count} tracks)</div>`;
+  }).join('');
+  
+  // Store for later
+  window.pendingPlaylistName = name;
+  window.pendingPlaylistTracks = tracks;
+  
+  modal.style.display = 'flex';
+}
+
+// Close playlist creation dialog
+function closePlaylistCreationDialog() {
+  document.getElementById('playlist-creation-modal').style.display = 'none';
+}
+
+// Confirm and create playlists
+async function confirmPlaylistCreation() {
+  const mode = document.querySelector('input[name="creation-mode"]:checked').value;
+  const isPublic = document.querySelector('input[name="playlist-privacy"]:checked').value === 'public';
+  
+  closePlaylistCreationDialog();
+  
+  const createBtn = document.getElementById('create-btn');
+  const originalText = createBtn.textContent;
+  createBtn.disabled = true;
+  
+  try {
+    if (mode === 'single') {
+      // Create single mixed playlist
+      createBtn.textContent = 'Creating...';
+      const description = generatePlaylistDescription();
+      await createSpotifyPlaylist(window.pendingPlaylistName, window.pendingPlaylistTracks, description, isPublic);
+      showNotification(`Playlist "${window.pendingPlaylistName}" created with ${window.pendingPlaylistTracks.length} tracks!`);
+      
+    } else if (mode === 'separate') {
+      // Create separate playlists per genre
+      createBtn.textContent = 'Creating playlists...';
+      let created = 0;
+      
+      for (const genre of selectedGenres) {
+        const genreTracks = genreSongMap[genre] || [];
+        if (genreTracks.length === 0) continue;
+        
+        // Apply filters and shuffle to each genre separately
+        let filteredTracks = applyFilters(genreTracks, smartPlaylistSettings);
+        
+        // Apply diversity
+        if (smartPlaylistSettings.maxTracksPerArtist < 999) {
+          const artistCount = new Map();
+          filteredTracks = filteredTracks.filter(track => {
+            const artistId = track.artists[0].id;
+            const count = artistCount.get(artistId) || 0;
+            if (count >= smartPlaylistSettings.maxTracksPerArtist) return false;
+            artistCount.set(artistId, count + 1);
+            return true;
+          });
+        }
+        
+        // Apply shuffle
+        if (smartPlaylistSettings.shuffleMode === 'smart') {
+          filteredTracks = smartShuffle(filteredTracks);
+        } else if (smartPlaylistSettings.shuffleMode === 'random') {
+          filteredTracks = shuffleArray(filteredTracks);
+        }
+        
+        // Apply max size
+        if (smartPlaylistSettings.maxTracks) {
+          filteredTracks = filteredTracks.slice(0, smartPlaylistSettings.maxTracks);
+        }
+        
+        const playlistName = `${genre} Mix`;
+        const description = `${genre} • Created with Playlist Alchemist`;
+        
+        await createSpotifyPlaylist(playlistName, filteredTracks, description, isPublic);
+        created++;
+      }
+      
+      showNotification(`${created} playlists created successfully!`);
+    }
+    
+    // Reset
+    clearSelection();
+    document.getElementById('playlist-name').value = 'My Playlist';
+    
+  } catch (error) {
+    console.error('Create error:', error);
+    showNotification('Error creating playlist(s). Please try again.', 'error');
   } finally {
     createBtn.disabled = false;
     createBtn.textContent = originalText;
@@ -1837,15 +2074,28 @@ function toggleGenreExpand(genre, event) {
       <div class="genre-artists-section">
         ${sortedArtists.map(([artistId, artistData]) => {
           const safeArtistId = artistId.replace(/[^a-z0-9]/gi, '_');
+          const artistMapUrl = `https://music-map.com/${encodeURIComponent(artistData.name.replace(/\s+/g, '+'))}`;
           return `
             <div class="artist-item">
               <div class="artist-header" onclick="toggleArtistTracks('${safeId}', '${safeArtistId}')">
                 <span class="artist-name">${escapeHtml(artistData.name)}</span>
                 <span class="artist-count">${artistData.tracks.length} tracks</span>
               </div>
+              <div class="artist-links">
+                <a href="${artistMapUrl}" target="_blank" class="artist-map-link" onclick="event.stopPropagation()" title="Similar artists">
+                  🗺️ Similar
+                </a>
+              </div>
               <div class="artist-tracks-list" id="artist-tracks-${safeId}-${safeArtistId}">
                 ${artistData.tracks.map(track => `
                   <div class="track-item-inline">
+                    <input 
+                      type="checkbox" 
+                      class="track-checkbox"
+                      ${selectedTracks.has(track.id) ? 'checked' : ''}
+                      onchange="toggleTrackSelection('${track.id}', event)"
+                      title="Select track"
+                    />
                     <span class="track-name-inline">${escapeHtml(track.name)}</span>
                     <span class="track-duration-inline">${formatDuration(track.duration_ms)}</span>
                   </div>
@@ -1866,5 +2116,658 @@ function toggleArtistTracks(genreId, artistId) {
   const tracksList = document.getElementById(`artist-tracks-${genreId}-${artistId}`);
   if (tracksList) {
     tracksList.classList.toggle('expanded');
+  }
+}
+
+// ===== TRACK SELECTION =====
+
+function toggleTrackSelection(trackId, event) {
+  event.stopPropagation();
+  
+  if (selectedTracks.has(trackId)) {
+    selectedTracks.delete(trackId);
+  } else {
+    selectedTracks.add(trackId);
+  }
+  
+  updateSelectionPanel();
+}
+
+function clearTrackSelection() {
+  selectedTracks.clear();
+  updateSelectionPanel();
+  
+  // Update all checkboxes
+  document.querySelectorAll('.track-checkbox').forEach(checkbox => {
+    checkbox.checked = false;
+  });
+}
+
+function updateSelectionPanel() {
+  const count = selectedTracks.size;
+  
+  // Update selection indicator if it exists
+  const indicator = document.getElementById('track-selection-indicator');
+  if (indicator) {
+    if (count > 0) {
+      indicator.innerHTML = `
+        <div class="selection-info">
+          <span>${count} track${count !== 1 ? 's' : ''} selected</span>
+          <button class="btn-small" onclick="clearTrackSelection()">Clear</button>
+          <button class="btn-small btn-primary" onclick="createPlaylistFromSelection()">Create from Selection</button>
+        </div>
+      `;
+      indicator.style.display = 'block';
+    } else {
+      indicator.style.display = 'none';
+    }
+  }
+}
+
+// Create playlist from selected tracks
+async function createPlaylistFromSelection() {
+  if (selectedTracks.size === 0) {
+    alert('No tracks selected');
+    return;
+  }
+  
+  // Get full track objects
+  const tracks = [];
+  for (const trackId of selectedTracks) {
+    // Find track in genreSongMap
+    for (const genre in genreSongMap) {
+      const found = genreSongMap[genre].find(t => t.id === trackId);
+      if (found) {
+        tracks.push(found);
+        break;
+      }
+    }
+  }
+  
+  const name = `Custom Selection ${new Date().toLocaleDateString()}`;
+  const description = `${tracks.length} hand-picked tracks • Created with Playlist Alchemist`;
+  
+  try {
+    const createBtn = document.getElementById('create-btn');
+    const originalText = createBtn ? createBtn.textContent : '';
+    if (createBtn) {
+      createBtn.disabled = true;
+      createBtn.textContent = 'Creating...';
+    }
+    
+    const isPublic = false; // Private by default
+    await createSpotifyPlaylist(name, tracks, description, isPublic);
+    
+    showNotification(`Playlist "${name}" created with ${tracks.length} tracks!`);
+    clearTrackSelection();
+    
+    if (createBtn) {
+      createBtn.disabled = false;
+      createBtn.textContent = originalText;
+    }
+  } catch (error) {
+    console.error('Error creating playlist from selection:', error);
+    showNotification('Error creating playlist. Please try again.', 'error');
+  }
+}
+
+
+// ===== LIBRARY SECTION =====
+
+let libraryArtistData = [];
+let filteredLibraryArtists = [];
+let expandedLibraryArtistId = null;
+
+// Build library artist data
+function buildLibraryData() {
+  const artistMap = new Map();
+  
+  // Group all tracks by artist
+  userTracks.forEach(track => {
+    if (!track.artists || track.artists.length === 0) return;
+    
+    const artist = track.artists[0];
+    const artistId = artist.id;
+    
+    if (!artistMap.has(artistId)) {
+      artistMap.set(artistId, {
+        id: artistId,
+        name: artist.name,
+        image: track.album?.images?.[0]?.url || null,
+        tracks: [],
+        spotifyUrl: `https://open.spotify.com/artist/${artistId}`
+      });
+    }
+    
+    artistMap.get(artistId).tracks.push(track);
+  });
+  
+  // Convert to array and sort by name
+  libraryArtistData = Array.from(artistMap.values())
+    .sort((a, b) => a.name.localeCompare(b.name));
+  
+  filteredLibraryArtists = [...libraryArtistData];
+  renderLibraryArtistGrid();
+}
+
+// Render artist grid
+function renderLibraryArtistGrid() {
+  const grid = document.getElementById('library-artist-grid');
+  
+  if (!grid) return;
+  
+  if (filteredLibraryArtists.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <p>No artists found</p>
+      </div>
+    `;
+    return;
+  }
+  
+  grid.innerHTML = filteredLibraryArtists.map(artist => `
+    <div class="library-artist-card" onclick="showLibraryArtistDetail('${artist.id}')">
+      ${artist.image ? 
+        `<img src="${artist.image}" class="library-artist-image" alt="${escapeHtml(artist.name)}">` :
+        `<div class="library-artist-placeholder">🎤</div>`
+      }
+      <div class="library-artist-info">
+        <div class="library-artist-name">${escapeHtml(artist.name)}</div>
+        <div class="library-artist-count">${artist.tracks.length} track${artist.tracks.length !== 1 ? 's' : ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Filter artists by search
+function filterLibraryArtists() {
+  const query = document.getElementById('library-search').value.toLowerCase();
+  
+  if (!query) {
+    filteredLibraryArtists = [...libraryArtistData];
+  } else {
+    filteredLibraryArtists = libraryArtistData.filter(artist => 
+      artist.name.toLowerCase().includes(query)
+    );
+  }
+  
+  renderLibraryArtistGrid();
+}
+
+// Sort artists
+function sortLibraryArtists() {
+  const sortBy = document.getElementById('library-sort').value;
+  
+  if (sortBy === 'name') {
+    filteredLibraryArtists.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (sortBy === 'tracks') {
+    filteredLibraryArtists.sort((a, b) => b.tracks.length - a.tracks.length);
+  }
+  
+  renderLibraryArtistGrid();
+}
+
+// Show artist detail
+function showLibraryArtistDetail(artistId) {
+  const artist = libraryArtistData.find(a => a.id === artistId);
+  if (!artist) return;
+  
+  expandedLibraryArtistId = artistId;
+  
+  const grid = document.getElementById('library-artist-grid');
+  const detail = document.getElementById('library-artist-detail');
+  const name = document.getElementById('artist-detail-name');
+  const content = document.getElementById('artist-detail-content');
+  
+  grid.style.display = 'none';
+  detail.style.display = 'block';
+  name.textContent = artist.name;
+  
+  const musicMapUrl = `https://music-map.com/${encodeURIComponent(artist.name.replace(/\s+/g, '+'))}`;
+  
+  content.innerHTML = `
+    <div class="artist-detail-links">
+      <a href="${artist.spotifyUrl}" target="_blank" class="artist-link">
+        🎵 View on Spotify
+      </a>
+      <a href="${musicMapUrl}" target="_blank" class="artist-link">
+        🗺️ Similar Artists
+      </a>
+    </div>
+    
+    <div class="artist-detail-actions">
+      <button class="btn-secondary" onclick="selectAllArtistTracks('${artistId}')">
+        Select All (${artist.tracks.length})
+      </button>
+      <button class="btn-secondary" onclick="deselectAllArtistTracks('${artistId}')">
+        Deselect All
+      </button>
+    </div>
+    
+    <div class="artist-detail-tracks">
+      ${artist.tracks.map(track => `
+        <div class="library-track-item">
+          <input 
+            type="checkbox" 
+            class="track-checkbox"
+            ${selectedTracks.has(track.id) ? 'checked' : ''}
+            onchange="toggleTrackSelection('${track.id}', event)"
+          />
+          <div class="library-track-info">
+            <div class="library-track-name">${escapeHtml(track.name)}</div>
+            <div class="library-track-album">${escapeHtml(track.album?.name || 'Unknown Album')}</div>
+          </div>
+          <div class="library-track-duration">${formatDuration(track.duration_ms)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// Close artist detail
+function closeLibraryArtistDetail() {
+  document.getElementById('library-artist-grid').style.display = 'grid';
+  document.getElementById('library-artist-detail').style.display = 'none';
+  expandedLibraryArtistId = null;
+}
+
+// Select/deselect all tracks for artist
+function selectAllArtistTracks(artistId) {
+  const artist = libraryArtistData.find(a => a.id === artistId);
+  if (!artist) return;
+  
+  artist.tracks.forEach(track => selectedTracks.add(track.id));
+  
+  // Update all checkboxes
+  document.querySelectorAll('.track-checkbox').forEach(checkbox => {
+    checkbox.checked = selectedTracks.has(checkbox.onchange.toString().match(/'([^']+)'/)?.[1]);
+  });
+  
+  updateSelectionPanel();
+  showLibraryArtistDetail(artistId); // Refresh view
+}
+
+function deselectAllArtistTracks(artistId) {
+  const artist = libraryArtistData.find(a => a.id === artistId);
+  if (!artist) return;
+  
+  artist.tracks.forEach(track => selectedTracks.delete(track.id));
+  
+  // Update all checkboxes
+  document.querySelectorAll('.track-checkbox').forEach(checkbox => {
+    const trackId = checkbox.onchange.toString().match(/'([^']+)'/)?.[1];
+    if (trackId && artist.tracks.some(t => t.id === trackId)) {
+      checkbox.checked = false;
+    }
+  });
+  
+  updateSelectionPanel();
+  showLibraryArtistDetail(artistId); // Refresh view
+}
+
+// ===== STATS SECTION =====
+
+function buildStatsData() {
+  if (userTracks.length === 0) return;
+  
+  // Calculate overview stats
+  const totalTracks = userTracks.length;
+  const totalArtists = new Set(userTracks.map(t => t.artists[0].id)).size;
+  const totalGenres = Object.keys(genreSongMap).length;
+  const totalDuration = userTracks.reduce((sum, t) => sum + t.duration_ms, 0);
+  
+  // Update overview
+  document.getElementById('stat-total-tracks').textContent = totalTracks.toLocaleString();
+  document.getElementById('stat-total-artists').textContent = totalArtists.toLocaleString();
+  document.getElementById('stat-total-genres').textContent = totalGenres.toLocaleString();
+  document.getElementById('stat-total-duration').textContent = Math.round(totalDuration / 3600000) + 'h';
+  
+  // Top Genres
+  const genreCounts = Object.entries(genreSongMap)
+    .map(([genre, tracks]) => ({ genre, count: tracks.length }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+  
+  const topGenresList = document.getElementById('top-genres-list');
+  topGenresList.innerHTML = genreCounts.map((item, index) => {
+    const percentage = ((item.count / totalTracks) * 100).toFixed(1);
+    const color = getGenreColor(item.genre);
+    return `
+      <div class="stat-item" onclick="selectGenreFromStats('${escapeHtml(item.genre)}')">
+        <div class="stat-rank">#${index + 1}</div>
+        <div class="stat-info">
+          <div class="stat-name">${escapeHtml(item.genre)}</div>
+          <div class="stat-bar-container">
+            <div class="stat-bar" style="width: ${percentage}%; background: ${color};"></div>
+          </div>
+        </div>
+        <div class="stat-count">${item.count} (${percentage}%)</div>
+      </div>
+    `;
+  }).join('');
+  
+  // Top Artists
+  const artistCounts = new Map();
+  userTracks.forEach(track => {
+    const artistName = track.artists[0].name;
+    artistCounts.set(artistName, (artistCounts.get(artistName) || 0) + 1);
+  });
+  
+  const topArtists = Array.from(artistCounts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+  
+  const topArtistsList = document.getElementById('top-artists-list');
+  topArtistsList.innerHTML = topArtists.map((item, index) => {
+    const percentage = ((item.count / totalTracks) * 100).toFixed(1);
+    return `
+      <div class="stat-item">
+        <div class="stat-rank">#${index + 1}</div>
+        <div class="stat-info">
+          <div class="stat-name">${escapeHtml(item.name)}</div>
+          <div class="stat-bar-container">
+            <div class="stat-bar" style="width: ${percentage}%; background: #1db954;"></div>
+          </div>
+        </div>
+        <div class="stat-count">${item.count} (${percentage}%)</div>
+      </div>
+    `;
+  }).join('');
+  
+  // Audio Features (if available)
+  const features = Object.values(audioFeaturesCache);
+  if (features.length > 0) {
+    const avgEnergy = features.reduce((sum, f) => sum + f.energy, 0) / features.length;
+    const avgValence = features.reduce((sum, f) => sum + f.valence, 0) / features.length;
+    const avgDanceability = features.reduce((sum, f) => sum + f.danceability, 0) / features.length;
+    const avgTempo = features.reduce((sum, f) => sum + f.tempo, 0) / features.length;
+    
+    const featureStats = document.getElementById('audio-features-stats');
+    featureStats.innerHTML = `
+      <div class="feature-stat">
+        <div class="feature-label">Energy</div>
+        <div class="feature-bar-container">
+          <div class="feature-bar" style="width: ${avgEnergy * 100}%; background: #ff4444;"></div>
+        </div>
+        <div class="feature-value">${(avgEnergy * 100).toFixed(0)}%</div>
+      </div>
+      
+      <div class="feature-stat">
+        <div class="feature-label">Mood (Valence)</div>
+        <div class="feature-bar-container">
+          <div class="feature-bar" style="width: ${avgValence * 100}%; background: #44ff44;"></div>
+        </div>
+        <div class="feature-value">${(avgValence * 100).toFixed(0)}%</div>
+      </div>
+      
+      <div class="feature-stat">
+        <div class="feature-label">Danceability</div>
+        <div class="feature-bar-container">
+          <div class="feature-bar" style="width: ${avgDanceability * 100}%; background: #4444ff;"></div>
+        </div>
+        <div class="feature-value">${(avgDanceability * 100).toFixed(0)}%</div>
+      </div>
+      
+      <div class="feature-stat">
+        <div class="feature-label">Average BPM</div>
+        <div class="feature-bar-container">
+          <div class="feature-bar" style="width: ${(avgTempo / 200) * 100}%; background: #ff44ff;"></div>
+        </div>
+        <div class="feature-value">${avgTempo.toFixed(0)} BPM</div>
+      </div>
+    `;
+    
+    // BPM Distribution
+    const bpmRanges = {
+      '0-80': 0,
+      '80-100': 0,
+      '100-120': 0,
+      '120-140': 0,
+      '140-160': 0,
+      '160-180': 0,
+      '180+': 0
+    };
+    
+    features.forEach(f => {
+      const bpm = f.tempo;
+      if (bpm < 80) bpmRanges['0-80']++;
+      else if (bpm < 100) bpmRanges['80-100']++;
+      else if (bpm < 120) bpmRanges['100-120']++;
+      else if (bpm < 140) bpmRanges['120-140']++;
+      else if (bpm < 160) bpmRanges['140-160']++;
+      else if (bpm < 180) bpmRanges['160-180']++;
+      else bpmRanges['180+']++;
+    });
+    
+    const maxBpmCount = Math.max(...Object.values(bpmRanges));
+    const bpmDistribution = document.getElementById('bpm-distribution');
+    bpmDistribution.innerHTML = Object.entries(bpmRanges).map(([range, count]) => {
+      const percentage = maxBpmCount > 0 ? (count / maxBpmCount) * 100 : 0;
+      return `
+        <div class="bpm-range-item">
+          <div class="bpm-range-label">${range}</div>
+          <div class="bpm-range-bar-container">
+            <div class="bpm-range-bar" style="width: ${percentage}%;"></div>
+          </div>
+          <div class="bpm-range-count">${count}</div>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+function refreshStats() {
+  buildStatsData();
+  showNotification('Stats refreshed!', 'success');
+}
+
+function selectGenreFromStats(genre) {
+  // Switch to creator section and select genre
+  switchToSection('creator');
+  selectedGenres.add(genre);
+  renderGenreGrid();
+  updateTotals();
+  showNotification(`${genre} selected!`, 'success');
+}
+
+// ===== SMART RECOMMENDATIONS =====
+
+let currentRecommendations = [];
+
+async function generateRecommendations() {
+  if (Object.keys(genreSongMap).length === 0) {
+    return [];
+  }
+  
+  const recommendations = [];
+  
+  // 1. Genre Discovery - Find underrepresented genres
+  const genreCounts = Object.entries(genreSongMap)
+    .map(([genre, tracks]) => ({ genre, count: tracks.length }))
+    .sort((a, b) => b.count - a.count);
+  
+  const topGenres = genreCounts.slice(0, 5).map(g => g.genre);
+  const underrepresented = genreCounts.filter(g => g.count < 10 && g.count > 0);
+  
+  if (underrepresented.length > 0) {
+    recommendations.push({
+      type: 'genre-discovery',
+      icon: '🎵',
+      title: 'Explore Underrepresented Genres',
+      description: `You have ${underrepresented[0].genre} in your library but only ${underrepresented[0].count} tracks. Consider adding more!`,
+      action: 'select-genre',
+      data: underrepresented[0].genre
+    });
+  }
+  
+  // 2. Mood Balancing
+  const features = Object.values(audioFeaturesCache);
+  if (features.length > 0) {
+    const avgValence = features.reduce((sum, f) => sum + f.valence, 0) / features.length;
+    
+    if (avgValence < 0.4) {
+      recommendations.push({
+        type: 'mood',
+        icon: '☀️',
+        title: 'Add Some Uplifting Tracks',
+        description: `Your library skews melancholic (mood: ${(avgValence * 100).toFixed(0)}%). Consider adding happier tracks!`,
+        action: 'apply-filter',
+        data: { mood: { min: 70, max: 100, enabled: true } }
+      });
+    } else if (avgValence > 0.7) {
+      recommendations.push({
+        type: 'mood',
+        icon: '🌙',
+        title: 'Balance with Chill Tracks',
+        description: `Your library is very upbeat (mood: ${(avgValence * 100).toFixed(0)}%). Add some mellower tracks for variety!`,
+        action: 'apply-filter',
+        data: { mood: { min: 0, max: 40, enabled: true } }
+      });
+    }
+    
+    // 3. Energy Recommendations
+    const avgEnergy = features.reduce((sum, f) => sum + f.energy, 0) / features.length;
+    
+    if (avgEnergy > 0.7) {
+      recommendations.push({
+        type: 'energy',
+        icon: '🧘',
+        title: 'Create a Chill Playlist',
+        description: `Your library is high-energy (${(avgEnergy * 100).toFixed(0)}%). Perfect time to make a downtempo playlist!`,
+        action: 'apply-filter',
+        data: { energy: { min: 0, max: 40, enabled: true } }
+      });
+    } else if (avgEnergy < 0.3) {
+      recommendations.push({
+        type: 'energy',
+        icon: '⚡',
+        title: 'Add High-Energy Tracks',
+        description: `Your library is quite mellow (energy: ${(avgEnergy * 100).toFixed(0)}%). Boost it with some high-energy tracks!`,
+        action: 'apply-filter',
+        data: { energy: { min: 70, max: 100, enabled: true } }
+      });
+    }
+    
+    // 4. BPM Variety
+    const avgTempo = features.reduce((sum, f) => sum + f.tempo, 0) / features.length;
+    
+    if (avgTempo > 140) {
+      recommendations.push({
+        type: 'tempo',
+        icon: '🐢',
+        title: 'Slow It Down',
+        description: `Average BPM is ${avgTempo.toFixed(0)}. Create a slower playlist for relaxation!`,
+        action: 'apply-filter',
+        data: { bpm: { min: 60, max: 100, enabled: true } }
+      });
+    } else if (avgTempo < 100) {
+      recommendations.push({
+        type: 'tempo',
+        icon: '🐇',
+        title: 'Speed Things Up',
+        description: `Average BPM is ${avgTempo.toFixed(0)}. Add some uptempo tracks for variety!`,
+        action: 'apply-filter',
+        data: { bpm: { min: 130, max: 180, enabled: true } }
+      });
+    }
+  }
+  
+  // 5. Genre Combination Suggestions
+  if (topGenres.length >= 2) {
+    const combo = topGenres.slice(0, 3).join(' + ');
+    recommendations.push({
+      type: 'combo',
+      icon: '🎭',
+      title: 'Try a Genre Mashup',
+      description: `Create a playlist mixing your top genres: ${combo}!`,
+      action: 'select-genres',
+      data: topGenres.slice(0, 3)
+    });
+  }
+  
+  return recommendations.slice(0, 5); // Top 5 recommendations
+}
+
+function displayRecommendations(recommendations) {
+  const container = document.getElementById('recommendations-list');
+  if (!container) return;
+  
+  if (recommendations.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <p>Load your library to get personalized recommendations!</p>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = recommendations.map((rec, index) => `
+    <div class="recommendation-card">
+      <div class="rec-icon">${rec.icon}</div>
+      <div class="rec-content">
+        <h4>${rec.title}</h4>
+        <p>${rec.description}</p>
+      </div>
+      <button class="btn-rec-apply" onclick="applyRecommendation(${index})">
+        Apply
+      </button>
+    </div>
+  `).join('');
+}
+
+async function generateAndDisplayRecommendations() {
+  currentRecommendations = await generateRecommendations();
+  displayRecommendations(currentRecommendations);
+}
+
+function applyRecommendation(index) {
+  const rec = currentRecommendations[index];
+  if (!rec) return;
+  
+  // Switch to creator section
+  switchToSection('creator');
+  
+  if (rec.action === 'select-genre') {
+    selectedGenres.add(rec.data);
+    renderGenreGrid();
+    updateTotals();
+    showNotification(`${rec.data} selected!`, 'success');
+    
+  } else if (rec.action === 'select-genres') {
+    rec.data.forEach(genre => selectedGenres.add(genre));
+    renderGenreGrid();
+    updateTotals();
+    showNotification(`${rec.data.length} genres selected!`, 'success');
+    
+  } else if (rec.action === 'apply-filter') {
+    Object.assign(smartPlaylistSettings, rec.data);
+    
+    // Update UI
+    if (rec.data.bpm) {
+      document.getElementById('bpm-enabled').checked = true;
+      document.getElementById('bpm-controls').style.display = 'block';
+      document.getElementById('bpm-min').value = rec.data.bpm.min;
+      document.getElementById('bpm-max').value = rec.data.bpm.max;
+      updateFilterDisplay('bpm');
+    }
+    if (rec.data.energy) {
+      document.getElementById('energy-enabled').checked = true;
+      document.getElementById('energy-controls').style.display = 'block';
+      document.getElementById('energy-min').value = rec.data.energy.min;
+      document.getElementById('energy-max').value = rec.data.energy.max;
+      updateFilterDisplay('energy');
+    }
+    if (rec.data.mood) {
+      document.getElementById('mood-enabled').checked = true;
+      document.getElementById('mood-controls').style.display = 'block';
+      document.getElementById('mood-min').value = rec.data.mood.min;
+      document.getElementById('mood-max').value = rec.data.mood.max;
+      updateFilterDisplay('mood');
+    }
+    
+    updateFilterStatus();
+    updateTotals();
+    showNotification('Filter applied!', 'success');
   }
 }
