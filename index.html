@@ -247,6 +247,11 @@
           
           <h3 class="subsection-title">Build Manually</h3>
           
+          <!-- Track Selection Indicator (Sticky) -->
+          <div id="track-selection-indicator" class="track-selection-sticky" style="display: none;">
+            <!-- Populated by updateSelectionPanel() -->
+          </div>
+          
           <!-- Search -->
           <input type="text" id="genre-search" class="genre-search" placeholder="Search genres...">
           
@@ -259,7 +264,12 @@
       </div>
       
       <!-- ========== RIGHT PANEL: BUILD (30%) ========== -->
-      <div class="right-panel">
+      <div class="right-panel" id="right-panel">
+        
+        <!-- Collapse Button -->
+        <button class="panel-collapse-btn" id="panel-collapse-btn" onclick="toggleRightPanel()" title="Collapse panel">
+          ←
+        </button>
         
         <!-- Playlist Name -->
         <div class="input-group">
@@ -292,11 +302,6 @@
         <button id="clear-selection-btn" class="btn-secondary btn-full" disabled>
           Clear All
         </button>
-        
-        <!-- Track Selection Indicator -->
-        <div id="track-selection-indicator" class="track-selection-panel" style="display: none;">
-          <!-- Populated by updateSelectionPanel() -->
-        </div>
         
         <!-- Advanced Filters (Collapsed) -->
         <details class="filters-section" open>
@@ -423,6 +428,13 @@
           </button>
         </div>
         
+      </div>
+      <!-- END RIGHT PANEL -->
+      
+      <!-- Expand Tab (Shown when collapsed) -->
+      <div class="panel-expand-tab" id="panel-expand-tab" style="display: none;" onclick="toggleRightPanel()" title="Expand panel">
+        <div class="expand-tab-icon">→</div>
+        <div class="expand-tab-text">Playlist</div>
       </div>
       
     </div>
@@ -730,8 +742,11 @@
       
       <div class="modal-footer">
         <button class="btn-secondary" onclick="closeRecommendationPreview()">Cancel</button>
+        <button class="btn-secondary" onclick="loadRecommendationIntoBuilder()">
+          📝 Load into Builder
+        </button>
         <button class="btn-primary btn-large" onclick="createRecommendationPlaylist()">
-          ✨ Create This Playlist
+          ✨ Create Directly
         </button>
       </div>
     </div>
