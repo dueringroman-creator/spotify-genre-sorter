@@ -1124,7 +1124,7 @@ async function handleLoadLibrary() {
       ? `${source}-${timeframe}` 
       : source;
     
-    // Check cache first
+    // Check cache first (with timeframe-specific key)
     const cached = loadFromCache(cacheKey);
     if (cached && (Date.now() - cached.timestamp) < 86400000) { // 24 hours
       tracks = cached.data;
@@ -1132,11 +1132,28 @@ async function handleLoadLibrary() {
       progressText.textContent = `Loaded ${tracks.length} tracks from cache`;
       
       // Log for debugging
-      console.log(`Loaded from cache: ${cacheKey}, ${tracks.length} tracks`);
+      console.log(`✅ Loaded from cache: ${cacheKey}, ${tracks.length} tracks`);
       if (tracks.length > 0 && tracks[0].added_at) {
         console.log(`Sample added_at: ${tracks[0].added_at}`);
       }
     } else {
+      // Cache miss or expired - try loading from "all" cache first
+      const allCacheKey = source;
+      const allCached = source === 'liked-songs' && timeframe !== 'all' ? loadFromCache(allCacheKey) : null;
+      
+      if (allCached && (Date.now() - allCached.timestamp) < 86400000) {
+        // We have "all" cached - filter it and cache the filtered version
+        console.log(`📦 Found "all" cache, filtering to ${timeframe}...`);
+        const allTracks = allCached.data;
+        tracks = filterByTimeframe(allTracks, timeframe);
+        
+        // Cache the filtered version
+        saveToCache(cacheKey, tracks);
+        
+        progressFill.style.width = '100%';
+        progressText.textContent = `Loaded ${tracks.length} tracks (filtered from cache)`;
+        console.log(`✅ Filtered from "all" cache: ${allTracks.length} → ${tracks.length} tracks`);
+      } else {
       // Fetch fresh data
       if (source === 'liked-songs') {
         tracks = await fetchAllLikedSongs((current, total) => {
@@ -1149,7 +1166,7 @@ async function handleLoadLibrary() {
         if (timeframe !== 'all') {
           const originalCount = tracks.length;
           tracks = filterByTimeframe(tracks, timeframe);
-          console.log(`Filtered before cache: ${originalCount} → ${tracks.length} tracks (${timeframe})`);
+          console.log(`✅ Filtered before cache: ${originalCount} → ${tracks.length} tracks (${timeframe})`);
         }
       } else if (source === 'top-artists') {
         progressText.textContent = 'Fetching your top artists...';
@@ -1169,6 +1186,7 @@ async function handleLoadLibrary() {
       
       // Save to cache with timeframe-specific key
       saveToCache(cacheKey, tracks);
+      }
     }
     
     // Show timeframe indicator if filtered
@@ -1230,6 +1248,9 @@ async function handleLoadLibrary() {
     setTimeout(() => {
       progressContainer.style.display = 'none';
       loadBtn.disabled = false;
+      
+      // Trigger onboarding for first-time users
+      window.dispatchEvent(new Event('libraryLoaded'));
     }, 2000);
     
   } catch (error) {
@@ -3921,4 +3942,174 @@ window.addEventListener('DOMContentLoaded', () => {
   if (wasCollapsed) {
     toggleRightPanel();
   }
+});
+
+// ===== SIDEBAR TOGGLE =====
+
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const mainContent = document.querySelector('.main-content');
+  
+  if (!sidebar) return;
+  
+  const isCollapsed = sidebar.classList.toggle('collapsed');
+  
+  // Save state
+  localStorage.setItem('sidebarCollapsed', isCollapsed ? 'true' : 'false');
+}
+
+// Restore sidebar state on load
+document.addEventListener('DOMContentLoaded', () => {
+  const wasCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+  if (wasCollapsed) {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) sidebar.classList.add('collapsed');
+  }
+});
+
+// ===== ONBOARDING TOOLTIPS =====
+
+const onboardingSteps = [
+  {
+    target: '#load-library-btn',
+    title: '1. Load Your Music',
+    message: 'Start by loading your Spotify library. Choose liked songs, top artists, or specific playlists.',
+    position: 'bottom'
+  },
+  {
+    target: '.recommendations-grid',
+    title: '2. Quick Start (Optional)',
+    message: 'Get instant playlist suggestions! Click "Try This" to preview, then "Load into Builder" to customize or "Create Directly" to save immediately.',
+    position: 'bottom'
+  },
+  {
+    target: '.genre-grid',
+    title: '3. Select Genres',
+    message: 'Click genres to add them to your playlist. Selected genres will glow green with "✓ SELECTED".',
+    position: 'top'
+  },
+  {
+    target: '.right-panel',
+    title: '4. Review & Create',
+    message: 'See your selected genres and track count here. Customize with filters, then click "Create Playlist"!',
+    position: 'left'
+  }
+];
+
+let currentOnboardingStep = 0;
+
+function startOnboarding() {
+  if (localStorage.getItem('onboardingCompleted') === 'true') {
+    return;
+  }
+  
+  currentOnboardingStep = 0;
+  showOnboardingStep(0);
+}
+
+function showOnboardingStep(stepIndex) {
+  const step = onboardingSteps[stepIndex];
+  if (!step) return;
+  
+  const target = document.querySelector(step.target);
+  if (!target) {
+    // Target not visible, skip to next
+    if (stepIndex < onboardingSteps.length - 1) {
+      showOnboardingStep(stepIndex + 1);
+    }
+    return;
+  }
+  
+  // Create tooltip
+  const tooltip = document.createElement('div');
+  tooltip.className = 'onboarding-tooltip';
+  tooltip.innerHTML = `
+    <div class="onboarding-header">
+      <h3>${step.title}</h3>
+      <button class="onboarding-close" onclick="closeOnboarding()">×</button>
+    </div>
+    <p>${step.message}</p>
+    <div class="onboarding-footer">
+      <span class="onboarding-progress">${stepIndex + 1} of ${onboardingSteps.length}</span>
+      <div class="onboarding-actions">
+        ${stepIndex > 0 ? '<button class="btn-secondary btn-small" onclick="previousOnboardingStep()">Back</button>' : ''}
+        ${stepIndex < onboardingSteps.length - 1 
+          ? '<button class="btn-primary btn-small" onclick="nextOnboardingStep()">Next</button>'
+          : '<button class="btn-primary btn-small" onclick="completeOnboarding()">Got it!</button>'
+        }
+      </div>
+    </div>
+  `;
+  
+  // Position tooltip
+  const rect = target.getBoundingClientRect();
+  tooltip.style.position = 'fixed';
+  
+  document.body.appendChild(tooltip);
+  
+  // Position based on step.position
+  const tooltipRect = tooltip.getBoundingClientRect();
+  if (step.position === 'bottom') {
+    tooltip.style.top = `${rect.bottom + 10}px`;
+    tooltip.style.left = `${rect.left}px`;
+  } else if (step.position === 'top') {
+    tooltip.style.top = `${rect.top - tooltipRect.height - 10}px`;
+    tooltip.style.left = `${rect.left}px`;
+  } else if (step.position === 'left') {
+    tooltip.style.top = `${rect.top}px`;
+    tooltip.style.left = `${rect.left - tooltipRect.width - 10}px`;
+  } else if (step.position === 'right') {
+    tooltip.style.top = `${rect.top}px`;
+    tooltip.style.left = `${rect.right + 10}px`;
+  }
+  
+  // Highlight target
+  target.classList.add('onboarding-highlight');
+  
+  // Store current tooltip
+  window.currentOnboardingTooltip = tooltip;
+  window.currentOnboardingTarget = target;
+}
+
+function nextOnboardingStep() {
+  removeCurrentTooltip();
+  currentOnboardingStep++;
+  showOnboardingStep(currentOnboardingStep);
+}
+
+function previousOnboardingStep() {
+  removeCurrentTooltip();
+  currentOnboardingStep--;
+  showOnboardingStep(currentOnboardingStep);
+}
+
+function closeOnboarding() {
+  removeCurrentTooltip();
+}
+
+function completeOnboarding() {
+  removeCurrentTooltip();
+  localStorage.setItem('onboardingCompleted', 'true');
+  showNotification('🎉 You\'re all set! Start creating playlists!', 'success');
+}
+
+function removeCurrentTooltip() {
+  if (window.currentOnboardingTooltip) {
+    window.currentOnboardingTooltip.remove();
+    window.currentOnboardingTooltip = null;
+  }
+  if (window.currentOnboardingTarget) {
+    window.currentOnboardingTarget.classList.remove('onboarding-highlight');
+    window.currentOnboardingTarget = null;
+  }
+}
+
+function resetOnboarding() {
+  localStorage.removeItem('onboardingCompleted');
+  showNotification('Onboarding reset! Refresh the page to see it again.', 'info');
+}
+
+// Show onboarding on first load after library is loaded
+window.addEventListener('libraryLoaded', () => {
+  setTimeout(() => startOnboarding(), 1000);
 });
