@@ -215,7 +215,13 @@ async function fetchAllLikedSongs(progressCallback) {
   // First request to get total
   const firstBatch = await fetchSpotifyAPI(`me/tracks?limit=${limit}&offset=0`);
   total = firstBatch.total;
-  tracks.push(...firstBatch.items.map(item => item.track));
+  
+  // Keep added_at by including it in the track object
+  firstBatch.items.forEach(item => {
+    const track = item.track;
+    track.added_at = item.added_at; // Preserve the added_at timestamp
+    tracks.push(track);
+  });
   
   if (progressCallback) {
     progressCallback(tracks.length, total);
@@ -225,7 +231,12 @@ async function fetchAllLikedSongs(progressCallback) {
   while (tracks.length < total) {
     offset += limit;
     const batch = await fetchSpotifyAPI(`me/tracks?limit=${limit}&offset=${offset}`);
-    tracks.push(...batch.items.map(item => item.track));
+    
+    batch.items.forEach(item => {
+      const track = item.track;
+      track.added_at = item.added_at; // Preserve the added_at timestamp
+      tracks.push(track);
+    });
     
     if (progressCallback) {
       progressCallback(tracks.length, total);
@@ -947,6 +958,42 @@ function closeOnboarding() {
   localStorage.setItem('onboarding_completed', 'true');
 }
 
+// ===== TIMEFRAME FILTERING =====
+
+function filterByTimeframe(tracks, timeframe) {
+  if (timeframe === 'all') return tracks;
+  
+  const now = Date.now();
+  const cutoffs = {
+    'week': 7 * 24 * 60 * 60 * 1000,        // 1 week
+    'month': 30 * 24 * 60 * 60 * 1000,      // 1 month
+    '3months': 90 * 24 * 60 * 60 * 1000,    // 3 months
+    '6months': 180 * 24 * 60 * 60 * 1000,   // 6 months
+    'year': 365 * 24 * 60 * 60 * 1000       // 1 year
+  };
+  
+  const cutoffTime = now - (cutoffs[timeframe] || 0);
+  
+  return tracks.filter(item => {
+    // Each track has added_at from Spotify API
+    if (!item.added_at) return true; // Include if no date
+    const addedAt = new Date(item.added_at).getTime();
+    return addedAt >= cutoffTime;
+  });
+}
+
+function getTimeframeLabel(timeframe) {
+  const labels = {
+    'week': 'past week',
+    'month': 'past month',
+    '3months': 'past 3 months',
+    '6months': 'past 6 months',
+    'year': 'past year',
+    'all': 'all time'
+  };
+  return labels[timeframe] || 'all time';
+}
+
 // Load library with progress
 async function handleLoadLibrary() {
   const sourceInput = document.querySelector('input[name="data-source"]:checked');
@@ -1006,6 +1053,38 @@ async function handleLoadLibrary() {
       saveToCache(source, tracks);
     }
     
+    // Apply timeframe filter for liked songs
+    if (source === 'liked-songs' && timeframe !== 'all') {
+      const originalCount = tracks.length;
+      tracks = filterByTimeframe(tracks, timeframe);
+      const filteredCount = tracks.length;
+      const label = getTimeframeLabel(timeframe);
+      
+      progressText.textContent = `Filtered: ${filteredCount} tracks from ${label} (${originalCount} total)`;
+      progressText.style.color = '#1db954'; // Green to show filter active
+      
+      // Show timeframe indicator
+      const indicator = document.getElementById('timeframe-indicator');
+      if (indicator) {
+        indicator.innerHTML = `
+          <span class="indicator-icon">📅</span>
+          <span class="indicator-text">Showing tracks from ${label}</span>
+          <span class="indicator-count">${filteredCount} of ${originalCount}</span>
+        `;
+        indicator.style.display = 'flex';
+      }
+      
+      console.log(`Timeframe filter: ${originalCount} → ${filteredCount} tracks (${label})`);
+    } else {
+      progressText.style.color = '#e3e3e3'; // Normal color
+      
+      // Hide timeframe indicator
+      const indicator = document.getElementById('timeframe-indicator');
+      if (indicator) {
+        indicator.style.display = 'none';
+      }
+    }
+    
     // Store tracks
     userTracks = tracks;
     
@@ -1042,15 +1121,157 @@ async function handleLoadLibrary() {
     
   } catch (error) {
     console.error('Load error:', error);
-    progressText.textContent = 'Error loading library';
-    progressText.style.color = '#ff4444';
+    
+    // Hide progress bar
+    progressContainer.style.display = 'none';
+    
+    // Show error recovery UI
+    showLoadErrorRecovery(source, error);
+    
     loadBtn.disabled = false;
   }
+}
+
+// Show error recovery options
+function showLoadErrorRecovery(failedSource, error) {
+  const errorContainer = document.getElementById('load-error-recovery');
+  if (!errorContainer) return;
+  
+  const errorMessage = error.message || 'Unknown error occurred';
+  const isNetworkError = errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError');
+  const isAuthError = errorMessage.includes('401') || errorMessage.includes('403');
+  
+  let suggestion = '';
+  if (isNetworkError) {
+    suggestion = 'Check your internet connection and try again.';
+  } else if (isAuthError) {
+    suggestion = 'Your session may have expired. Try logging out and back in.';
+  } else {
+    suggestion = 'An unexpected error occurred. Try a different source or refresh the page.';
+  }
+  
+  errorContainer.innerHTML = `
+    <div class="error-recovery-panel">
+      <div class="error-icon">⚠️</div>
+      <h3>Couldn't Load Your ${getSourceLabel(failedSource)}</h3>
+      <p class="error-message">${suggestion}</p>
+      <p class="error-details">${errorMessage}</p>
+      
+      <div class="recovery-options">
+        <h4>What would you like to do?</h4>
+        
+        <button class="recovery-btn retry-btn" onclick="retryLoad('${failedSource}')">
+          🔄 Retry ${getSourceLabel(failedSource)}
+        </button>
+        
+        ${failedSource !== 'liked-songs' ? `
+          <button class="recovery-btn alt-btn" onclick="tryAlternativeSource('liked-songs')">
+            ❤️ Try Liked Songs Instead
+          </button>
+        ` : ''}
+        
+        ${failedSource !== 'top-artists' ? `
+          <button class="recovery-btn alt-btn" onclick="tryAlternativeSource('top-artists')">
+            🎤 Try Top Artists Instead
+          </button>
+        ` : ''}
+        
+        ${failedSource !== 'playlists' ? `
+          <button class="recovery-btn alt-btn" onclick="showPlaylistSelector()">
+            📁 Choose Specific Playlists
+          </button>
+        ` : ''}
+        
+        <button class="recovery-btn secondary-btn" onclick="startOver()">
+          ↺ Start Over
+        </button>
+        
+        ${isAuthError ? `
+          <button class="recovery-btn logout-btn" onclick="handleLogout()">
+            🚪 Logout & Try Again
+          </button>
+        ` : ''}
+      </div>
+    </div>
+  `;
+  
+  errorContainer.style.display = 'block';
+}
+
+function getSourceLabel(source) {
+  const labels = {
+    'liked-songs': 'Liked Songs',
+    'top-artists': 'Top Artists',
+    'playlists': 'Playlists'
+  };
+  return labels[source] || source;
+}
+
+function retryLoad(source) {
+  // Hide error UI
+  const errorContainer = document.getElementById('load-error-recovery');
+  if (errorContainer) errorContainer.style.display = 'none';
+  
+  // Set the source radio button
+  const sourceInput = document.querySelector(`input[name="data-source"][value="${source}"]`);
+  if (sourceInput) sourceInput.checked = true;
+  
+  // Trigger load
+  handleLoadLibrary();
+}
+
+function tryAlternativeSource(source) {
+  // Hide error UI
+  const errorContainer = document.getElementById('load-error-recovery');
+  if (errorContainer) errorContainer.style.display = 'none';
+  
+  // Set the source radio button
+  const sourceInput = document.querySelector(`input[name="data-source"][value="${source}"]`);
+  if (sourceInput) sourceInput.checked = true;
+  
+  // Trigger load
+  handleLoadLibrary();
+}
+
+function startOver() {
+  // Hide error UI
+  const errorContainer = document.getElementById('load-error-recovery');
+  if (errorContainer) errorContainer.style.display = 'none';
+  
+  // Reset everything
+  userTracks = [];
+  selectedGenres.clear();
+  genreSongMap = {};
+  
+  // Hide genre section
+  const genreSection = document.getElementById('genre-section');
+  if (genreSection) genreSection.style.display = 'none';
+  
+  showNotification('Ready to start fresh!', 'success');
+}
+
+function handleLogout() {
+  // Clear token
+  spotifyToken = null;
+  window.spotifyToken = null;
+  window.spotifyUserId = null;
+  
+  // Clear cache
+  localStorage.clear();
+  
+  // Redirect to login
+  window.location.href = REDIRECT_URI;
 }
 
 // Render genre grid
 function renderGenreGrid() {
   const grid = document.getElementById('genre-grid');
+  
+  if (!grid) {
+    console.error('Genre grid element not found!');
+    return;
+  }
+  
   allGenres = Object.keys(genreSongMap).sort((a, b) => {
     // Sort by track count descending
     return genreSongMap[b].length - genreSongMap[a].length;
@@ -1076,15 +1297,15 @@ function renderGenreGrid() {
             <div class="genre-count">${count} tracks • ${artistCount} artists</div>
           </div>
         </div>
-        <a href="https://musicmap.info/#${encodeURIComponent(genre.toLowerCase().replace(/\s+/g, '-'))}" 
+        <a href="https://musicmap.info" 
            target="_blank" 
            class="genre-map-link"
            onclick="event.stopPropagation()"
-           title="Explore ${genre} on MusicMap">
-          🗺️ Info
+           title="Explore genres on MusicMap">
+          🗺️ MusicMap
         </a>
         <button class="genre-expand-btn" onclick="toggleGenreExpand('${escapeHtml(genre)}', event)">
-          Show Artists ▼
+          View Details →
         </button>
         <div class="genre-expanded-content" id="genre-expanded-${safeId}"></div>
       </div>
@@ -1140,14 +1361,20 @@ function updateRightPanel() {
   const previewBtn = document.getElementById('preview-btn');
   const createBtn = document.getElementById('create-btn');
   
+  // Safety checks - return early if elements don't exist
+  if (!list || !totalTracksEl || !totalDurationEl) {
+    console.warn('Right panel elements not found');
+    return;
+  }
+  
   if (selectedGenres.size === 0) {
     list.innerHTML = '<div class="empty-state">No genres selected yet</div>';
     totalTracksEl.textContent = '0';
     totalDurationEl.textContent = '0m';
     
-    clearBtn.disabled = true;
-    previewBtn.disabled = true;
-    createBtn.disabled = true;
+    if (clearBtn) clearBtn.disabled = true;
+    if (previewBtn) previewBtn.disabled = true;
+    if (createBtn) createBtn.disabled = true;
     return;
   }
   
@@ -1159,8 +1386,13 @@ function updateRightPanel() {
     
     return `
       <div class="selected-genre-item">
-        <span class="selected-genre-name">${genre}</span>
-        <span class="selected-genre-count">${count}</span>
+        <div class="selected-genre-info">
+          <span class="selected-genre-name">${genre}</span>
+          <span class="selected-genre-count">${count} tracks</span>
+        </div>
+        <button class="selected-genre-remove" onclick="removeGenre('${escapeHtml(genre)}')" title="Remove ${genre}">
+          ×
+        </button>
       </div>
     `;
   }).join('');
@@ -1185,6 +1417,20 @@ function clearSelection() {
   
   document.querySelectorAll('.genre-card').forEach(card => {
     card.classList.remove('selected');
+  });
+  
+  updateRightPanel();
+}
+
+// Remove single genre
+function removeGenre(genre) {
+  selectedGenres.delete(genre);
+  
+  // Update visual state
+  document.querySelectorAll('.genre-card').forEach(card => {
+    if (card.dataset.genre === genre) {
+      card.classList.remove('selected');
+    }
   });
   
   updateRightPanel();
@@ -2036,80 +2282,143 @@ function getGenreColor(genre) {
 function toggleGenreExpand(genre, event) {
   event.stopPropagation();
   
-  const safeId = genre.replace(/[^a-z0-9]/gi, '_');
-  const expandedDiv = document.getElementById(`genre-expanded-${safeId}`);
-  const button = event.target;
+  // Open genre detail modal instead of inline expansion
+  showGenreDetailModal(genre);
+}
+
+// Show genre detail modal
+function showGenreDetailModal(genre) {
+  const modal = document.getElementById('genre-detail-modal');
+  if (!modal) return;
   
-  if (expandedDiv.classList.contains('expanded')) {
-    // Collapse
-    expandedDiv.classList.remove('expanded');
-    expandedDiv.innerHTML = '';
-    button.textContent = 'Show Artists ▼';
-  } else {
-    // Expand
-    const tracks = genreSongMap[genre] || [];
-    const color = getGenreColor(genre);
+  const tracks = genreSongMap[genre] || [];
+  const color = getGenreColor(genre);
+  
+  // Set genre name in header
+  const genreNameEl = document.getElementById('genre-detail-name');
+  if (genreNameEl) genreNameEl.textContent = genre;
+  
+  // Group by artist
+  const artistMap = new Map();
+  tracks.forEach(track => {
+    const artistName = track.artists[0].name;
+    const artistId = track.artists[0].id;
     
-    // Group by artist
-    const artistMap = new Map();
-    tracks.forEach(track => {
-      const artistName = track.artists[0].name;
-      const artistId = track.artists[0].id;
-      
-      if (!artistMap.has(artistId)) {
-        artistMap.set(artistId, {
-          name: artistName,
-          tracks: []
-        });
-      }
-      artistMap.get(artistId).tracks.push(track);
-    });
-    
-    // Sort artists by track count
-    const sortedArtists = Array.from(artistMap.entries())
-      .sort((a, b) => b[1].tracks.length - a[1].tracks.length);
-    
-    // Render artists
-    expandedDiv.innerHTML = `
-      <div class="genre-artists-section">
-        ${sortedArtists.map(([artistId, artistData]) => {
-          const safeArtistId = artistId.replace(/[^a-z0-9]/gi, '_');
-          const artistMapUrl = `https://music-map.com/${encodeURIComponent(artistData.name.replace(/\s+/g, '+'))}`;
-          return `
-            <div class="artist-item">
-              <div class="artist-header" onclick="toggleArtistTracks('${safeId}', '${safeArtistId}')">
-                <span class="artist-name">${escapeHtml(artistData.name)}</span>
-                <span class="artist-count">${artistData.tracks.length} tracks</span>
-              </div>
-              <div class="artist-links">
-                <a href="${artistMapUrl}" target="_blank" class="artist-map-link" onclick="event.stopPropagation()" title="Similar artists">
-                  🗺️ Similar
-                </a>
-              </div>
-              <div class="artist-tracks-list" id="artist-tracks-${safeId}-${safeArtistId}">
-                ${artistData.tracks.map(track => `
-                  <div class="track-item-inline">
-                    <input 
-                      type="checkbox" 
-                      class="track-checkbox"
-                      ${selectedTracks.has(track.id) ? 'checked' : ''}
-                      onchange="toggleTrackSelection('${track.id}', event)"
-                      title="Select track"
-                    />
-                    <span class="track-name-inline">${escapeHtml(track.name)}</span>
-                    <span class="track-duration-inline">${formatDuration(track.duration_ms)}</span>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `;
-        }).join('')}
-      </div>
+    if (!artistMap.has(artistId)) {
+      artistMap.set(artistId, {
+        id: artistId,
+        name: artistName,
+        tracks: []
+      });
+    }
+    artistMap.get(artistId).tracks.push(track);
+  });
+  
+  // Sort artists by track count
+  const sortedArtists = Array.from(artistMap.values())
+    .sort((a, b) => b.tracks.length - a.tracks.length);
+  
+  // Update stats
+  const statsEl = document.getElementById('genre-detail-stats');
+  if (statsEl) {
+    const totalDuration = tracks.reduce((sum, t) => sum + t.duration_ms, 0);
+    statsEl.innerHTML = `
+      <span class="genre-stat">${tracks.length} tracks</span>
+      <span class="genre-stat">${sortedArtists.length} artists</span>
+      <span class="genre-stat">${formatDuration(totalDuration)}</span>
     `;
-    
-    expandedDiv.classList.add('expanded');
-    button.textContent = 'Hide Artists ▲';
   }
+  
+  // Render artists list
+  const artistsListEl = document.getElementById('genre-detail-artists-list');
+  if (artistsListEl) {
+    artistsListEl.innerHTML = sortedArtists.map(artist => {
+      const safeArtistId = artist.id.replace(/[^a-z0-9]/gi, '_');
+      const artistMapUrl = `https://music-map.com/${encodeURIComponent(artist.name.replace(/\s+/g, '+'))}`;
+      
+      return `
+        <div class="genre-artist-section">
+          <div class="genre-artist-header">
+            <div class="genre-artist-info">
+              <button class="genre-artist-toggle" onclick="toggleGenreArtistTracks('${safeArtistId}')">
+                ▶
+              </button>
+              <span class="genre-artist-name">${escapeHtml(artist.name)}</span>
+              <span class="genre-artist-count">${artist.tracks.length} tracks</span>
+            </div>
+            <div class="genre-artist-actions">
+              <a href="${artistMapUrl}" target="_blank" class="genre-artist-link" onclick="event.stopPropagation()">
+                🗺️ Similar
+              </a>
+              <button class="btn-small" onclick="selectAllGenreArtistTracks('${safeArtistId}', event)">
+                Select All
+              </button>
+            </div>
+          </div>
+          <div class="genre-artist-tracks" id="genre-artist-tracks-${safeArtistId}" style="display: none;">
+            ${artist.tracks.map(track => `
+              <div class="genre-track-item">
+                <input 
+                  type="checkbox" 
+                  class="track-checkbox"
+                  data-track-id="${track.id}"
+                  ${selectedTracks.has(track.id) ? 'checked' : ''}
+                  onchange="toggleTrackSelection('${track.id}', event)"
+                />
+                <div class="genre-track-info">
+                  <div class="genre-track-name">${escapeHtml(track.name)}</div>
+                  <div class="genre-track-album">${escapeHtml(track.album.name)}</div>
+                </div>
+                <div class="genre-track-duration">${formatDuration(track.duration_ms)}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+  
+  // Show modal
+  modal.style.display = 'flex';
+}
+
+function closeGenreDetailModal() {
+  const modal = document.getElementById('genre-detail-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function toggleGenreArtistTracks(artistId) {
+  const tracksEl = document.getElementById(`genre-artist-tracks-${artistId}`);
+  const toggleBtn = event.target;
+  
+  if (!tracksEl) return;
+  
+  if (tracksEl.style.display === 'none') {
+    tracksEl.style.display = 'block';
+    toggleBtn.textContent = '▼';
+  } else {
+    tracksEl.style.display = 'none';
+    toggleBtn.textContent = '▶';
+  }
+}
+
+function selectAllGenreArtistTracks(artistId, event) {
+  event.stopPropagation();
+  
+  const tracksEl = document.getElementById(`genre-artist-tracks-${artistId}`);
+  if (!tracksEl) return;
+  
+  const checkboxes = tracksEl.querySelectorAll('.track-checkbox');
+  checkboxes.forEach(cb => {
+    const trackId = cb.dataset.trackId;
+    if (!selectedTracks.has(trackId)) {
+      selectedTracks.add(trackId);
+      cb.checked = true;
+    }
+  });
+  
+  updateSelectionPanel();
+  showNotification('All tracks selected!', 'success');
 }
 
 function toggleArtistTracks(genreId, artistId) {
@@ -2235,19 +2544,53 @@ function buildLibraryData() {
         name: artist.name,
         image: track.album?.images?.[0]?.url || null,
         tracks: [],
+        genres: new Set(), // Track unique genres for this artist
         spotifyUrl: `https://open.spotify.com/artist/${artistId}`
       });
     }
     
-    artistMap.get(artistId).tracks.push(track);
+    const artistData = artistMap.get(artistId);
+    artistData.tracks.push(track);
+    
+    // Find genres for this artist's tracks
+    Object.entries(genreSongMap).forEach(([genre, genreTracks]) => {
+      if (genreTracks.some(t => t.id === track.id)) {
+        artistData.genres.add(genre);
+      }
+    });
   });
   
-  // Convert to array and sort by name
+  // Convert to array and convert genres Set to Array
   libraryArtistData = Array.from(artistMap.values())
+    .map(artist => ({
+      ...artist,
+      genres: Array.from(artist.genres)
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
   
   filteredLibraryArtists = [...libraryArtistData];
+  
+  // Populate genre filter dropdown
+  populateLibraryGenreFilter();
+  
   renderLibraryArtistGrid();
+}
+
+// Populate genre filter dropdown
+function populateLibraryGenreFilter() {
+  const genreFilter = document.getElementById('library-genre-filter');
+  if (!genreFilter) return;
+  
+  // Get all unique genres from library
+  const allGenres = new Set();
+  libraryArtistData.forEach(artist => {
+    artist.genres.forEach(genre => allGenres.add(genre));
+  });
+  
+  const sortedGenres = Array.from(allGenres).sort();
+  
+  genreFilter.innerHTML = '<option value="">All Genres</option>' +
+    sortedGenres.map(genre => `<option value="${escapeHtml(genre)}">${escapeHtml(genre)}</option>`).join('');
 }
 
 // Render artist grid
@@ -2274,6 +2617,14 @@ function renderLibraryArtistGrid() {
       <div class="library-artist-info">
         <div class="library-artist-name">${escapeHtml(artist.name)}</div>
         <div class="library-artist-count">${artist.tracks.length} track${artist.tracks.length !== 1 ? 's' : ''}</div>
+        ${artist.genres.length > 0 ? `
+          <div class="library-artist-genres">
+            ${artist.genres.slice(0, 3).map(genre => 
+              `<span class="artist-genre-tag" onclick="selectGenreFromLibrary('${escapeHtml(genre)}', event)">${escapeHtml(genre)}</span>`
+            ).join('')}
+            ${artist.genres.length > 3 ? `<span class="artist-genre-tag">+${artist.genres.length - 3}</span>` : ''}
+          </div>
+        ` : ''}
       </div>
     </div>
   `).join('');
@@ -2281,17 +2632,7 @@ function renderLibraryArtistGrid() {
 
 // Filter artists by search
 function filterLibraryArtists() {
-  const query = document.getElementById('library-search').value.toLowerCase();
-  
-  if (!query) {
-    filteredLibraryArtists = [...libraryArtistData];
-  } else {
-    filteredLibraryArtists = libraryArtistData.filter(artist => 
-      artist.name.toLowerCase().includes(query)
-    );
-  }
-  
-  renderLibraryArtistGrid();
+  filterLibraryByGenre(); // Use combined filter
 }
 
 // Sort artists
@@ -2326,13 +2667,25 @@ function showLibraryArtistDetail(artistId) {
   const musicMapUrl = `https://music-map.com/${encodeURIComponent(artist.name.replace(/\s+/g, '+'))}`;
   
   content.innerHTML = `
+    ${artist.genres.length > 0 ? `
+      <div class="artist-detail-genres">
+        <strong>Genres:</strong>
+        ${artist.genres.map(genre => 
+          `<span class="artist-genre-tag clickable" onclick="selectGenreFromLibrary('${escapeHtml(genre)}', event)">${escapeHtml(genre)}</span>`
+        ).join(' ')}
+      </div>
+    ` : ''}
+    
     <div class="artist-detail-links">
       <a href="${artist.spotifyUrl}" target="_blank" class="artist-link">
         🎵 View on Spotify
       </a>
       <a href="${musicMapUrl}" target="_blank" class="artist-link">
-        🗺️ Similar Artists
+        🗺️ Music-Map.com
       </a>
+      <button class="artist-link artist-btn" onclick="findSimilarArtists('${artistId}')">
+        🔍 Find Similar in Library
+      </button>
     </div>
     
     <div class="artist-detail-actions">
@@ -2416,11 +2769,16 @@ function buildStatsData() {
   const totalGenres = Object.keys(genreSongMap).length;
   const totalDuration = userTracks.reduce((sum, t) => sum + t.duration_ms, 0);
   
-  // Update overview
-  document.getElementById('stat-total-tracks').textContent = totalTracks.toLocaleString();
-  document.getElementById('stat-total-artists').textContent = totalArtists.toLocaleString();
-  document.getElementById('stat-total-genres').textContent = totalGenres.toLocaleString();
-  document.getElementById('stat-total-duration').textContent = Math.round(totalDuration / 3600000) + 'h';
+  // Update overview - with null checks
+  const statTracks = document.getElementById('stat-total-tracks');
+  const statArtists = document.getElementById('stat-total-artists');
+  const statGenres = document.getElementById('stat-total-genres');
+  const statDuration = document.getElementById('stat-total-duration');
+  
+  if (statTracks) statTracks.textContent = totalTracks.toLocaleString();
+  if (statArtists) statArtists.textContent = totalArtists.toLocaleString();
+  if (statGenres) statGenres.textContent = totalGenres.toLocaleString();
+  if (statDuration) statDuration.textContent = Math.round(totalDuration / 3600000) + 'h';
   
   // Top Genres
   const genreCounts = Object.entries(genreSongMap)
@@ -2429,6 +2787,8 @@ function buildStatsData() {
     .slice(0, 10);
   
   const topGenresList = document.getElementById('top-genres-list');
+  if (!topGenresList) return; // Exit if element doesn't exist
+  
   topGenresList.innerHTML = genreCounts.map((item, index) => {
     const percentage = ((item.count / totalTracks) * 100).toFixed(1);
     const color = getGenreColor(item.genre);
@@ -2582,135 +2942,356 @@ async function generateRecommendations() {
   
   const recommendations = [];
   
-  // 1. Genre Discovery - Find underrepresented genres
+  // Get all tracks and features
+  const allTracks = userTracks;
+  const features = Object.values(audioFeaturesCache);
+  
+  // Calculate statistics
   const genreCounts = Object.entries(genreSongMap)
-    .map(([genre, tracks]) => ({ genre, count: tracks.length }))
+    .map(([genre, tracks]) => ({ genre, count: tracks.length, tracks }))
     .sort((a, b) => b.count - a.count);
   
-  const topGenres = genreCounts.slice(0, 5).map(g => g.genre);
-  const underrepresented = genreCounts.filter(g => g.count < 10 && g.count > 0);
+  const topGenres = genreCounts.slice(0, 5);
+  const avgEnergy = features.length > 0 ? features.reduce((sum, f) => sum + f.energy, 0) / features.length : 0.5;
+  const avgValence = features.length > 0 ? features.reduce((sum, f) => sum + f.valence, 0) / features.length : 0.5;
+  const avgTempo = features.length > 0 ? features.reduce((sum, f) => sum + f.tempo, 0) / features.length : 120;
   
-  if (underrepresented.length > 0) {
-    recommendations.push({
-      type: 'genre-discovery',
-      icon: '🎵',
-      title: 'Explore Underrepresented Genres',
-      description: `You have ${underrepresented[0].genre} in your library but only ${underrepresented[0].count} tracks. Consider adding more!`,
-      action: 'select-genre',
-      data: underrepresented[0].genre
-    });
+  // ==============================================
+  // 1. 💎 HIDDEN GEMS - Rare tracks with low popularity
+  // ==============================================
+  const tracksWithPopularity = allTracks.filter(t => t.popularity !== undefined);
+  if (tracksWithPopularity.length > 20) {
+    const hiddenGems = tracksWithPopularity
+      .filter(t => t.popularity < 30 && t.popularity > 0) // Rare but not completely unknown
+      .sort((a, b) => a.popularity - b.popularity)
+      .slice(0, 50);
+    
+    if (hiddenGems.length >= 15) {
+      recommendations.push({
+        type: 'hidden-gems',
+        icon: '💎',
+        title: 'Hidden Gems',
+        description: `Found ${hiddenGems.length} rare tracks (popularity < 30) across your library. Perfect for a unique discovery playlist!`,
+        action: 'create-playlist',
+        data: {
+          name: '💎 Hidden Gems',
+          tracks: hiddenGems,
+          description: 'Rare and underrated tracks from my collection'
+        }
+      });
+    }
   }
   
-  // 2. Mood Balancing
-  const features = Object.values(audioFeaturesCache);
-  if (features.length > 0) {
-    const avgValence = features.reduce((sum, f) => sum + f.valence, 0) / features.length;
+  // ==============================================
+  // 2. 🌅 SUNRISE SET - Progressive morning energy
+  // ==============================================
+  if (features.length > 30) {
+    const morningTracks = allTracks
+      .filter(t => {
+        const f = audioFeaturesCache[t.id];
+        return f && f.energy > 0.3 && f.energy < 0.7 && f.valence > 0.5 && f.tempo > 100 && f.tempo < 130;
+      })
+      .slice(0, 40);
     
-    if (avgValence < 0.4) {
-      recommendations.push({
-        type: 'mood',
-        icon: '☀️',
-        title: 'Add Some Uplifting Tracks',
-        description: `Your library skews melancholic (mood: ${(avgValence * 100).toFixed(0)}%). Consider adding happier tracks!`,
-        action: 'apply-filter',
-        data: { mood: { min: 70, max: 100, enabled: true } }
+    if (morningTracks.length >= 20) {
+      // Sort by energy (low to high) for progressive feel
+      morningTracks.sort((a, b) => {
+        const af = audioFeaturesCache[a.id];
+        const bf = audioFeaturesCache[b.id];
+        return (af?.energy || 0) - (bf?.energy || 0);
       });
-    } else if (avgValence > 0.7) {
+      
       recommendations.push({
-        type: 'mood',
+        type: 'sunrise',
+        icon: '🌅',
+        title: 'Sunrise Set',
+        description: `${morningTracks.length} tracks with progressive energy (${Math.round(morningTracks[0].tempo || 110)}-${Math.round(morningTracks[morningTracks.length-1].tempo || 125)} BPM). Perfect morning warm-up!`,
+        action: 'create-playlist',
+        data: {
+          name: '🌅 Sunrise Set',
+          tracks: morningTracks,
+          description: 'Progressive morning energy builder'
+        }
+      });
+    }
+  }
+  
+  // ==============================================
+  // 3. 🔥 PEAK TIME - High-energy bangers
+  // ==============================================
+  if (features.length > 20) {
+    const peakTracks = allTracks
+      .filter(t => {
+        const f = audioFeaturesCache[t.id];
+        return f && f.energy > 0.75 && f.danceability > 0.7 && f.tempo > 125;
+      })
+      .sort((a, b) => {
+        const af = audioFeaturesCache[a.id] || {};
+        const bf = audioFeaturesCache[b.id] || {};
+        return (bf.energy + bf.danceability) - (af.energy + af.danceability);
+      })
+      .slice(0, 40);
+    
+    if (peakTracks.length >= 15) {
+      recommendations.push({
+        type: 'peak-time',
+        icon: '🔥',
+        title: 'Peak Time Bangers',
+        description: `${peakTracks.length} high-energy, highly danceable tracks (energy > 75%, BPM > 125). Your hardest hitters!`,
+        action: 'create-playlist',
+        data: {
+          name: '🔥 Peak Time',
+          tracks: peakTracks,
+          description: 'Maximum energy bangers for peak moments'
+        }
+      });
+    }
+  }
+  
+  // ==============================================
+  // 4. 🌙 LATE NIGHT - Dark, deep, hypnotic
+  // ==============================================
+  if (features.length > 20) {
+    const lateNightTracks = allTracks
+      .filter(t => {
+        const f = audioFeaturesCache[t.id];
+        return f && f.valence < 0.4 && f.energy > 0.4 && f.energy < 0.75 && f.tempo > 115 && f.tempo < 130;
+      })
+      .slice(0, 40);
+    
+    if (lateNightTracks.length >= 15) {
+      recommendations.push({
+        type: 'late-night',
         icon: '🌙',
-        title: 'Balance with Chill Tracks',
-        description: `Your library is very upbeat (mood: ${(avgValence * 100).toFixed(0)}%). Add some mellower tracks for variety!`,
-        action: 'apply-filter',
-        data: { mood: { min: 0, max: 40, enabled: true } }
-      });
-    }
-    
-    // 3. Energy Recommendations
-    const avgEnergy = features.reduce((sum, f) => sum + f.energy, 0) / features.length;
-    
-    if (avgEnergy > 0.7) {
-      recommendations.push({
-        type: 'energy',
-        icon: '🧘',
-        title: 'Create a Chill Playlist',
-        description: `Your library is high-energy (${(avgEnergy * 100).toFixed(0)}%). Perfect time to make a downtempo playlist!`,
-        action: 'apply-filter',
-        data: { energy: { min: 0, max: 40, enabled: true } }
-      });
-    } else if (avgEnergy < 0.3) {
-      recommendations.push({
-        type: 'energy',
-        icon: '⚡',
-        title: 'Add High-Energy Tracks',
-        description: `Your library is quite mellow (energy: ${(avgEnergy * 100).toFixed(0)}%). Boost it with some high-energy tracks!`,
-        action: 'apply-filter',
-        data: { energy: { min: 70, max: 100, enabled: true } }
-      });
-    }
-    
-    // 4. BPM Variety
-    const avgTempo = features.reduce((sum, f) => sum + f.tempo, 0) / features.length;
-    
-    if (avgTempo > 140) {
-      recommendations.push({
-        type: 'tempo',
-        icon: '🐢',
-        title: 'Slow It Down',
-        description: `Average BPM is ${avgTempo.toFixed(0)}. Create a slower playlist for relaxation!`,
-        action: 'apply-filter',
-        data: { bpm: { min: 60, max: 100, enabled: true } }
-      });
-    } else if (avgTempo < 100) {
-      recommendations.push({
-        type: 'tempo',
-        icon: '🐇',
-        title: 'Speed Things Up',
-        description: `Average BPM is ${avgTempo.toFixed(0)}. Add some uptempo tracks for variety!`,
-        action: 'apply-filter',
-        data: { bpm: { min: 130, max: 180, enabled: true } }
+        title: 'Late Night Deep',
+        description: `${lateNightTracks.length} dark, hypnotic tracks (low mood, steady energy). Perfect for 3am vibes!`,
+        action: 'create-playlist',
+        data: {
+          name: '🌙 Late Night Deep',
+          tracks: lateNightTracks,
+          description: 'Dark and hypnotic late-night grooves'
+        }
       });
     }
   }
   
-  // 5. Genre Combination Suggestions
-  if (topGenres.length >= 2) {
-    const combo = topGenres.slice(0, 3).join(' + ');
-    recommendations.push({
-      type: 'combo',
-      icon: '🎭',
-      title: 'Try a Genre Mashup',
-      description: `Create a playlist mixing your top genres: ${combo}!`,
-      action: 'select-genres',
-      data: topGenres.slice(0, 3)
+  // ==============================================
+  // 5. 🎯 GENRE FUSION - Best of top 3 genres combined
+  // ==============================================
+  if (topGenres.length >= 3) {
+    const top3Genres = topGenres.slice(0, 3);
+    const fusionTracks = [];
+    
+    // Take best tracks from each genre (sorted by popularity or energy)
+    top3Genres.forEach(g => {
+      const genreTracks = g.tracks
+        .filter(t => audioFeaturesCache[t.id])
+        .sort((a, b) => {
+          const af = audioFeaturesCache[a.id] || {};
+          const bf = audioFeaturesCache[b.id] || {};
+          return (bf.energy + (b.popularity || 50)/100) - (af.energy + (a.popularity || 50)/100);
+        })
+        .slice(0, 15);
+      fusionTracks.push(...genreTracks);
     });
+    
+    if (fusionTracks.length >= 30) {
+      const genreNames = top3Genres.map(g => g.genre).join(' × ');
+      recommendations.push({
+        type: 'fusion',
+        icon: '🎯',
+        title: 'Genre Fusion',
+        description: `Best of ${genreNames} (${fusionTracks.length} tracks). Your top genres in one perfect mix!`,
+        action: 'create-playlist',
+        data: {
+          name: `🎯 ${genreNames}`,
+          tracks: fusionTracks,
+          description: `Fusion of my top genres: ${genreNames}`
+        }
+      });
+    }
   }
   
-  return recommendations.slice(0, 5); // Top 5 recommendations
+  // ==============================================
+  // 6. 🎪 GENRE RARITY - Explore underrepresented genres
+  // ==============================================
+  const rareGenres = genreCounts.filter(g => g.count >= 5 && g.count <= 20);
+  if (rareGenres.length >= 3) {
+    const rarityTracks = [];
+    rareGenres.slice(0, 5).forEach(g => {
+      rarityTracks.push(...g.tracks);
+    });
+    
+    if (rarityTracks.length >= 20) {
+      const genreList = rareGenres.slice(0, 5).map(g => g.genre).join(', ');
+      recommendations.push({
+        type: 'rarity',
+        icon: '🎪',
+        title: 'Genre Exploration',
+        description: `${rarityTracks.length} tracks from underrepresented genres (${genreList}). Discover what you've been missing!`,
+        action: 'create-playlist',
+        data: {
+          name: '🎪 Genre Exploration',
+          tracks: rarityTracks.slice(0, 50),
+          description: 'Deep cuts from my less-explored genres'
+        }
+      });
+    }
+  }
+  
+  // ==============================================
+  // 7. 🏃 WORKOUT READY - High BPM + High Energy
+  // ==============================================
+  if (features.length > 20) {
+    const workoutTracks = allTracks
+      .filter(t => {
+        const f = audioFeaturesCache[t.id];
+        return f && f.energy > 0.7 && f.tempo > 140 && f.danceability > 0.6;
+      })
+      .sort((a, b) => {
+        const af = audioFeaturesCache[a.id] || {};
+        const bf = audioFeaturesCache[b.id] || {};
+        return bf.tempo - af.tempo;
+      })
+      .slice(0, 40);
+    
+    if (workoutTracks.length >= 15) {
+      const avgBpm = workoutTracks.reduce((sum, t) => sum + (audioFeaturesCache[t.id]?.tempo || 0), 0) / workoutTracks.length;
+      recommendations.push({
+        type: 'workout',
+        icon: '🏃',
+        title: 'Workout Power',
+        description: `${workoutTracks.length} high-intensity tracks (avg ${Math.round(avgBpm)} BPM, energy > 70%). Perfect for pushing limits!`,
+        action: 'create-playlist',
+        data: {
+          name: '🏃 Workout Power',
+          tracks: workoutTracks,
+          description: 'High-energy, high-BPM tracks for intense workouts'
+        }
+      });
+    }
+  }
+  
+  // ==============================================
+  // 8. 🧠 FLOW STATE - Focus tracks (medium energy, low vocals)
+  // ==============================================
+  if (features.length > 20) {
+    const flowTracks = allTracks
+      .filter(t => {
+        const f = audioFeaturesCache[t.id];
+        return f && f.energy > 0.4 && f.energy < 0.7 && f.instrumentalness > 0.3 && f.tempo > 100 && f.tempo < 130;
+      })
+      .slice(0, 40);
+    
+    if (flowTracks.length >= 15) {
+      recommendations.push({
+        type: 'flow',
+        icon: '🧠',
+        title: 'Flow State',
+        description: `${flowTracks.length} instrumental-heavy, steady-tempo tracks. Perfect for deep focus and productivity!`,
+        action: 'create-playlist',
+        data: {
+          name: '🧠 Flow State',
+          tracks: flowTracks,
+          description: 'Instrumental focus music for deep work'
+        }
+      });
+    }
+  }
+  
+  // ==============================================
+  // 9. 🌊 ENERGY WAVE - Rollercoaster of dynamics
+  // ==============================================
+  if (features.length > 30) {
+    const dynamicTracks = allTracks
+      .filter(t => audioFeaturesCache[t.id])
+      .sort((a, b) => {
+        // Sort by energy variance to create waves
+        return Math.random() - 0.5;
+      })
+      .slice(0, 50);
+    
+    // Re-sort to create energy waves (low-high-low pattern)
+    const waveTracks = [];
+    const lowEnergy = dynamicTracks.filter(t => audioFeaturesCache[t.id]?.energy < 0.5);
+    const highEnergy = dynamicTracks.filter(t => audioFeaturesCache[t.id]?.energy >= 0.5);
+    
+    for (let i = 0; i < Math.min(lowEnergy.length, highEnergy.length); i++) {
+      waveTracks.push(lowEnergy[i]);
+      waveTracks.push(highEnergy[i]);
+    }
+    
+    if (waveTracks.length >= 20) {
+      recommendations.push({
+        type: 'wave',
+        icon: '🌊',
+        title: 'Energy Waves',
+        description: `${waveTracks.length} tracks arranged in energy waves (peaks & valleys). Dynamic journey through your library!`,
+        action: 'create-playlist',
+        data: {
+          name: '🌊 Energy Waves',
+          tracks: waveTracks,
+          description: 'Dynamic energy rollercoaster'
+        }
+      });
+    }
+  }
+  
+  // ==============================================
+  // 10. 📅 RECENTLY ADDED - Your latest discoveries
+  // ==============================================
+  if (allTracks.some(t => t.added_at)) {
+    const recentTracks = allTracks
+      .filter(t => t.added_at)
+      .sort((a, b) => new Date(b.added_at) - new Date(a.added_at))
+      .slice(0, 40);
+    
+    if (recentTracks.length >= 15) {
+      const oldestDate = new Date(recentTracks[recentTracks.length - 1].added_at);
+      const daysAgo = Math.floor((Date.now() - oldestDate) / (1000 * 60 * 60 * 24));
+      
+      recommendations.push({
+        type: 'recent',
+        icon: '📅',
+        title: 'Fresh Finds',
+        description: `Your ${recentTracks.length} most recently added tracks (from the past ${daysAgo} days). Rediscover your latest discoveries!`,
+        action: 'create-playlist',
+        data: {
+          name: '📅 Fresh Finds',
+          tracks: recentTracks,
+          description: 'My most recently added tracks'
+        }
+      });
+    }
+  }
+  
+  // Return top 6-8 recommendations (more variety!)
+  return recommendations.slice(0, 8);
 }
 
 function displayRecommendations(recommendations) {
-  const container = document.getElementById('recommendations-list');
+  const container = document.getElementById('recommendations-list-top');
   if (!container) return;
   
   if (recommendations.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <p>Load your library to get personalized recommendations!</p>
+        <p>No recommendations available. Try loading more music!</p>
       </div>
     `;
     return;
   }
   
+  // Show as prominent cards in grid layout
   container.innerHTML = recommendations.map((rec, index) => `
-    <div class="recommendation-card">
-      <div class="rec-icon">${rec.icon}</div>
-      <div class="rec-content">
+    <div class="recommendation-card-large">
+      <div class="rec-icon-large">${rec.icon}</div>
+      <div class="rec-content-large">
         <h4>${rec.title}</h4>
         <p>${rec.description}</p>
       </div>
-      <button class="btn-rec-apply" onclick="applyRecommendation(${index})">
-        Apply
+      <button class="btn-primary btn-rec-apply-large" onclick="applyRecommendation(${index})">
+        Try This
       </button>
     </div>
   `).join('');
@@ -2725,22 +3306,37 @@ function applyRecommendation(index) {
   const rec = currentRecommendations[index];
   if (!rec) return;
   
-  // Switch to creator section
-  switchToSection('creator');
-  
-  if (rec.action === 'select-genre') {
+  if (rec.action === 'create-playlist') {
+    // INSTANT PLAYLIST CREATION!
+    const { name, tracks, description } = rec.data;
+    
+    if (!tracks || tracks.length === 0) {
+      showNotification('No tracks available for this playlist', 'error');
+      return;
+    }
+    
+    // Show confirmation with preview
+    showRecommendationPlaylistPreview(name, tracks, description);
+    
+  } else if (rec.action === 'select-genre') {
+    // Switch to creator section
+    switchToSection('creator');
     selectedGenres.add(rec.data);
     renderGenreGrid();
-    updateTotals();
+    updateRightPanel();
     showNotification(`${rec.data} selected!`, 'success');
     
   } else if (rec.action === 'select-genres') {
+    // Switch to creator section
+    switchToSection('creator');
     rec.data.forEach(genre => selectedGenres.add(genre));
     renderGenreGrid();
-    updateTotals();
+    updateRightPanel();
     showNotification(`${rec.data.length} genres selected!`, 'success');
     
   } else if (rec.action === 'apply-filter') {
+    // Switch to creator section
+    switchToSection('creator');
     Object.assign(smartPlaylistSettings, rec.data);
     
     // Update UI
@@ -2767,7 +3363,359 @@ function applyRecommendation(index) {
     }
     
     updateFilterStatus();
-    updateTotals();
+    updateRightPanel();
     showNotification('Filter applied!', 'success');
   }
+}
+
+// Show preview of recommendation playlist before creating
+function showRecommendationPlaylistPreview(name, tracks, description) {
+  const modal = document.getElementById('recommendation-preview-modal');
+  if (!modal) return;
+  
+  const nameEl = document.getElementById('rec-preview-name');
+  const descEl = document.getElementById('rec-preview-description');
+  const countEl = document.getElementById('rec-preview-count');
+  const tracksListEl = document.getElementById('rec-preview-tracks');
+  
+  if (nameEl) nameEl.textContent = name;
+  if (descEl) descEl.textContent = description;
+  if (countEl) countEl.textContent = `${tracks.length} tracks`;
+  
+  if (tracksListEl) {
+    const totalDuration = tracks.reduce((sum, t) => sum + t.duration_ms, 0);
+    
+    tracksListEl.innerHTML = `
+      <div class="rec-preview-stats">
+        <span>${tracks.length} tracks</span>
+        <span>•</span>
+        <span>${formatDuration(totalDuration)}</span>
+      </div>
+      <div class="rec-preview-track-list">
+        ${tracks.slice(0, 10).map((track, i) => `
+          <div class="rec-preview-track">
+            <span class="rec-preview-track-num">${i + 1}</span>
+            <span class="rec-preview-track-name">${escapeHtml(track.name)}</span>
+            <span class="rec-preview-track-artist">${escapeHtml(track.artists[0].name)}</span>
+          </div>
+        `).join('')}
+        ${tracks.length > 10 ? `<div class="rec-preview-more">+ ${tracks.length - 10} more tracks</div>` : ''}
+      </div>
+    `;
+  }
+  
+  // Store tracks for creation
+  window.currentRecommendationPlaylist = { name, tracks, description };
+  
+  modal.style.display = 'flex';
+}
+
+function closeRecommendationPreview() {
+  const modal = document.getElementById('recommendation-preview-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function createRecommendationPlaylist() {
+  const { name, tracks, description } = window.currentRecommendationPlaylist || {};
+  
+  if (!tracks || tracks.length === 0) {
+    showNotification('No tracks to create playlist', 'error');
+    return;
+  }
+  
+  closeRecommendationPreview();
+  
+  try {
+    showNotification('Creating playlist...', 'info');
+    
+    const playlistId = await createSpotifyPlaylist(name, description, false);
+    const trackUris = tracks.map(t => t.uri);
+    await addTracksToSpotifyPlaylist(playlistId, trackUris);
+    
+    showNotification(`✅ "${name}" created with ${tracks.length} tracks!`, 'success');
+    
+  } catch (error) {
+    console.error('Error creating recommendation playlist:', error);
+    showNotification('Failed to create playlist', 'error');
+  }
+}
+
+// ===== PLAYLIST SELECTOR =====
+
+async function showPlaylistSelector() {
+  // Hide error UI
+  const errorContainer = document.getElementById('load-error-recovery');
+  if (errorContainer) errorContainer.style.display = 'none';
+  
+  // Show loading
+  showNotification('Loading your playlists...', 'info');
+  
+  try {
+    // Fetch user's playlists
+    const playlists = await fetchUserPlaylists();
+    
+    // Show selector modal
+    showPlaylistSelectorModal(playlists);
+    
+  } catch (error) {
+    console.error('Error fetching playlists:', error);
+    showNotification('Could not load playlists. Please try again.', 'error');
+  }
+}
+
+function showPlaylistSelectorModal(playlists) {
+  const modal = document.getElementById('playlist-selector-modal');
+  if (!modal) return;
+  
+  const listContainer = document.getElementById('playlist-selector-list');
+  if (!listContainer) return;
+  
+  listContainer.innerHTML = playlists.map(playlist => `
+    <label class="playlist-selector-item">
+      <input 
+        type="checkbox" 
+        class="playlist-checkbox"
+        value="${playlist.id}"
+        data-name="${escapeHtml(playlist.name)}"
+        data-tracks="${playlist.tracks.total}"
+      />
+      <div class="playlist-info">
+        ${playlist.images && playlist.images[0] ? 
+          `<img src="${playlist.images[0].url}" class="playlist-thumb" alt="${escapeHtml(playlist.name)}">` :
+          `<div class="playlist-thumb-placeholder">📁</div>`
+        }
+        <div class="playlist-details">
+          <div class="playlist-name">${escapeHtml(playlist.name)}</div>
+          <div class="playlist-track-count">${playlist.tracks.total} tracks</div>
+        </div>
+      </div>
+    </label>
+  `).join('');
+  
+  modal.style.display = 'flex';
+}
+
+function closePlaylistSelector() {
+  const modal = document.getElementById('playlist-selector-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function loadSelectedPlaylists() {
+  const checkboxes = document.querySelectorAll('.playlist-checkbox:checked');
+  
+  if (checkboxes.length === 0) {
+    alert('Please select at least one playlist');
+    return;
+  }
+  
+  closePlaylistSelector();
+  
+  // Show progress
+  const progressContainer = document.getElementById('load-progress-container');
+  const progressFill = document.getElementById('load-progress-fill');
+  const progressText = document.getElementById('load-progress-text');
+  
+  if (progressContainer && progressFill && progressText) {
+    progressContainer.style.display = 'block';
+    progressText.textContent = `Loading ${checkboxes.length} playlist(s)...`;
+  }
+  
+  try {
+    let allTracks = [];
+    
+    for (let i = 0; i < checkboxes.length; i++) {
+      const checkbox = checkboxes[i];
+      const playlistId = checkbox.value;
+      const playlistName = checkbox.dataset.name;
+      
+      if (progressText) {
+        progressText.textContent = `Loading ${playlistName} (${i + 1}/${checkboxes.length})...`;
+      }
+      
+      const tracks = await fetchPlaylistTracks(playlistId);
+      allTracks.push(...tracks);
+      
+      if (progressFill) {
+        progressFill.style.width = `${((i + 1) / checkboxes.length) * 100}%`;
+      }
+    }
+    
+    // Remove duplicates
+    const seen = new Set();
+    allTracks = allTracks.filter(track => {
+      if (seen.has(track.id)) return false;
+      seen.add(track.id);
+      return true;
+    });
+    
+    userTracks = allTracks;
+    
+    // Build genre maps
+    if (progressText) progressText.textContent = 'Analyzing genres...';
+    await buildGenreMaps(allTracks);
+    
+    // Fetch audio features
+    if (progressText) progressText.textContent = 'Loading audio features...';
+    await getAudioFeaturesForTracks(allTracks);
+    
+    // Build library data
+    buildLibraryData();
+    buildStatsData();
+    generateAndDisplayRecommendations();
+    
+    // Show genre section
+    const genreSection = document.getElementById('genre-section');
+    if (genreSection) genreSection.style.display = 'block';
+    renderGenreGrid();
+    
+    if (progressText) progressText.textContent = `Complete! ${allTracks.length} tracks loaded from ${checkboxes.length} playlist(s)`;
+    
+    setTimeout(() => {
+      if (progressContainer) progressContainer.style.display = 'none';
+    }, 2000);
+    
+  } catch (error) {
+    console.error('Error loading playlists:', error);
+    if (progressText) {
+      progressText.textContent = 'Error loading playlists';
+      progressText.style.color = '#ff4444';
+    }
+    showLoadErrorRecovery('playlists', error);
+  }
+}
+
+function selectAllPlaylists() {
+  document.querySelectorAll('.playlist-checkbox').forEach(cb => cb.checked = true);
+}
+
+function deselectAllPlaylists() {
+  document.querySelectorAll('.playlist-checkbox').forEach(cb => cb.checked = false);
+}
+
+// Filter library by genre
+function filterLibraryByGenre() {
+  const genreFilter = document.getElementById('library-genre-filter').value;
+  const searchQuery = document.getElementById('library-search').value.toLowerCase();
+  
+  if (!genreFilter && !searchQuery) {
+    filteredLibraryArtists = [...libraryArtistData];
+  } else {
+    filteredLibraryArtists = libraryArtistData.filter(artist => {
+      const matchesGenre = !genreFilter || artist.genres.includes(genreFilter);
+      const matchesSearch = !searchQuery || artist.name.toLowerCase().includes(searchQuery);
+      return matchesGenre && matchesSearch;
+    });
+  }
+  
+  renderLibraryArtistGrid();
+}
+
+// Select genre from library (tag click)
+function selectGenreFromLibrary(genre, event) {
+  event.stopPropagation();
+  
+  // Switch to creator section
+  switchToSection('creator');
+  
+  // Select the genre
+  selectedGenres.add(genre);
+  renderGenreGrid();
+  updateRightPanel();
+  
+  showNotification(`${genre} selected!`, 'success');
+}
+
+// Find similar artists
+function findSimilarArtists(artistId) {
+  const artist = libraryArtistData.find(a => a.id === artistId);
+  if (!artist) return;
+  
+  // Find artists with overlapping genres
+  const similarArtists = libraryArtistData
+    .filter(a => a.id !== artistId)
+    .map(a => {
+      const sharedGenres = a.genres.filter(g => artist.genres.includes(g));
+      return {
+        ...a,
+        sharedGenres,
+        similarity: sharedGenres.length
+      };
+    })
+    .filter(a => a.similarity > 0)
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, 10);
+  
+  showSimilarArtistsModal(artist, similarArtists);
+}
+
+// Show similar artists modal
+function showSimilarArtistsModal(artist, similarArtists) {
+  const modal = document.getElementById('similar-artists-modal');
+  if (!modal) return;
+  
+  const nameEl = document.getElementById('similar-artists-for');
+  const listEl = document.getElementById('similar-artists-list');
+  
+  if (nameEl) nameEl.textContent = artist.name;
+  
+  if (listEl) {
+    if (similarArtists.length === 0) {
+      listEl.innerHTML = '<div class="empty-state"><p>No similar artists found in your library</p></div>';
+    } else {
+      listEl.innerHTML = similarArtists.map(similar => `
+        <div class="similar-artist-item" onclick="showLibraryArtistDetail('${similar.id}'); closeSimilarArtistsModal();">
+          ${similar.image ? 
+            `<img src="${similar.image}" class="similar-artist-image" alt="${escapeHtml(similar.name)}">` :
+            `<div class="similar-artist-placeholder">🎤</div>`
+          }
+          <div class="similar-artist-info">
+            <div class="similar-artist-name">${escapeHtml(similar.name)}</div>
+            <div class="similar-artist-genres">
+              ${similar.sharedGenres.map(g => `<span class="shared-genre-tag">${escapeHtml(g)}</span>`).join(' ')}
+            </div>
+            <div class="similar-artist-count">${similar.tracks.length} tracks</div>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+  
+  modal.style.display = 'flex';
+}
+
+function closeSimilarArtistsModal() {
+  const modal = document.getElementById('similar-artists-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Select genre from genre detail modal
+function selectGenreFromModal() {
+  const genreNameEl = document.getElementById('genre-detail-name');
+  if (!genreNameEl) return;
+  
+  const genre = genreNameEl.textContent;
+  
+  // Add to selected genres
+  selectedGenres.add(genre);
+  renderGenreGrid();
+  updateRightPanel();
+  
+  closeGenreDetailModal();
+  showNotification(`${genre} selected!`, 'success');
+}
+
+// Select all tracks in genre detail modal
+function selectAllGenreTracksInModal() {
+  const checkboxes = document.querySelectorAll('#genre-detail-artists-list .track-checkbox');
+  
+  checkboxes.forEach(cb => {
+    const trackId = cb.dataset.trackId;
+    if (!selectedTracks.has(trackId)) {
+      selectedTracks.add(trackId);
+      cb.checked = true;
+    }
+  });
+  
+  updateSelectionPanel();
+  showNotification(`All tracks selected!`, 'success');
 }
