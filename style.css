@@ -218,60 +218,48 @@ button {
   line-height: 1.5;
 }
 
-/* ===== SPLIT VIEW LAYOUT ===== */
+/* ===== MAIN CONTENT AREA ===== */
 
-.split-layout {
-  display: flex;
-  gap: 0;
-  height: calc(100vh - 60px);
-  overflow: hidden;
-  position: relative;
-}
-
-/* LEFT PANEL */
-.left-panel {
-  background: #0a0a0a; /* Main content area - slightly lighter */
-  padding: 48px; /* More space! */
+.main-content {
+  background: #0a0a0a;
+  padding: 48px 64px;
   overflow-y: auto;
-  border-right: 1px solid #282828;
-  flex: 1;
-  min-width: 0;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  height: calc(100vh - 60px);
 }
 
-.left-panel.full-width {
-  flex: 1 1 100% !important;
-  max-width: 100% !important;
-}
-
-.left-panel::-webkit-scrollbar {
+.main-content::-webkit-scrollbar {
   width: 8px;
 }
 
-.left-panel::-webkit-scrollbar-track {
+.main-content::-webkit-scrollbar-track {
   background: #0a0a0a;
 }
 
-.left-panel::-webkit-scrollbar-thumb {
+.main-content::-webkit-scrollbar-thumb {
   background: #282828;
   border-radius: 4px;
 }
 
-.left-panel::-webkit-scrollbar-thumb:hover {
+.main-content::-webkit-scrollbar-thumb:hover {
   background: #383838;
 }
 
-/* RIGHT PANEL */
+.content-section {
+  display: none;
+}
+
+.content-section.active {
+  display: block;
+}
+
+/* ===== PLAYLIST PANEL (Right Side) ===== */
 .right-panel {
   background: #141414; /* Playlist builder - distinct darker shade */
-  padding: 24px;
+  padding: 32px 40px; /* More padding like Claude */
   overflow-y: auto;
-  position: sticky;
-  top: 60px;
   height: calc(100vh - 60px);
-  border-left: 2px solid #1db954; /* Green border for emphasis */
-  width: 380px;
-  min-width: 380px;
+  width: 420px; /* Slightly wider */
+  min-width: 420px;
   flex-shrink: 0;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -285,7 +273,6 @@ button {
   margin: 0 !important;
   opacity: 0 !important;
   overflow: hidden !important;
-  border: none !important;
   transform: translateX(100px);
 }
 
@@ -815,10 +802,15 @@ button {
 }
 
 .modal-overlay {
-  position: absolute;
+  position: fixed; /* Fixed, not absolute! */
   inset: 0;
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(4px);
+  display: flex; /* Flexbox for centering */
+  align-items: center; /* Center vertically */
+  justify-content: center; /* Center horizontally */
+  z-index: 1000; /* Above everything */
+  padding: 20px; /* Breathing room */
 }
 
 .modal-content {
@@ -832,6 +824,7 @@ button {
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  margin: auto; /* Center if needed */
 }
 
 .modal-sm {
@@ -1050,8 +1043,23 @@ button {
 
 .app-container {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 240px 1fr 420px;
+  /* sidebar | main content | playlist panel */
   height: calc(100vh - 60px);
+  gap: 0;
+  background: #000;
+}
+
+.app-container.sidebar-collapsed {
+  grid-template-columns: 60px 1fr 420px;
+}
+
+.app-container.playlist-collapsed {
+  grid-template-columns: 240px 1fr 0;
+}
+
+.app-container.sidebar-collapsed.playlist-collapsed {
+  grid-template-columns: 60px 1fr 0;
 }
 
 .sidebar {
