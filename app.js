@@ -3910,51 +3910,52 @@ function selectAllGenreTracksInModal() {
 // ===== COLLAPSIBLE RIGHT PANEL =====
 
 function toggleRightPanel() {
-  const rightPanel = document.getElementById('right-panel');
+  const app = document.querySelector('.app-container');
   const expandTab = document.getElementById('panel-expand-tab');
   const collapseBtn = document.getElementById('panel-collapse-btn');
-  const leftPanel = document.querySelector('.left-panel');
   
-  if (!rightPanel || !expandTab) return;
+  if (!app) return;
   
-  const isCollapsed = rightPanel.classList.contains('collapsed');
+  app.classList.toggle('playlist-collapsed');
+  
+  const isCollapsed = app.classList.contains('playlist-collapsed');
   
   if (isCollapsed) {
-    // Expand
-    rightPanel.classList.remove('collapsed');
-    expandTab.style.display = 'none';
-    if (collapseBtn) collapseBtn.textContent = '←';
-    if (leftPanel) leftPanel.classList.remove('full-width');
-    localStorage.setItem('rightPanelCollapsed', 'false');
-  } else {
-    // Collapse
-    rightPanel.classList.add('collapsed');
-    expandTab.style.display = 'flex';
+    // Collapsed
+    if (expandTab) expandTab.style.display = 'flex';
     if (collapseBtn) collapseBtn.textContent = '→';
-    if (leftPanel) leftPanel.classList.add('full-width');
-    localStorage.setItem('rightPanelCollapsed', 'true');
+    localStorage.setItem('playlistPanelCollapsed', 'true');
+  } else {
+    // Expanded
+    if (expandTab) expandTab.style.display = 'none';
+    if (collapseBtn) collapseBtn.textContent = '←';
+    localStorage.setItem('playlistPanelCollapsed', 'false');
   }
 }
 
 // Restore panel state on load
 window.addEventListener('DOMContentLoaded', () => {
-  const wasCollapsed = localStorage.getItem('rightPanelCollapsed') === 'true';
+  const wasCollapsed = localStorage.getItem('playlistPanelCollapsed') === 'true';
   if (wasCollapsed) {
-    toggleRightPanel();
+    const app = document.querySelector('.app-container');
+    if (app) app.classList.add('playlist-collapsed');
+    const expandTab = document.getElementById('panel-expand-tab');
+    if (expandTab) expandTab.style.display = 'flex';
   }
 });
 
 // ===== SIDEBAR TOGGLE =====
 
 function toggleSidebar() {
+  const app = document.querySelector('.app-container');
   const sidebar = document.querySelector('.sidebar');
-  const mainContent = document.querySelector('.main-content');
   
-  if (!sidebar) return;
+  if (!app || !sidebar) return;
   
-  const isCollapsed = sidebar.classList.toggle('collapsed');
+  app.classList.toggle('sidebar-collapsed');
+  sidebar.classList.toggle('collapsed');
   
-  // Save state
+  const isCollapsed = app.classList.contains('sidebar-collapsed');
   localStorage.setItem('sidebarCollapsed', isCollapsed ? 'true' : 'false');
 }
 
@@ -3962,7 +3963,9 @@ function toggleSidebar() {
 document.addEventListener('DOMContentLoaded', () => {
   const wasCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
   if (wasCollapsed) {
+    const app = document.querySelector('.app-container');
     const sidebar = document.querySelector('.sidebar');
+    if (app) app.classList.add('sidebar-collapsed');
     if (sidebar) sidebar.classList.add('collapsed');
   }
 });
