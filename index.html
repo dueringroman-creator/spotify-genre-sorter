@@ -256,8 +256,25 @@
           Clear All
         </button>
         
+        <!-- Track Selection Indicator -->
+        <div id="track-selection-indicator" class="track-selection-panel" style="display: none;">
+          <!-- Populated by updateSelectionPanel() -->
+        </div>
+        
+        <!-- Smart Recommendations -->
+        <details class="recommendations-section">
+          <summary class="filters-toggle">
+            💡 Smart Recommendations
+          </summary>
+          <div id="recommendations-list" class="recommendations-list">
+            <div class="empty-state">
+              <p>Load library to get recommendations</p>
+            </div>
+          </div>
+        </details>
+        
         <!-- Advanced Filters (Collapsed) -->
-        <details class="filters-section">
+        <details class="filters-section" open>
           <summary class="filters-toggle">
             <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="4" y1="6" x2="20" y2="6"/>
@@ -267,59 +284,104 @@
               <circle cx="16" cy="12" r="2" fill="currentColor"/>
               <circle cx="12" cy="18" r="2" fill="currentColor"/>
             </svg>
-            Advanced Filters
+            Refine Playlist (Optional)
           </summary>
           <div class="filters-content">
             
+            <!-- Filter Status -->
+            <div class="filter-status" id="filter-status">
+              <span id="filter-count">No filters active</span>
+            </div>
+            
             <!-- BPM -->
             <div class="filter-group">
-              <label class="filter-label">BPM</label>
-              <div class="filter-range">
-                <input type="range" id="bpm-min" class="range-slider" min="0" max="200" value="0">
-                <input type="range" id="bpm-max" class="range-slider" min="0" max="200" value="200">
+              <label class="filter-toggle-label">
+                <input type="checkbox" id="bpm-enabled" class="filter-checkbox" onchange="toggleFilterEnabled('bpm')">
+                <span class="filter-label">Filter by BPM</span>
+              </label>
+              <div class="filter-controls" id="bpm-controls" style="display: none;">
+                <div class="filter-range">
+                  <input type="range" id="bpm-min" class="range-slider" min="0" max="300" value="0" oninput="updateFilterDisplay('bpm')">
+                  <input type="range" id="bpm-max" class="range-slider" min="0" max="300" value="300" oninput="updateFilterDisplay('bpm')">
+                </div>
+                <div class="filter-display" id="bpm-display">0 - 300 BPM</div>
               </div>
-              <div class="filter-display" id="bpm-display">0 - 200 BPM</div>
             </div>
             
             <!-- Energy -->
             <div class="filter-group">
-              <label class="filter-label">Energy</label>
-              <div class="filter-range">
-                <input type="range" id="energy-min" class="range-slider" min="0" max="100" value="0">
-                <input type="range" id="energy-max" class="range-slider" min="0" max="100" value="100">
+              <label class="filter-toggle-label">
+                <input type="checkbox" id="energy-enabled" class="filter-checkbox" onchange="toggleFilterEnabled('energy')">
+                <span class="filter-label">Filter by Energy</span>
+              </label>
+              <div class="filter-controls" id="energy-controls" style="display: none;">
+                <div class="filter-range">
+                  <input type="range" id="energy-min" class="range-slider" min="0" max="100" value="0" oninput="updateFilterDisplay('energy')">
+                  <input type="range" id="energy-max" class="range-slider" min="0" max="100" value="100" oninput="updateFilterDisplay('energy')">
+                </div>
+                <div class="filter-display" id="energy-display">All levels (0-100)</div>
               </div>
-              <div class="filter-display" id="energy-display">All levels</div>
             </div>
             
             <!-- Mood -->
             <div class="filter-group">
-              <label class="filter-label">Mood</label>
-              <div class="filter-range">
-                <input type="range" id="mood-min" class="range-slider" min="0" max="100" value="0">
-                <input type="range" id="mood-max" class="range-slider" min="0" max="100" value="100">
+              <label class="filter-toggle-label">
+                <input type="checkbox" id="mood-enabled" class="filter-checkbox" onchange="toggleFilterEnabled('mood')">
+                <span class="filter-label">Filter by Mood</span>
+              </label>
+              <div class="filter-controls" id="mood-controls" style="display: none;">
+                <div class="filter-range">
+                  <input type="range" id="mood-min" class="range-slider" min="0" max="100" value="0" oninput="updateFilterDisplay('mood')">
+                  <input type="range" id="mood-max" class="range-slider" min="0" max="100" value="100" oninput="updateFilterDisplay('mood')">
+                </div>
+                <div class="filter-display" id="mood-display">All moods (0-100)</div>
               </div>
-              <div class="filter-display" id="mood-display">All moods</div>
             </div>
             
             <!-- Vocal Type -->
             <div class="filter-group">
-              <label class="filter-label">Vocals</label>
-              <select id="vocal-type" class="filter-select">
-                <option value="any">Any</option>
+              <label class="filter-label">Vocal Preference</label>
+              <select id="vocal-type" class="filter-select" onchange="updateTotals()">
+                <option value="any">Any (Default)</option>
                 <option value="instrumental">Instrumental Only</option>
                 <option value="vocal">With Vocals</option>
               </select>
             </div>
             
-            <!-- Duration -->
+            <!-- Max Tracks Per Artist -->
             <div class="filter-group">
-              <label class="filter-label">Target Duration</label>
-              <select id="duration-target" class="filter-select">
-                <option value="3600">1 hour</option>
-                <option value="5400">1.5 hours</option>
-                <option value="7200">2 hours</option>
-                <option value="10800">3 hours</option>
-                <option value="14400">4 hours</option>
+              <label class="filter-label">
+                Max Tracks per Artist
+                <span class="filter-hint">(Diversity)</span>
+              </label>
+              <select id="max-tracks-per-artist" class="filter-select" onchange="updateMaxTracksPerArtist()">
+                <option value="1">1 track (Maximum diversity)</option>
+                <option value="2">2 tracks</option>
+                <option value="3" selected>3 tracks (Recommended)</option>
+                <option value="5">5 tracks</option>
+                <option value="999">No limit</option>
+              </select>
+            </div>
+            
+            <!-- Shuffle Mode -->
+            <div class="filter-group">
+              <label class="filter-label">Shuffle Mode</label>
+              <select id="shuffle-mode" class="filter-select" onchange="updateShuffleMode()">
+                <option value="smart" selected>Smart Shuffle (Spread artists)</option>
+                <option value="random">Random Shuffle</option>
+                <option value="none">No Shuffle (As-is)</option>
+              </select>
+            </div>
+            
+            <!-- Max Playlist Size -->
+            <div class="filter-group">
+              <label class="filter-label">Max Playlist Size</label>
+              <select id="max-playlist-size" class="filter-select" onchange="updateMaxPlaylistSize()">
+                <option value="null" selected>No limit (All tracks)</option>
+                <option value="25">25 tracks</option>
+                <option value="50">50 tracks</option>
+                <option value="100">100 tracks</option>
+                <option value="200">200 tracks</option>
               </select>
             </div>
             
@@ -346,25 +408,98 @@
       
       <!-- LIBRARY SECTION -->
       <section id="library-section" class="content-section" style="display: none;">
-        <div class="section-placeholder">
-          <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-          </svg>
-          <h2>Library Browser</h2>
-          <p>Browse your entire music collection by genre, artist, or album. Coming soon!</p>
+        <div class="library-container">
+          <div class="library-header">
+            <h2>Your Library</h2>
+            <div class="library-controls">
+              <input type="text" id="library-search" class="library-search" placeholder="Search artists..." oninput="filterLibraryArtists()">
+              <select id="library-sort" class="library-sort" onchange="sortLibraryArtists()">
+                <option value="name">A-Z</option>
+                <option value="tracks">Most Tracks</option>
+              </select>
+            </div>
+          </div>
+          
+          <div id="library-artist-grid" class="library-artist-grid">
+            <div class="empty-state">
+              <p>Load your library first to browse artists</p>
+              <button class="btn-primary" onclick="switchToSection('creator')">Go to Creator</button>
+            </div>
+          </div>
+          
+          <!-- Artist Detail View -->
+          <div id="library-artist-detail" class="library-artist-detail" style="display: none;">
+            <div class="artist-detail-header">
+              <button class="btn-back" onclick="closeLibraryArtistDetail()">← Back to Artists</button>
+              <h3 id="artist-detail-name"></h3>
+            </div>
+            <div id="artist-detail-content" class="artist-detail-content">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
         </div>
       </section>
       
       <!-- STATS SECTION -->
       <section id="stats-section" class="content-section" style="display: none;">
-        <div class="section-placeholder">
-          <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="20" x2="18" y2="10"/>
-            <line x1="12" y1="20" x2="12" y2="4"/>
-            <line x1="6" y1="20" x2="6" y2="14"/>
-          </svg>
-          <h2>Music Statistics</h2>
-          <p>View your genre distribution, top artists, listening patterns, and more. Coming soon!</p>
+        <div class="stats-container">
+          <div class="stats-header">
+            <h2>Music Statistics</h2>
+            <button class="btn-secondary" onclick="refreshStats()">↻ Refresh</button>
+          </div>
+          
+          <div class="stats-overview">
+            <div class="stat-card-mini">
+              <div class="stat-value" id="stat-total-tracks">0</div>
+              <div class="stat-label">Total Tracks</div>
+            </div>
+            <div class="stat-card-mini">
+              <div class="stat-value" id="stat-total-artists">0</div>
+              <div class="stat-label">Artists</div>
+            </div>
+            <div class="stat-card-mini">
+              <div class="stat-value" id="stat-total-genres">0</div>
+              <div class="stat-label">Genres</div>
+            </div>
+            <div class="stat-card-mini">
+              <div class="stat-value" id="stat-total-duration">0h</div>
+              <div class="stat-label">Total Duration</div>
+            </div>
+          </div>
+          
+          <div class="stats-grid">
+            <!-- Top Genres -->
+            <div class="stat-card">
+              <h3>Top Genres</h3>
+              <div id="top-genres-list" class="stat-list">
+                <div class="empty-state">Load library to see stats</div>
+              </div>
+            </div>
+            
+            <!-- Top Artists -->
+            <div class="stat-card">
+              <h3>Top Artists</h3>
+              <div id="top-artists-list" class="stat-list">
+                <div class="empty-state">Load library to see stats</div>
+              </div>
+            </div>
+            
+            <!-- Audio Features -->
+            <div class="stat-card">
+              <h3>Audio Features</h3>
+              <div id="audio-features-stats" class="feature-stats">
+                <div class="empty-state">Load library to see stats</div>
+              </div>
+            </div>
+            
+            <!-- BPM Distribution -->
+            <div class="stat-card">
+              <h3>BPM Distribution</h3>
+              <div id="bpm-distribution" class="bpm-stats">
+                <div class="empty-state">Load library to see stats</div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
       
@@ -397,6 +532,71 @@
     
   </div>
   <!-- END APP CONTAINER -->
+
+  <!-- PLAYLIST CREATION DIALOG -->
+  <div id="playlist-creation-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Create Playlist(s)</h2>
+        <button class="modal-close" onclick="closePlaylistCreationDialog()">×</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="creation-info">
+          <p>You have <strong id="creation-genre-count">0</strong> genres selected:</p>
+          <div id="creation-genre-list" class="creation-genre-list"></div>
+        </div>
+        
+        <div class="creation-mode-section">
+          <h3>How would you like to create?</h3>
+          <div class="creation-options">
+            <label class="creation-option">
+              <input type="radio" name="creation-mode" value="single" checked>
+              <div class="option-content">
+                <div class="option-title">🎵 Single Mixed Playlist</div>
+                <div class="option-desc">Combine all genres into one playlist</div>
+              </div>
+            </label>
+            
+            <label class="creation-option">
+              <input type="radio" name="creation-mode" value="separate">
+              <div class="option-content">
+                <div class="option-title">📁 Separate Playlists</div>
+                <div class="option-desc">Create one playlist per genre</div>
+              </div>
+            </label>
+            
+            <label class="creation-option disabled">
+              <input type="radio" name="creation-mode" value="folder" disabled>
+              <div class="option-content">
+                <div class="option-title">🗂️ Organized Folder</div>
+                <div class="option-desc">Coming soon - Create folder structure</div>
+              </div>
+            </label>
+          </div>
+        </div>
+        
+        <div class="creation-privacy-section">
+          <h3>Privacy</h3>
+          <div class="privacy-options">
+            <label class="privacy-option">
+              <input type="radio" name="playlist-privacy" value="private" checked>
+              <span>🔒 Private (Only you can see)</span>
+            </label>
+            <label class="privacy-option">
+              <input type="radio" name="playlist-privacy" value="public">
+              <span>🌍 Public (Anyone can see)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closePlaylistCreationDialog()">Cancel</button>
+        <button class="btn-primary" onclick="confirmPlaylistCreation()">Create</button>
+      </div>
+    </div>
+  </div>
 
   <!-- PREVIEW MODAL -->
   <div id="preview-modal" class="modal" style="display: none;">
