@@ -160,19 +160,27 @@
             <span class="timeframe-label">Period:</span>
             <label class="timeframe-option">
               <input type="radio" name="timeframe" value="all" checked>
-              <span>All</span>
+              <span>All Time</span>
             </label>
             <label class="timeframe-option">
               <input type="radio" name="timeframe" value="year">
-              <span>Year</span>
+              <span>1 Year</span>
             </label>
             <label class="timeframe-option">
               <input type="radio" name="timeframe" value="6months">
-              <span>6mo</span>
+              <span>6 Months</span>
+            </label>
+            <label class="timeframe-option">
+              <input type="radio" name="timeframe" value="3months">
+              <span>3 Months</span>
             </label>
             <label class="timeframe-option">
               <input type="radio" name="timeframe" value="month">
-              <span>Month</span>
+              <span>1 Month</span>
+            </label>
+            <label class="timeframe-option">
+              <input type="radio" name="timeframe" value="week">
+              <span>1 Week</span>
             </label>
           </div>
           
@@ -180,6 +188,11 @@
           <button id="load-library-btn" class="btn-primary btn-large">
             Load Library
           </button>
+          
+          <!-- Error Recovery UI (Hidden by default) -->
+          <div id="load-error-recovery" class="load-error-recovery" style="display: none;">
+            <!-- Populated by showLoadErrorRecovery() -->
+          </div>
           
           <!-- Cache Info -->
           <div id="cache-info" class="cache-info" style="display: none;">
@@ -208,7 +221,31 @@
 
         <!-- STEP 2: Select Genres (Hidden until loaded) -->
         <section id="genre-section" class="genre-section" style="display: none;">
-          <h2 class="section-title">Step 2: Select Genres</h2>
+          <div class="section-header-with-info">
+            <h2 class="section-title">Step 2: Create Playlist</h2>
+            <div id="timeframe-indicator" class="timeframe-indicator" style="display: none;">
+              <!-- Shows active timeframe filter -->
+            </div>
+          </div>
+          
+          <!-- Smart Recommendations - PROMINENT TOP SECTION -->
+          <div class="quick-start-section">
+            <div class="quick-start-header">
+              <h3>💡 Quick Start - Let AI Help You</h3>
+              <p>Get personalized playlist ideas based on your library</p>
+            </div>
+            <div id="recommendations-list-top" class="recommendations-grid">
+              <div class="empty-state">
+                <p>Analyzing your library...</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="section-divider">
+            <span>OR</span>
+          </div>
+          
+          <h3 class="subsection-title">Build Manually</h3>
           
           <!-- Search -->
           <input type="text" id="genre-search" class="genre-search" placeholder="Search genres...">
@@ -260,18 +297,6 @@
         <div id="track-selection-indicator" class="track-selection-panel" style="display: none;">
           <!-- Populated by updateSelectionPanel() -->
         </div>
-        
-        <!-- Smart Recommendations -->
-        <details class="recommendations-section">
-          <summary class="filters-toggle">
-            💡 Smart Recommendations
-          </summary>
-          <div id="recommendations-list" class="recommendations-list">
-            <div class="empty-state">
-              <p>Load library to get recommendations</p>
-            </div>
-          </div>
-        </details>
         
         <!-- Advanced Filters (Collapsed) -->
         <details class="filters-section" open>
@@ -413,6 +438,10 @@
             <h2>Your Library</h2>
             <div class="library-controls">
               <input type="text" id="library-search" class="library-search" placeholder="Search artists..." oninput="filterLibraryArtists()">
+              <select id="library-genre-filter" class="library-sort" onchange="filterLibraryByGenre()">
+                <option value="">All Genres</option>
+                <!-- Populated dynamically -->
+              </select>
               <select id="library-sort" class="library-sort" onchange="sortLibraryArtists()">
                 <option value="name">A-Z</option>
                 <option value="tracks">Most Tracks</option>
@@ -534,6 +563,243 @@
   <!-- END APP CONTAINER -->
 
   <!-- PLAYLIST CREATION DIALOG -->
+  <div id="playlist-creation-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Create Playlist(s)</h2>
+        <button class="modal-close" onclick="closePlaylistCreationDialog()">×</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="creation-info">
+          <p>You have <strong id="creation-genre-count">0</strong> genres selected:</p>
+          <div id="creation-genre-list" class="creation-genre-list"></div>
+        </div>
+        
+        <div class="creation-mode-section">
+          <h3>How would you like to create?</h3>
+          <div class="creation-options">
+            <label class="creation-option">
+              <input type="radio" name="creation-mode" value="single" checked>
+              <div class="option-content">
+                <div class="option-title">🎵 Single Mixed Playlist</div>
+                <div class="option-desc">Combine all genres into one playlist</div>
+              </div>
+            </label>
+            
+            <label class="creation-option">
+              <input type="radio" name="creation-mode" value="separate">
+              <div class="option-content">
+                <div class="option-title">📁 Separate Playlists</div>
+                <div class="option-desc">Create one playlist per genre</div>
+              </div>
+            </label>
+            
+            <label class="creation-option disabled">
+              <input type="radio" name="creation-mode" value="folder" disabled>
+              <div class="option-content">
+                <div class="option-title">🗂️ Organized Folder</div>
+                <div class="option-desc">Coming soon - Create folder structure</div>
+              </div>
+            </label>
+          </div>
+        </div>
+        
+        <div class="creation-privacy-section">
+          <h3>Privacy</h3>
+          <div class="privacy-options">
+            <label class="privacy-option">
+              <input type="radio" name="playlist-privacy" value="private" checked>
+              <span>🔒 Private (Only you can see)</span>
+            </label>
+            <label class="privacy-option">
+              <input type="radio" name="playlist-privacy" value="public">
+              <span>🌍 Public (Anyone can see)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closePlaylistCreationDialog()">Cancel</button>
+        <button class="btn-primary" onclick="confirmPlaylistCreation()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLAYLIST SELECTOR MODAL -->
+  <div id="playlist-selector-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2>Select Playlists to Load</h2>
+        <button class="modal-close" onclick="closePlaylistSelector()">×</button>
+      </div>
+      
+      <div class="modal-body">
+        <p class="modal-description">Choose which playlists you want to load tracks from:</p>
+        
+        <div class="playlist-selector-actions">
+          <button class="btn-small" onclick="selectAllPlaylists()">Select All</button>
+          <button class="btn-small" onclick="deselectAllPlaylists()">Deselect All</button>
+        </div>
+        
+        <div id="playlist-selector-list" class="playlist-selector-list">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closePlaylistSelector()">Cancel</button>
+        <button class="btn-primary" onclick="loadSelectedPlaylists()">Load Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIMILAR ARTISTS MODAL -->
+  <div id="similar-artists-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2>Similar to <span id="similar-artists-for"></span></h2>
+        <button class="modal-close" onclick="closeSimilarArtistsModal()">×</button>
+      </div>
+      
+      <div class="modal-body">
+        <p class="modal-description">Artists in your library with similar genres:</p>
+        
+        <div id="similar-artists-list" class="similar-artists-list">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeSimilarArtistsModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GENRE DETAIL MODAL -->
+  <div id="genre-detail-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content modal-xlarge">
+      <div class="modal-header">
+        <div>
+          <h2 id="genre-detail-name"></h2>
+          <div id="genre-detail-stats" class="genre-detail-stats">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+        <button class="modal-close" onclick="closeGenreDetailModal()">×</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="genre-detail-actions">
+          <button class="btn-primary" onclick="selectGenreFromModal()">
+            ✓ Select This Genre
+          </button>
+          <button class="btn-secondary" onclick="selectAllGenreTracksInModal()">
+            Select All Tracks
+          </button>
+        </div>
+        
+        <div id="genre-detail-artists-list" class="genre-detail-artists-list">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeGenreDetailModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECOMMENDATION PREVIEW MODAL -->
+  <div id="recommendation-preview-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <div>
+          <h2 id="rec-preview-name"></h2>
+          <p class="modal-subtitle" id="rec-preview-description"></p>
+        </div>
+        <button class="modal-close" onclick="closeRecommendationPreview()">×</button>
+      </div>
+      
+      <div class="modal-body">
+        <div id="rec-preview-tracks">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeRecommendationPreview()">Cancel</button>
+        <button class="btn-primary btn-large" onclick="createRecommendationPlaylist()">
+          ✨ Create This Playlist
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PREVIEW MODAL -->
+  <div id="genre-detail-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content modal-xlarge">
+      <div class="modal-header">
+        <div>
+          <h2 id="genre-detail-name"></h2>
+          <div id="genre-detail-stats" class="genre-detail-stats">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+        <button class="modal-close" onclick="closeGenreDetailModal()">×</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="genre-detail-actions">
+          <button class="btn-primary" onclick="selectGenreFromModal()">
+            ✓ Select This Genre
+          </button>
+          <button class="btn-secondary" onclick="selectAllGenreTracksInModal()">
+            Select All Tracks
+          </button>
+        </div>
+        
+        <div id="genre-detail-artists-list" class="genre-detail-artists-list">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeGenreDetailModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PREVIEW MODAL -->
+  <div id="playlist-selector-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2>Select Playlists to Load</h2>
+        <button class="modal-close" onclick="closePlaylistSelector()">×</button>
+      </div>
+      
+      <div class="modal-body">
+        <p class="modal-description">Choose which playlists you want to load tracks from:</p>
+        
+        <div class="playlist-selector-actions">
+          <button class="btn-small" onclick="selectAllPlaylists()">Select All</button>
+          <button class="btn-small" onclick="deselectAllPlaylists()">Deselect All</button>
+        </div>
+        
+        <div id="playlist-selector-list" class="playlist-selector-list">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closePlaylistSelector()">Cancel</button>
+        <button class="btn-primary" onclick="loadSelectedPlaylists()">Load Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PREVIEW MODAL -->
   <div id="playlist-creation-modal" class="modal-overlay" style="display: none;">
     <div class="modal-content">
       <div class="modal-header">
