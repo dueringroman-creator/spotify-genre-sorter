@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Playlist Alchemist</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="favicon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,16 +14,16 @@
     <h1>Playlist Alchemist</h1>
     <button id="help-button" class="help-button" title="Show help tour">?</button>
     
-    <!-- ========== LOGIN SECTION ========== -->
+    <!-- Login Section -->
     <div id="login-section" class="section">
-      <button id="login-btn" class="btn-primary btn-large">Let's see your music taste</button>
+      <button id="login" class="btn-primary">Let's see your music taste</button>
       <p class="subtitle">Discover and create personalized playlists</p>
     </div>
 
-    <!-- ========== MAIN APP (Hidden until logged in) ========== -->
+    <!-- Main App (hidden until logged in) -->
     <div id="app-section" class="section hidden">
       
-      <!-- ========== WELCOME TOUR MODAL ========== -->
+      <!-- Welcome Tour Overlay -->
       <div id="tour-overlay" class="tour-overlay hidden">
         <div class="tour-step" id="tour-step-1">
           <div class="tour-content">
@@ -100,250 +103,238 @@
         </div>
       </div>
       
-      <!-- ========== TAB NAVIGATION ========== -->
+      <!-- About Section (Expandable) -->
+      <div class="about-section">
+        <button class="about-toggle" onclick="toggleAbout()">
+          <span id="about-icon">▶</span> Learn More: Behind the Scenes
+        </button>
+        <div id="about-content" class="about-content hidden">
+          <div class="about-grid">
+            <div class="about-card">
+              <h4>The Problem</h4>
+              <p>You love music. You save everything. But organizing 1,000+ songs into playlists? Ain't nobody got time for that.</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>The Solution</h4>
+              <p>Spotify knows each artist's genre. We fetch that data, <strong>intelligently group similar genres</strong> (because "deep house" and "house" should live together), and create playlists automatically. Magic? Nope, just smart API usage + pattern matching.</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>Smart Genre Grouping</h4>
+              <p>Spotify has 200+ micro-genres like "bubblegrunge" and "escape room." We auto-detect families (House, Techno, Hip-Hop) so you're not drowning in options. Choose your view: <strong>Grouped</strong> (simple), <strong>Detailed</strong> (expandable), or <strong>All</strong> (power user).</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>3-Level Control</h4>
+              <p>Ultimate playlist curation: <strong>Genre level</strong> (select styles), <strong>Artist level</strong> (exclude specific artists with "Show Artists"), <strong>Track level</strong> (cherry-pick individual songs with "Show Tracks"). See artist/track counts update in real-time as you curate.</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>Why Caching?</h4>
+              <p>Fetching 13,000 songs takes time. So we save it locally. Next visit? Instant load. Update when you add new music with the "Refresh Cache" button.</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>Tech Stack</h4>
+              <p><strong>Vanilla JavaScript</strong> + Spotify Web API + LocalStorage. No frameworks, no backend, no BS.</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>Privacy First</h4>
+              <p>Zero data leaves your browser. No analytics, no tracking, no servers. Your Spotify token expires after an hour.</p>
+            </div>
+            
+            <div class="about-card">
+              <h4>Pro Tips</h4>
+              <p>• Start with "Genre Families" view - cleanest<br>
+              • Use "Detailed" to cherry-pick sub-genres<br>
+              • Click "Show Artists" to see & exclude specific artists<br>
+              • Click "Show Tracks" for song-level control<br>
+              • Orange "Map to Family" button on unmapped genres<br>
+              • Use "Merged" mode for large genre mixes<br>
+              • Export playlists for DJ software<br>
+              • Top Artists mode = instant discovery</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Tab Navigation -->
       <div class="tabs">
         <button class="tab-btn active" data-tab="library">My Library</button>
-        <button class="tab-btn" data-tab="discovery">Artist Discovery</button>
+        <button class="tab-btn" data-tab="artist">Artist Discovery</button>
         <button class="tab-btn" data-tab="stats">Music Stats</button>
-        <button class="tab-btn" data-tab="history">History</button>
+        <button class="tab-btn" data-tab="history">Playlist History</button>
       </div>
 
-      <!-- ========== TAB CONTENT: MY LIBRARY ========== -->
+      <!-- Tab Content: My Library -->
       <div id="library-tab" class="tab-content active">
         <h2>Create Playlist from Your Music Library</h2>
         
         <!-- Data Source Selection -->
-        <div class="data-source-section">
-          <h3>Step 1: Choose Your Data Source</h3>
+        <div class="data-source-options">
+          <h4 style="color: #e3e3e3; margin-bottom: 12px;">
+            What music should we dig into?
+            <span class="tooltip">i
+              <span class="tooltiptext">Pick where to pull your tracks from. Liked Songs is cached for speed!</span>
+            </span>
+          </h4>
+          <label>
+            <input type="radio" name="data-source" value="liked-songs" checked>
+            <span>Songs I've liked</span>
+          </label>
+          <div class="option-description">Your entire liked songs collection - perfect for big libraries!</div>
           
-          <div class="data-source-options">
-            <label class="source-option">
-              <input type="radio" name="data-source" value="liked-songs" checked>
-              <div class="source-content">
-                <span class="source-title">Liked Songs</span>
-                <span class="source-desc">Your entire liked songs collection - perfect for big libraries!</span>
-              </div>
-            </label>
-            
-            <label class="source-option">
-              <input type="radio" name="data-source" value="top-artists">
-              <div class="source-content">
-                <span class="source-title">Top Artists</span>
-                <span class="source-desc">Your top 50 most-played artists - quick and personalized</span>
-              </div>
-            </label>
-            
-            <label class="source-option">
-              <input type="radio" name="data-source" value="playlists">
-              <div class="source-content">
-                <span class="source-title">My Playlists</span>
-                <span class="source-desc">Select specific playlists to analyze</span>
-              </div>
-            </label>
-          </div>
+          <label>
+            <input type="radio" name="data-source" value="top-artists">
+            <span>Artists I listen to most</span>
+          </label>
+          <div class="option-description">Your top 50 most-played artists - quick and personalized</div>
           
-          <!-- Timeframe Selection (Only for Liked Songs) -->
-          <div id="timeframe-section" class="timeframe-section">
-            <h4>Timeframe:</h4>
-            <div class="timeframe-options">
-              <label class="timeframe-option">
-                <input type="radio" name="timeframe" value="all" checked>
-                <span>All Time</span>
-              </label>
-              <label class="timeframe-option">
-                <input type="radio" name="timeframe" value="year">
-                <span>1 Year</span>
-              </label>
-              <label class="timeframe-option">
-                <input type="radio" name="timeframe" value="6months">
-                <span>6 Months</span>
-              </label>
-              <label class="timeframe-option">
-                <input type="radio" name="timeframe" value="3months">
-                <span>3 Months</span>
-              </label>
-              <label class="timeframe-option">
-                <input type="radio" name="timeframe" value="month">
-                <span>1 Month</span>
-              </label>
-              <label class="timeframe-option">
-                <input type="radio" name="timeframe" value="week">
-                <span>1 Week</span>
-              </label>
-            </div>
-          </div>
-          
-          <!-- Playlist Selection (Only for Playlists source) -->
-          <div id="playlist-selection-section" class="playlist-selection-section hidden">
-            <h4>Select Playlists to Analyze:</h4>
-            <div id="playlist-checklist" class="playlist-checklist">
-              <!-- Populated dynamically -->
-            </div>
-            <div class="playlist-selection-actions">
-              <button id="select-all-playlists" class="btn-small">Select All</button>
-              <button id="clear-all-playlists" class="btn-small">Clear All</button>
-            </div>
-          </div>
-          
-          <div class="library-controls">
-            <button id="load-library-btn" class="btn-primary btn-large">Load Library</button>
-            <button id="refresh-cache-btn" class="btn-small" style="display: none;">Refresh Cache</button>
-          </div>
-          
+          <label>
+            <input type="radio" name="data-source" value="playlists">
+            <span>All my playlists</span>
+          </label>
+          <div class="option-description">Scan everything - your created playlists, saved ones, and followed ones</div>
+        </div>
+        
+        <div class="library-controls">
+          <button id="fetch-tracks" class="btn-secondary">Let's Go</button>
+          <button id="refresh-cache" class="btn-small" style="display: none;">Refresh Cache</button>
           <div id="cache-info" class="cache-info" style="display: none;"></div>
-          <div id="load-progress" class="load-progress" style="display: none;">
-            <div class="progress-bar">
-              <div class="progress-fill" id="progress-fill"></div>
-            </div>
-            <p id="progress-text">Loading...</p>
-          </div>
         </div>
 
         <!-- Genre Selection Area -->
-        <div id="genre-selection-area" class="genre-selection-area hidden">
+        <div id="genre-selection-area" class="hidden">
           <div class="genre-header">
-            <h3>Step 2: Select Genres</h3>
-            <div class="genre-controls">
+            <h3>Select Genres for Your Playlist</h3>
+            <div class="genre-actions">
               <select id="genre-view-mode" class="view-mode-select">
                 <option value="families">Genre Families (Grouped)</option>
                 <option value="detailed">Detailed (Expandable)</option>
                 <option value="all">All Genres (Flat)</option>
               </select>
-              <input type="text" id="genre-filter" class="genre-filter" placeholder="Filter genres..." />
+              <input type="text" id="genre-filter" placeholder="Filter genres..." />
+              <input type="text" id="unmapped-filter" class="hidden" placeholder="Filter unmapped..." />
+              <button id="show-unmapped-btn" class="btn-small hidden">Show Unmapped (<span id="unmapped-count">0</span>)</button>
+              <button id="show-all-btn" class="btn-small hidden">Show All</button>
               <button id="select-all-genres" class="btn-small">Select All</button>
-              <button id="clear-all-genres" class="btn-small">Clear All</button>
+              <button id="clear-genres" class="btn-small">Clear All</button>
             </div>
           </div>
           
           <div id="genre-stats" class="genre-stats"></div>
           
-          <div id="genre-list" class="genre-list">
-            <!-- Populated dynamically -->
+          <div class="genre-tip-card">
+            <span class="genre-tip-icon">Tip:</span>
+            <span class="genre-tip-text">
+              Want to learn about genre history and relationships? Check out 
+              <a href="https://musicmap.info/" target="_blank" class="genre-tip-link">MusicMap.info</a>
+            </span>
+          </div>
+          
+          <div id="genre-grid" class="genre-grid"></div>
+          
+          <!-- Floating Create Playlist Button -->
+          <div id="floating-create-btn" class="floating-create-btn hidden">
+            <button class="fab-button" onclick="scrollToPlaylistControls()">
+              <span class="fab-icon">🎵</span>
+              <span class="fab-text">Create Playlist</span>
+              <span class="fab-count" id="fab-count">0 selected</span>
+            </button>
+          </div>
+          
+          <!-- Playlist Mode Options -->
+          <div class="playlist-options">
+            <h4 style="color: #e3e3e3; margin-bottom: 12px;">
+              How should we organize this?
+              <span class="tooltip">i
+                <span class="tooltiptext">Merged = one big playlist. Separate = individual playlists per genre.</span>
+              </span>
+            </h4>
+            <label>
+              <input type="radio" name="playlist-mode" value="merged" checked>
+              <span>Merge into one playlist</span>
+            </label>
+            <div class="option-description">Combine all selected genres into one epic playlist</div>
+            
+            <label>
+              <input type="radio" name="playlist-mode" value="separate">
+              <span>Create separate playlists</span>
+            </label>
+            <div class="option-description">Make individual playlists for each genre (power user mode!)</div>
+          </div>
+          
+          <div class="playlist-controls">
+            <input type="text" id="playlist-name" placeholder="Name your playlist (or we'll name it for you!)" />
+            <button id="create-library-playlist" class="btn-primary" disabled>Create Playlist</button>
           </div>
         </div>
       </div>
 
-      <!-- ========== TAB CONTENT: ARTIST DISCOVERY ========== -->
-      <div id="discovery-tab" class="tab-content">
-        <h2>Artist Discovery</h2>
-        <p>Find similar artists from your library. Coming soon!</p>
+      <!-- Tab Content: Artist Discovery -->
+      <div id="artist-tab" class="tab-content">
+        <h2>Discover Music from Any Artist</h2>
+        <p style="color: #b3b3b3; font-size: 14px; margin: -10px 0 20px 0;">
+          Search for any artist, then find similar artists <strong>from your own library</strong> based on matching genres. Perfect for building playlists around a specific sound!
+        </p>
+        
+        <!-- Artist Search -->
+        <div class="search-container">
+          <input 
+            type="text" 
+            id="artist-search" 
+            placeholder="Search for an artist (e.g., Tame Impala, Arctic Monkeys)..."
+            autocomplete="off"
+          />
+          <div id="search-results" class="search-results"></div>
+        </div>
+
+        <!-- Selected Artist Display -->
+        <div id="selected-artist" class="selected-artist hidden">
+          <h3>Selected Artist</h3>
+          <div id="artist-card" class="artist-card"></div>
+          <button id="find-related" class="btn-secondary">Find Similar Artists (from your library)</button>
+        </div>
+
+        <!-- Related Artists Grid -->
+        <div id="related-artists-section" class="hidden">
+          <h3>Similar Artists from Your Library <span class="hint">(ranked by matching genres - click to select)</span></h3>
+          <div id="related-artists-grid" class="artists-grid"></div>
+          
+          <div class="playlist-controls">
+            <input type="text" id="discovery-playlist-name" placeholder="Playlist name (optional)" />
+            <button id="generate-discovery-playlist" class="btn-primary">Generate Playlist</button>
+          </div>
+        </div>
       </div>
 
-      <!-- ========== TAB CONTENT: MUSIC STATS ========== -->
+      <!-- Tab Content: Music Stats -->
       <div id="stats-tab" class="tab-content">
-        <h2>Music Statistics</h2>
-        <p>See your top genres, diversity score, and insights. Coming soon!</p>
+        <div class="stats-container">
+          <h2>Your Music Profile</h2>
+          <div id="stats-content" class="stats-placeholder">
+            <p>Load your music library first to see your personalized stats.</p>
+            <p style="color: #7f7f7f; font-size: 14px; margin-top: 10px;">Go to "My Library" tab and click "Let's Go!" to analyze your music taste.</p>
+          </div>
+        </div>
       </div>
 
-      <!-- ========== TAB CONTENT: HISTORY ========== -->
+      <!-- Tab Content: Playlist History -->
       <div id="history-tab" class="tab-content">
-        <h2>Playlist History</h2>
-        <p>View and recreate past playlists. Coming soon!</p>
-      </div>
-
-      <!-- ========== FLOATING ACTION BUTTON ========== -->
-      <div id="floating-action-button" class="floating-action-button hidden">
-        <!-- State 1: Collapsed (Small) -->
-        <button class="fab-collapsed" id="fab-collapsed">
-          <span class="fab-icon">🎵</span>
-          <span class="fab-count" id="fab-count">0</span>
-        </button>
-        
-        <!-- State 2: Expanded (Medium) -->
-        <div class="fab-expanded hidden" id="fab-expanded">
-          <div class="fab-expanded-header">
-            <button class="fab-close" onclick="collapseFAB()">✕</button>
-            <h4>Create Playlist</h4>
-          </div>
-          
-          <div class="fab-expanded-content">
-            <div class="input-group">
-              <label>Playlist Name</label>
-              <input type="text" id="playlist-name" placeholder="My Playlist" value="My Playlist">
-            </div>
-            
-            <div class="input-group">
-              <label>Mode</label>
-              <div class="playlist-mode-options">
-                <label>
-                  <input type="radio" name="playlist-mode" value="merged" checked>
-                  <span>Merged (1 playlist)</span>
-                </label>
-                <label>
-                  <input type="radio" name="playlist-mode" value="separate">
-                  <span>Separate (1 per genre)</span>
-                </label>
-              </div>
-            </div>
-            
-            <div class="fab-actions">
-              <button class="btn-secondary" onclick="expandFABFull()">More Options</button>
-              <button class="btn-primary" id="create-playlist-btn">Create</button>
-            </div>
-          </div>
-        </div>
-        
-        <!-- State 3: Full (Large) -->
-        <div class="fab-full hidden" id="fab-full">
-          <div class="fab-full-header">
-            <button class="fab-close" onclick="collapseFAB()">✕</button>
-            <h4>Playlist Creator</h4>
-            <button class="fab-minimize" onclick="minimizeFABToExpanded()">▼</button>
-          </div>
-          
-          <div class="fab-full-content">
-            <div class="input-group">
-              <label>Playlist Name</label>
-              <input type="text" id="playlist-name-full" placeholder="My Playlist" value="My Playlist">
-            </div>
-            
-            <div class="input-group">
-              <label>Mode</label>
-              <div class="playlist-mode-options">
-                <label>
-                  <input type="radio" name="playlist-mode-full" value="merged" checked>
-                  <span>Merged</span>
-                </label>
-                <label>
-                  <input type="radio" name="playlist-mode-full" value="separate">
-                  <span>Separate</span>
-                </label>
-              </div>
-            </div>
-            
-            <div class="input-group">
-              <label>
-                <input type="checkbox" id="smart-shuffle">
-                Smart Shuffle
-              </label>
-            </div>
-            
-            <div class="input-group">
-              <label>Filters & Sorting</label>
-              <select id="sort-order">
-                <option value="default">Default Order</option>
-                <option value="artist">By Artist</option>
-                <option value="genre">By Genre</option>
-                <option value="random">Random</option>
-              </select>
-            </div>
-            
-            <div id="selected-tracks-preview" class="selected-tracks-preview">
-              <!-- Show selected tracks with drag-and-drop reordering -->
-            </div>
-            
-            <div class="fab-actions">
-              <button class="btn-primary btn-full" id="create-playlist-btn-full">Create Playlist</button>
-            </div>
+        <div class="playlist-history">
+          <h3>Your Created Playlists</h3>
+          <div id="history-list" class="history-list">
+            <div class="history-empty">No playlists created yet. Start creating!</div>
           </div>
         </div>
       </div>
 
+      <!-- Status Messages -->
+      <div id="status" class="status-box">Ready to start!</div>
     </div>
-    <!-- END APP SECTION -->
-
   </div>
-  <!-- END CONTAINER -->
 
   <script src="app.js"></script>
 </body>
