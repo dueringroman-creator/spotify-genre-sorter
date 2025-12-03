@@ -199,11 +199,60 @@ async function fetchSpotifyAPI(endpoint, options = {}) {
     ...options
   });
   
+  if (response.status === 401) {
+    // Token expired - try to refresh
+    console.log('Token expired (401), attempting refresh...');
+    
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      // Retry with new token
+      const retryResponse = await fetch(`https://api.spotify.com/v1/${endpoint}`, {
+        headers: {
+          'Authorization': `Bearer ${spotifyToken}`,
+          ...options.headers
+        },
+        ...options
+      });
+      
+      if (!retryResponse.ok) {
+        throw new Error(`Spotify API error after refresh: ${retryResponse.status}`);
+      }
+      
+      return retryResponse.json();
+    } else {
+      // Refresh failed - redirect to login
+      console.error('Token refresh failed, redirecting to login...');
+      showNotification('Session expired. Please log in again.', 'error');
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000);
+      throw new Error('Authentication expired');
+    }
+  }
+  
   if (!response.ok) {
     throw new Error(`Spotify API error: ${response.status}`);
   }
   
   return response.json();
+}
+
+// Refresh access token using refresh token
+async function refreshAccessToken() {
+  const refreshToken = localStorage.getItem('spotify_refresh_token');
+  if (!refreshToken) {
+    return false;
+  }
+  
+  try {
+    // Note: This requires your backend to handle refresh
+    // For now, just clear tokens and require re-login
+    console.warn('Token refresh requires backend support');
+    return false;
+  } catch (error) {
+    console.error('Failed to refresh token:', error);
+    return false;
+  }
 }
 
 async function fetchAllLikedSongs(progressCallback) {
@@ -888,6 +937,57 @@ function updateMaxPlaylistSize() {
 // ===== PLAYLIST GENERATION =====
 
 // ===== SMART SHUFFLE & ARTIST DIVERSITY =====
+
+// ===== SHUFFLE UTILITIES =====
+
+function shuffleArray(array) {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+function smartShuffle(tracks) {
+  // Smart shuffle: Distribute artists and genres evenly
+  // Group by artist
+  const artistGroups = {};
+  tracks.forEach(track => {
+    const artistId = track.artists[0].id;
+    if (!artistGroups[artistId]) {
+      artistGroups[artistId] = [];
+    }
+    artistGroups[artistId].push(track);
+  });
+  
+  // Shuffle within each artist group
+  Object.keys(artistGroups).forEach(artistId => {
+    artistGroups[artistId] = shuffleArray(artistGroups[artistId]);
+  });
+  
+  // Interleave tracks from different artists
+  const result = [];
+  const artistIds = Object.keys(artistGroups);
+  let currentIndex = 0;
+  
+  while (Object.keys(artistGroups).length > 0) {
+    const artistId = artistIds[currentIndex % artistIds.length];
+    if (artistGroups[artistId] && artistGroups[artistId].length > 0) {
+      result.push(artistGroups[artistId].shift());
+    }
+    if (artistGroups[artistId] && artistGroups[artistId].length === 0) {
+      delete artistGroups[artistId];
+      artistIds.splice(currentIndex % artistIds.length, 1);
+    } else {
+      currentIndex++;
+    }
+  }
+  
+  return result;
+}
+
+// ===== PLAYLIST GENERATION =====
 
 function generatePlaylistTracks() {
   let allTracks = [];
@@ -3405,14 +3505,14 @@ function showRecommendationPlaylistPreview(name, tracks, description) {
         <span>${formatDuration(totalDuration)}</span>
       </div>
       <div class="rec-preview-track-list">
-        ${tracks.slice(0, 10).map((track, i) => `
+        ${tracks.slice(0, 30).map((track, i) => `
           <div class="rec-preview-track">
             <span class="rec-preview-track-num">${i + 1}</span>
             <span class="rec-preview-track-name">${escapeHtml(track.name)}</span>
             <span class="rec-preview-track-artist">${escapeHtml(track.artists[0].name)}</span>
           </div>
         `).join('')}
-        ${tracks.length > 10 ? `<div class="rec-preview-more">+ ${tracks.length - 10} more tracks</div>` : ''}
+        ${tracks.length > 30 ? `<div class="rec-preview-more">+ ${tracks.length - 30} more tracks</div>` : ''}
       </div>
     `;
   }
@@ -3449,8 +3549,61 @@ async function createRecommendationPlaylist() {
     
   } catch (error) {
     console.error('Error creating recommendation playlist:', error);
-    showNotification('Failed to create playlist', 'error');
+    showNotification('Failed to create playlist. Try "Load into Builder" instead.', 'error');
   }
+}
+
+function loadRecommendationIntoBuilder() {
+  const { name, tracks, description } = window.currentRecommendationPlaylist || {};
+  
+  if (!tracks || tracks.length === 0) {
+    showNotification('No tracks to load', 'error');
+    return;
+  }
+  
+  closeRecommendationPreview();
+  
+  // Clear current selection
+  selectedTracks.clear();
+  selectedGenres.clear();
+  
+  // Add all tracks to selection
+  tracks.forEach(track => {
+    selectedTracks.add(track.id);
+  });
+  
+  // Extract genres from tracks
+  const genres = new Set();
+  tracks.forEach(track => {
+    // Find which genres this track belongs to
+    for (const [genre, genreTracks] of Object.entries(genreSongMap)) {
+      if (genreTracks.some(t => t.id === track.id)) {
+        genres.add(genre);
+      }
+    }
+  });
+  
+  // Add genres to selection
+  genres.forEach(genre => selectedGenres.add(genre));
+  
+  // Update playlist name
+  const playlistNameInput = document.getElementById('playlist-name');
+  if (playlistNameInput) {
+    playlistNameInput.value = name;
+  }
+  
+  // Update UI
+  renderGenreGrid();
+  updateRightPanel();
+  updateSelectionPanel();
+  
+  // Scroll to genre section
+  const genreSection = document.getElementById('genre-section');
+  if (genreSection) {
+    genreSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  
+  showNotification(`✅ Loaded ${tracks.length} tracks into playlist builder!`, 'success');
 }
 
 // ===== PLAYLIST SELECTOR =====
@@ -3732,3 +3885,40 @@ function selectAllGenreTracksInModal() {
   updateSelectionPanel();
   showNotification(`All tracks selected!`, 'success');
 }
+
+// ===== COLLAPSIBLE RIGHT PANEL =====
+
+function toggleRightPanel() {
+  const rightPanel = document.getElementById('right-panel');
+  const expandTab = document.getElementById('panel-expand-tab');
+  const collapseBtn = document.getElementById('panel-collapse-btn');
+  const leftPanel = document.querySelector('.left-panel');
+  
+  if (!rightPanel || !expandTab) return;
+  
+  const isCollapsed = rightPanel.classList.contains('collapsed');
+  
+  if (isCollapsed) {
+    // Expand
+    rightPanel.classList.remove('collapsed');
+    expandTab.style.display = 'none';
+    if (collapseBtn) collapseBtn.textContent = '←';
+    if (leftPanel) leftPanel.classList.remove('full-width');
+    localStorage.setItem('rightPanelCollapsed', 'false');
+  } else {
+    // Collapse
+    rightPanel.classList.add('collapsed');
+    expandTab.style.display = 'flex';
+    if (collapseBtn) collapseBtn.textContent = '→';
+    if (leftPanel) leftPanel.classList.add('full-width');
+    localStorage.setItem('rightPanelCollapsed', 'true');
+  }
+}
+
+// Restore panel state on load
+window.addEventListener('DOMContentLoaded', () => {
+  const wasCollapsed = localStorage.getItem('rightPanelCollapsed') === 'true';
+  if (wasCollapsed) {
+    toggleRightPanel();
+  }
+});
