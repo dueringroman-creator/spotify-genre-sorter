@@ -999,9 +999,6 @@ window.addEventListener('load', () => {
     }
   }
   
-  // Initialize FAB
-  initFAB();
-  
   // Show tour on first login (mandatory until completed or skipped)
   if (!localStorage.getItem('tour_completed')) {
     const checkLogin = setInterval(() => {
@@ -1012,110 +1009,6 @@ window.addEventListener('load', () => {
     }, 500);
   }
 });
-
-// ===== FLOATING ACTION BUTTON (FAB) =====
-
-let fabState = 'collapsed'; // collapsed | expanded | full
-
-function initFAB() {
-  const fabCollapsed = document.getElementById('fab-collapsed');
-  
-  if (fabCollapsed) {
-    fabCollapsed.addEventListener('click', expandFAB);
-  }
-  
-  // Create playlist buttons
-  const createBtn = document.getElementById('create-playlist-btn');
-  const createBtnFull = document.getElementById('create-playlist-btn-full');
-  
-  if (createBtn) createBtn.addEventListener('click', handleCreatePlaylist);
-  if (createBtnFull) createBtnFull.addEventListener('click', handleCreatePlaylist);
-  
-  // Close FAB when clicking outside
-  document.addEventListener('click', (e) => {
-    const fab = document.getElementById('floating-action-button');
-    if (fab && !fab.contains(e.target) && fabState !== 'collapsed') {
-      if (!e.target.closest('.genre-item, .artist-item, .track-item')) {
-        collapseFAB();
-      }
-    }
-  });
-}
-
-function showFAB() {
-  const fab = document.getElementById('floating-action-button');
-  if (fab) fab.classList.remove('hidden');
-}
-
-function hideFAB() {
-  const fab = document.getElementById('floating-action-button');
-  if (fab) fab.classList.add('hidden');
-  collapseFAB();
-}
-
-function updateFABCount(count) {
-  const fabCount = document.getElementById('fab-count');
-  if (fabCount) fabCount.textContent = count;
-}
-
-function expandFAB() {
-  fabState = 'expanded';
-  
-  document.getElementById('fab-collapsed')?.classList.add('hidden');
-  document.getElementById('fab-expanded')?.classList.remove('hidden');
-  document.getElementById('fab-full')?.classList.add('hidden');
-}
-
-function expandFABFull() {
-  fabState = 'full';
-  
-  document.getElementById('fab-collapsed')?.classList.add('hidden');
-  document.getElementById('fab-expanded')?.classList.add('hidden');
-  document.getElementById('fab-full')?.classList.remove('hidden');
-}
-
-function minimizeFABToExpanded() {
-  fabState = 'expanded';
-  
-  document.getElementById('fab-collapsed')?.classList.add('hidden');
-  document.getElementById('fab-expanded')?.classList.remove('hidden');
-  document.getElementById('fab-full')?.classList.add('hidden');
-}
-
-function collapseFAB() {
-  fabState = 'collapsed';
-  
-  document.getElementById('fab-collapsed')?.classList.remove('hidden');
-  document.getElementById('fab-expanded')?.classList.add('hidden');
-  document.getElementById('fab-full')?.classList.add('hidden');
-}
-
-async function handleCreatePlaylist() {
-  // Get playlist name from whichever form is visible
-  let playlistName;
-  if (fabState === 'full') {
-    playlistName = document.getElementById('playlist-name-full')?.value || 'My Playlist';
-  } else {
-    playlistName = document.getElementById('playlist-name')?.value || 'My Playlist';
-  }
-  
-  // Get mode from whichever form is visible
-  let mode;
-  if (fabState === 'full') {
-    const modeRadio = document.querySelector('input[name="playlist-mode-full"]:checked');
-    mode = modeRadio ? modeRadio.value : 'merged';
-  } else {
-    const modeRadio = document.querySelector('input[name="playlist-mode"]:checked');
-    mode = modeRadio ? modeRadio.value : 'merged';
-  }
-  
-  // Call the original create playlist function
-  if (mode === 'merged') {
-    await createMergedPlaylist(playlistName);
-  } else {
-    await createSeparatePlaylists();
-  }
-}
 
 // ===== LIBRARY MODE - FETCH TRACKS =====
 
@@ -1215,86 +1108,31 @@ document.getElementById('refresh-cache').addEventListener('click', async () => {
 
 async function fetchLikedSongs() {
   updateStatus('Loading your Spotify library...');
-  
-  // Get selected timeframe
-  const timeframeRadio = document.querySelector('input[name="timeframe"]:checked');
-  const timeframe = timeframeRadio ? timeframeRadio.value : 'all';
-  
-  // Calculate cutoff date
-  const cutoffDate = calculateCutoffDate(timeframe);
-  const hasTimeLimit = cutoffDate !== null;
-  
-  if (hasTimeLimit) {
-    console.log(`📅 Smart fetch: Only loading tracks from ${timeframe}`);
-    console.log(`📅 Cutoff date: ${cutoffDate.toLocaleDateString()}`);
-  }
-  
   let all = [];
   const limit = 50;
   let offset = 0;
-  let pageCount = 0;
   
   while (true) {
-    pageCount++;
     const resp = await fetchWithRetry(`https://api.spotify.com/v1/me/tracks?limit=${limit}&offset=${offset}`, {
       headers: { 'Authorization': `Bearer ${window.spotifyToken}` }
     });
     const data = await resp.json();
+    all.push(...data.items);
     
-    // Check each item for date cutoff
-    let stoppedEarly = false;
-    for (let item of data.items) {
-      if (hasTimeLimit) {
-        const addedDate = new Date(item.added_at);
-        if (addedDate < cutoffDate) {
-          console.log(`⏹️ Stopped early at song from ${addedDate.toLocaleDateString()}`);
-          console.log(`✅ Fetched ${all.length} tracks (${pageCount} pages) - MUCH FASTER!`);
-          stoppedEarly = true;
-          break;
-        }
-      }
-      all.push(item);
-    }
-    
-    // Update status
     if (all.length > 5000) {
       updateStatus(`${all.length} songs found. This may take a moment...`);
     } else if (all.length > 1000) {
       updateStatus(`${all.length} tracks and counting...`);
     } else {
-      updateStatus(`Fetched ${all.length} tracks... (page ${pageCount})`);
+      updateStatus(`Fetched ${all.length} tracks...`);
     }
     
-    if (stoppedEarly || !data.next) break;
+    if (!data.next) break;
     offset += limit;
-    
-    // Small delay for rate limiting
-    await new Promise(resolve => setTimeout(resolve, 50));
   }
   
-  cachedLibraryData = { type: 'tracks', items: all, timeframe: timeframe };
+  cachedLibraryData = { type: 'tracks', items: all };
   updateStatus(`Loaded ${all.length} tracks successfully`);
-}
-
-// Helper function to calculate cutoff dates
-function calculateCutoffDate(timeframe) {
-  const now = new Date();
-  
-  switch (timeframe) {
-    case 'week':
-      return new Date(now.setDate(now.getDate() - 7));
-    case 'month':
-      return new Date(now.setMonth(now.getMonth() - 1));
-    case '3months':
-      return new Date(now.setMonth(now.getMonth() - 3));
-    case '6months':
-      return new Date(now.setMonth(now.getMonth() - 6));
-    case 'year':
-      return new Date(now.setFullYear(now.getFullYear() - 1));
-    case 'all':
-    default:
-      return null; // No cutoff
-  }
 }
 
 async function fetchTopArtists() {
@@ -2166,13 +2004,18 @@ function updateSelectedCount() {
   }
   
   // Update FAB count and visibility
-  updateFABCount(selectedGenres.size);
+  const fabCount = document.getElementById('fab-count');
+  const fabButton = document.getElementById('floating-create-btn');
   
-  if (selectedGenres.size > 0) {
-    showFAB();
-  } else {
-    hideFAB();
+  if (fabCount) {
+    fabCount.textContent = selectedGenres.size === 1 
+      ? '1 genre' 
+      : `${selectedGenres.size} genres`;
   }
+  
+  if (fabButton) {
+    if (selectedGenres.size > 0) {
+      fabButton.classList.remove('hidden');
     } else {
       fabButton.classList.add('hidden');
     }
