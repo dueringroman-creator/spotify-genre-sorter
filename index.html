@@ -190,6 +190,19 @@
           </label>
           <div class="option-description">Your entire liked songs collection - perfect for big libraries!</div>
           
+          <!-- Timeframe Selector -->
+          <div class="timeframe-selector" id="liked-timeframe-selector">
+            <label class="timeframe-label">Timeframe:</label>
+            <select id="liked-timeframe" class="timeframe-select">
+              <option value="all">All time</option>
+              <option value="year">Past year</option>
+              <option value="6months">Past 6 months</option>
+              <option value="3months" selected>Past 3 months</option>
+              <option value="month">Past month</option>
+              <option value="week">Past week</option>
+            </select>
+          </div>
+          
           <label>
             <input type="radio" name="data-source" value="top-artists">
             <span>Artists I listen to most</span>
@@ -201,6 +214,20 @@
             <span>All my playlists</span>
           </label>
           <div class="option-description">Scan everything - your created playlists, saved ones, and followed ones</div>
+          
+          <!-- Playlist Selector -->
+          <div class="playlist-selector hidden" id="playlist-selector">
+            <div class="playlist-selector-header">
+              <button class="btn-small" onclick="selectAllPlaylists()">Select All</button>
+              <button class="btn-small" onclick="deselectAllPlaylists()">Clear All</button>
+            </div>
+            <div class="playlist-list" id="playlist-list">
+              <!-- Populated dynamically -->
+            </div>
+            <div class="playlist-selector-footer">
+              <span id="selected-playlist-info">0 playlists selected</span>
+            </div>
+          </div>
         </div>
         
         <div class="library-controls">
@@ -220,7 +247,10 @@
                 <option value="all">All Genres (Flat)</option>
               </select>
               <input type="text" id="genre-filter" placeholder="Filter genres..." />
-              <input type="text" id="unmapped-filter" class="hidden" placeholder="Filter unmapped..." />
+              <label class="filter-checkbox hidden" id="unmapped-filter-wrapper">
+                <input type="checkbox" id="unmapped-filter-checkbox">
+                <span>Unmapped only (<span id="unmapped-count">0</span>)</span>
+              </label>
               <button id="show-unmapped-btn" class="btn-small hidden">Show Unmapped (<span id="unmapped-count">0</span>)</button>
               <button id="show-all-btn" class="btn-small hidden">Show All</button>
               <button id="select-all-genres" class="btn-small">Select All</button>
@@ -242,10 +272,25 @@
           
           <!-- Floating Create Playlist Button -->
           <div id="floating-create-btn" class="floating-create-btn hidden">
-            <button class="fab-button" onclick="scrollToPlaylistControls()">
+            <button class="fab-button" onclick="toggleFABPanel()">
               <span class="fab-icon">🎵</span>
-              <span class="fab-text">Create Playlist</span>
+              <span class="fab-text">Playlist</span>
               <span class="fab-count" id="fab-count">0 selected</span>
+            </button>
+            
+            <div class="fab-panel hidden" id="fab-panel">
+              <div class="fab-panel-header">
+                <h4>Your Playlist</h4>
+                <button class="fab-close" onclick="closeFABPanel()">×</button>
+              </div>
+              <div class="fab-panel-stats" id="fab-panel-stats"></div>
+              <div class="fab-panel-genres" id="fab-panel-genres"></div>
+              <div class="fab-panel-actions">
+                <button class="btn-secondary" onclick="closeFABPanel()">Close</button>
+                <button class="btn-primary" onclick="scrollToPlaylistControls(); closeFABPanel();">Create →</button>
+              </div>
+            </div>
+          </div>
             </button>
           </div>
           
