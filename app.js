@@ -1238,86 +1238,8 @@ async function fetchFromPlaylists() {
   updateStatus(`Loaded ${allTracks.length} unique tracks from ${selectedPlaylists.length} playlists`);
 }
 
-function showPlaylistSelectionUI(playlists) {
-  return new Promise((resolve) => {
-    // Create modal overlay
-    const modal = document.createElement('div');
-    modal.className = 'playlist-selection-modal';
-    modal.innerHTML = `
-      <div class="playlist-selection-content">
-        <h3>Select Playlists to Scan</h3>
-        <p style="color: #b3b3b3; font-size: 14px; margin-bottom: 16px;">
-          Choose which playlists to include in your library analysis
-        </p>
-        <div class="playlist-selection-actions" style="margin-bottom: 16px;">
-          <button class="btn-small" onclick="document.querySelectorAll('.playlist-selection-checkbox').forEach(cb => cb.checked = true)">Select All</button>
-          <button class="btn-small" onclick="document.querySelectorAll('.playlist-selection-checkbox').forEach(cb => cb.checked = false)">Deselect All</button>
-          <button class="btn-small" onclick="toggleShortPlaylists()">Toggle <10 Tracks</button>
-          <button class="btn-small" onclick="toggleLargePlaylists()">Toggle 100+ Tracks</button>
-        </div>
-        <div class="playlist-selection-list">
-          ${playlists.map((playlist, index) => `
-            <label class="playlist-selection-item">
-              <input type="checkbox" 
-                     class="playlist-selection-checkbox" 
-                     data-playlist-index="${index}"
-                     checked>
-              <img src="${playlist.images && playlist.images[0] ? playlist.images[0].url : 'https://via.placeholder.com/50'}" 
-                   alt="${playlist.name}"
-                   class="playlist-thumb">
-              <div class="playlist-info">
-                <div class="playlist-name">${playlist.name}</div>
-                <div class="playlist-tracks-count">${playlist.tracks.total} tracks</div>
-              </div>
-            </label>
-          `).join('')}
-        </div>
-        <div class="playlist-selection-buttons">
-          <button class="btn-small" id="cancel-playlist-selection">Cancel</button>
-          <button class="btn-primary" id="confirm-playlist-selection">Continue</button>
-        </div>
-      </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    document.getElementById('cancel-playlist-selection').addEventListener('click', () => {
-      document.body.removeChild(modal);
-      resolve(false);
-    });
-    
-    document.getElementById('confirm-playlist-selection').addEventListener('click', () => {
-      document.body.removeChild(modal);
-      resolve(true);
-    });
-  });
-}
+// Obsolete modal code removed - now using inline playlist selector
 
-function toggleShortPlaylists() {
-  const checkboxes = document.querySelectorAll('.playlist-selection-checkbox');
-  checkboxes.forEach((checkbox, index) => {
-    const playlistItem = checkbox.closest('.playlist-selection-item');
-    const tracksText = playlistItem.querySelector('.playlist-tracks-count').textContent;
-    const trackCount = parseInt(tracksText);
-    
-    if (trackCount < 10) {
-      checkbox.checked = !checkbox.checked;
-    }
-  });
-}
-
-function toggleLargePlaylists() {
-  const checkboxes = document.querySelectorAll('.playlist-selection-checkbox');
-  checkboxes.forEach((checkbox, index) => {
-    const playlistItem = checkbox.closest('.playlist-selection-item');
-    const tracksText = playlistItem.querySelector('.playlist-tracks-count').textContent;
-    const trackCount = parseInt(tracksText);
-    
-    if (trackCount >= 100) {
-      checkbox.checked = !checkbox.checked;
-    }
-  });
-}
 
 async function processLibraryData(dataSource) {
   updateStatus('Organizing your music...');
@@ -2128,18 +2050,6 @@ document.getElementById('show-unmapped-btn').addEventListener('click', () => {
 
 document.getElementById('show-all-btn').addEventListener('click', () => {
   showAllGenres();
-});
-
-// Unmapped filter input
-document.getElementById('unmapped-filter').addEventListener('input', (e) => {
-  const query = e.target.value.toLowerCase();
-  const genreItems = document.querySelectorAll('.genre-item[data-unmapped="true"]');
-  
-  genreItems.forEach(item => {
-    const genre = item.getAttribute('data-genre').toLowerCase();
-    const shouldShow = genre.includes(query) || query === '';
-    item.style.display = shouldShow ? 'block' : 'none';
-  });
 });
 
 // ===== CREATE PLAYLIST FROM LIBRARY =====
