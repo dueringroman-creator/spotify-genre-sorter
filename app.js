@@ -1012,6 +1012,18 @@ window.addEventListener('load', () => {
 
 // ===== LIBRARY MODE - FETCH TRACKS =====
 
+// Show/hide playlist selector based on data source selection
+document.querySelectorAll('input[name="data-source"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const playlistSelector = document.getElementById('playlist-selector');
+    if (radio.value === 'playlists' && radio.checked) {
+      populatePlaylistSelector();
+    } else {
+      playlistSelector.classList.add('hidden');
+    }
+  });
+});
+
 document.getElementById('fetch-tracks').addEventListener('click', async () => {
   if (!window.spotifyToken) return;
   
@@ -1132,7 +1144,14 @@ async function fetchLikedSongs() {
   }
   
   cachedLibraryData = { type: 'tracks', items: all };
-  updateStatus(`Loaded ${all.length} tracks successfully`);
+  
+  // Apply timeframe filter
+  const timeframe = document.getElementById('liked-timeframe').value;
+  const filtered = filterByTimeframe(all, timeframe);
+  cachedLibraryData = { type: 'tracks', items: filtered };
+  
+  const timeframeLabel = getTimeframeLabel(timeframe);
+  updateStatus(`Loaded ${filtered.length} tracks from ${timeframeLabel}`);
 }
 
 async function fetchTopArtists() {
@@ -1167,41 +1186,21 @@ async function fetchTopArtists() {
 }
 
 async function fetchFromPlaylists() {
-  updateStatus('Fetching your playlists...');
+  updateStatus('Using selected playlists...');
   
-  let allPlaylists = [];
-  let offset = 0;
-  const limit = 50;
+  // Get selected playlist IDs from checkboxes
+  const checkboxes = document.querySelectorAll('.playlist-item input[type="checkbox"]:checked');
+  const selectedPlaylistIds = Array.from(checkboxes).map(cb => cb.dataset.playlistId);
   
-  // First, fetch all playlists
-  while (true) {
-    const resp = await fetchWithRetry(
-      `https://api.spotify.com/v1/me/playlists?limit=${limit}&offset=${offset}`,
-      { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
-    );
-    const data = await resp.json();
-    allPlaylists.push(...data.items);
-    if (!data.next) break;
-    offset += limit;
-  }
-  
-  // Show playlist selection UI
-  const shouldContinue = await showPlaylistSelectionUI(allPlaylists);
-  if (!shouldContinue) {
-    updateStatus('Playlist selection cancelled');
-    return;
-  }
-  
-  // Get selected playlists
-  const selectedPlaylists = allPlaylists.filter((_, index) => {
-    const checkbox = document.querySelector(`input[data-playlist-index="${index}"]`);
-    return checkbox && checkbox.checked;
-  });
-  
-  if (selectedPlaylists.length === 0) {
+  if (selectedPlaylistIds.length === 0) {
     updateStatus('No playlists selected');
     return;
   }
+  
+  // Get full playlist objects
+  const selectedPlaylists = window.userPlaylists.filter(p => 
+    selectedPlaylistIds.includes(p.id)
+  );
   
   updateStatus(`Loading tracks from ${selectedPlaylists.length} selected playlists...`);
   
@@ -2016,8 +2015,13 @@ function updateSelectedCount() {
   if (fabButton) {
     if (selectedGenres.size > 0) {
       fabButton.classList.remove('hidden');
+      // Update FAB panel if it's open
+      if (!document.getElementById('fab-panel').classList.contains('hidden')) {
+        updateFABPanel();
+      }
     } else {
       fabButton.classList.add('hidden');
+      closeFABPanel();
     }
   }
   
@@ -2662,3 +2666,220 @@ window.onload = () => {
     });
   }
 };
+
+// ===== TIMEFRAME FILTERING =====
+function filterByTimeframe(tracks, timeframe) {
+  if (timeframe === 'all') return tracks;
+  
+  const now = Date.now();
+  const cutoffs = {
+    week: 7 * 24 * 60 * 60 * 1000,
+    month: 30 * 24 * 60 * 60 * 1000,
+    '3months': 90 * 24 * 60 * 60 * 1000,
+    '6months': 180 * 24 * 60 * 60 * 1000,
+    year: 365 * 24 * 60 * 60 * 1000
+  };
+  
+  const cutoff = now - cutoffs[timeframe];
+  
+  return tracks.filter(item => {
+    const addedAt = new Date(item.added_at).getTime();
+    return addedAt >= cutoff;
+  });
+}
+
+function getTimeframeLabel(timeframe) {
+  const labels = {
+    all: 'all time',
+    week: 'past week',
+    month: 'past month',
+    '3months': 'past 3 months',
+    '6months': 'past 6 months',
+    year: 'past year'
+  };
+  return labels[timeframe] || 'all time';
+}
+
+
+// ===== PLAYLIST SELECTION =====
+function selectAllPlaylists() {
+  const checkboxes = document.querySelectorAll('.playlist-item input[type="checkbox"]');
+  checkboxes.forEach(cb => cb.checked = true);
+  updatePlaylistSelectionCount();
+}
+
+function deselectAllPlaylists() {
+  const checkboxes = document.querySelectorAll('.playlist-item input[type="checkbox"]');
+  checkboxes.forEach(cb => cb.checked = false);
+  updatePlaylistSelectionCount();
+}
+
+function updatePlaylistSelectionCount() {
+  const checkboxes = document.querySelectorAll('.playlist-item input[type="checkbox"]');
+  const checked = Array.from(checkboxes).filter(cb => cb.checked);
+  
+  let totalTracks = 0;
+  checked.forEach(cb => {
+    const trackCount = parseInt(cb.dataset.trackCount) || 0;
+    totalTracks += trackCount;
+  });
+  
+  document.getElementById('selected-playlist-info').textContent = 
+    `${checked.length} playlists selected (${totalTracks} tracks)`;
+}
+
+async function populatePlaylistSelector() {
+  const playlistList = document.getElementById('playlist-list');
+  playlistList.innerHTML = '<div style="color: #7f7f7f; padding: 10px;">Loading playlists...</div>';
+  
+  // Show the selector
+  document.getElementById('playlist-selector').classList.remove('hidden');
+  
+  try {
+    let allPlaylists = [];
+    let offset = 0;
+    const limit = 50;
+    
+    // Fetch all playlists
+    while (true) {
+      const resp = await fetchWithRetry(
+        `https://api.spotify.com/v1/me/playlists?limit=${limit}&offset=${offset}`,
+        { headers: { 'Authorization': `Bearer ${window.spotifyToken}` } }
+      );
+      const data = await resp.json();
+      allPlaylists.push(...data.items);
+      
+      if (!data.next) break;
+      offset += limit;
+    }
+    
+    // Store for later use
+    window.userPlaylists = allPlaylists;
+    
+    // Render checkboxes
+    playlistList.innerHTML = '';
+    allPlaylists.forEach(playlist => {
+      const item = document.createElement('div');
+      item.className = 'playlist-item';
+      
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = true;
+      checkbox.dataset.playlistId = playlist.id;
+      checkbox.dataset.trackCount = playlist.tracks.total;
+      checkbox.onchange = updatePlaylistSelectionCount;
+      
+      const info = document.createElement('div');
+      info.className = 'playlist-item-info';
+      
+      const name = document.createElement('div');
+      name.className = 'playlist-item-name';
+      name.textContent = playlist.name;
+      
+      const count = document.createElement('div');
+      count.className = 'playlist-item-count';
+      count.textContent = `${playlist.tracks.total} tracks`;
+      
+      info.appendChild(name);
+      info.appendChild(count);
+      
+      item.appendChild(checkbox);
+      item.appendChild(info);
+      item.onclick = (e) => {
+        if (e.target !== checkbox) {
+          checkbox.checked = !checkbox.checked;
+          updatePlaylistSelectionCount();
+        }
+      };
+      
+      playlistList.appendChild(item);
+    });
+    
+    updatePlaylistSelectionCount();
+    
+  } catch (error) {
+    playlistList.innerHTML = '<div style="color: #e74c3c; padding: 10px;">Error loading playlists</div>';
+    console.error('Error fetching playlists:', error);
+  }
+}
+
+
+// ===== UNMAPPED FILTER CHECKBOX =====
+document.getElementById('unmapped-filter-checkbox')?.addEventListener('change', function() {
+  const allGenres = document.querySelectorAll('.genre-item, .subgenre-item, .genre-row');
+  allGenres.forEach(genre => {
+    if (this.checked) {
+      // Show only unmapped
+      const isUnmapped = genre.getAttribute('data-unmapped') === 'true';
+      genre.style.display = isUnmapped ? '' : 'none';
+    } else {
+      // Show all
+      genre.style.display = '';
+    }
+  });
+});
+
+// ===== ENHANCED FAB PANEL =====
+function toggleFABPanel() {
+  const panel = document.getElementById('fab-panel');
+  if (panel.classList.contains('hidden')) {
+    openFABPanel();
+  } else {
+    closeFABPanel();
+  }
+}
+
+function openFABPanel() {
+  document.getElementById('fab-panel').classList.remove('hidden');
+  updateFABPanel();
+}
+
+function closeFABPanel() {
+  document.getElementById('fab-panel').classList.add('hidden');
+}
+
+function updateFABPanel() {
+  if (!selectedGenres || selectedGenres.size === 0) return;
+  
+  // Calculate stats
+  let totalTracks = 0;
+  let totalDuration = 0;
+  const genreStats = [];
+  
+  selectedGenres.forEach(genre => {
+    const tracks = genreSongMap[genre] || [];
+    const filteredTracks = getFilteredTracksForGenre(genre);
+    
+    totalTracks += filteredTracks.length;
+    
+    filteredTracks.forEach(track => {
+      totalDuration += track.duration_ms || 0;
+    });
+    
+    genreStats.push({
+      name: genre,
+      count: filteredTracks.length
+    });
+  });
+  
+  // Sort by count
+  genreStats.sort((a, b) => b.count - a.count);
+  
+  // Format duration
+  const hours = Math.floor(totalDuration / 3600000);
+  const minutes = Math.floor((totalDuration % 3600000) / 60000);
+  const durationStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  
+  // Update stats
+  document.getElementById('fab-panel-stats').textContent = 
+    `${selectedGenres.size} genres • ${totalTracks} tracks • ${durationStr}`;
+  
+  // Update genres list
+  const genresContainer = document.getElementById('fab-panel-genres');
+  genresContainer.innerHTML = genreStats.map(g => `
+    <div class="fab-panel-genre-item">
+      <span class="fab-panel-genre-name">${g.name}</span>
+      <span class="fab-panel-genre-count">${g.count} tracks</span>
+    </div>
+  `).join('');
+}
